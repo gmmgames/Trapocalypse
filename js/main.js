@@ -179,9 +179,13 @@ const Game = {
     if (message.type === "joined") return;
     if (message.type === "room_state") {
       this.applyRoomState(message);
-      Player.spawn();
-      if (this.phase === "build") this.say("Pick a color, then place your trap.", 3);
-      else if (this.phase === "run") { Player.alive = false; this.say("Round in progress. Pick a color for next round.", 3); }
+      // A room update arrives whenever anyone joins or leaves, even mid-run.
+      // Only reset the runner if we are building, or if the server says we are
+      // sitting this round out. Anyone already running, dead, or finished keeps
+      // exactly where they were.
+      const me = this.players.find((player) => player.id === Network.id);
+      if (this.phase === "build") { Player.spawn(); this.say("Pick a color, then place your trap.", 3); }
+      else if (me && me.status === "out") { Player.spawn(); Player.alive = false; this.say("Round in progress. Pick a color for next round.", 3); }
     }
     if (message.type === "round_start") {
       this.applyRoomState(message);
