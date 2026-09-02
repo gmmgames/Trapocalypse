@@ -21,6 +21,7 @@ const ROUNDS_PER_LEVEL = 3;    // rounds on one course before rotating to the ne
 const NEXT_ROUND_DELAY = 4;    // seconds the scoreboard shows before the next build phase
 const FINISH_POINTS = 1;       // points for reaching the flag
 const FIRST_BONUS = 1;         // extra point for the first finisher when 3+ play and 2+ finish
+const KILL_POINTS = 1;         // points to a trap's owner each time it kills someone else
 const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
@@ -204,7 +205,13 @@ webSocketServer.on("connection", (socket) => {
     }
     if (message.type === "died" && room.phase === "run" && player.status === "running") {
       player.status = "dead";
-      broadcast(room, { type: "status", playerId: player.id, status: "dead" });
+      // Credit the trap's owner. The trap is looked up by position in the server's own
+      // list, not trusted from the browser, so nobody can award points to themselves.
+      // Level spikes and falls have no owner. Your own trap never pays you.
+      const trap = room.traps.find((item) => item.x === Number(message.trapX) && item.y === Number(message.trapY));
+      const killer = trap && trap.owner !== player.id ? room.players.get(trap.owner) : null;
+      if (killer) killer.score += KILL_POINTS;
+      broadcast(room, { type: "status", playerId: player.id, status: "dead", killedBy: killer ? killer.id : null, killPoints: KILL_POINTS });
       checkRoundOver(room);
     }
     if (message.type === "finished" && room.phase === "run" && player.status === "running") {

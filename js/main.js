@@ -228,7 +228,16 @@ const Game = {
     if (message.type === "status") {
       const who = this.players.find((player) => player.id === message.playerId);
       if (who) who.status = message.status;
-      if (message.playerId !== Network.id && who) {
+      // A death by someone's trap: the server tells us who owns it and what it paid.
+      const killer = message.killedBy ? this.players.find((player) => player.id === message.killedBy) : null;
+      if (killer) {
+        const victim = who ? who.name : "someone";
+        if (killer.id === Network.id) this.say(`Your trap got ${victim}! +${message.killPoints}`, 2);
+        else if (message.playerId === Network.id) this.say(`${killer.name}'s trap got you! Watching the others...`, 4);
+        else this.say(`${killer.name}'s trap got ${victim}!`, 1.5);
+        killer.score += message.killPoints;   // keep the room panel's scores current until the next full update
+        this.showScores();
+      } else if (message.playerId !== Network.id && who) {
         this.say(message.status === "dead" ? `${who.name} is out!` : `${who.name} made it!`, 1.5);
       }
     }
@@ -294,10 +303,11 @@ const Game = {
     this._messageTimer = seconds;
   },
 
-  onPlayerDied() {
+  onPlayerDied(hazard) {
     if (this.mode === "online") {
       // One life per round: no respawn until the next round starts.
-      Network.send({ type: "died" });
+      // Tell the server which spike got us (by grid position) so its owner can score.
+      Network.send({ type: "died", trapX: hazard ? hazard.x : null, trapY: hazard ? hazard.y : null });
       this.say("You're out! Watching the others...", 4);
       return;
     }

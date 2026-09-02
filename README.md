@@ -74,6 +74,7 @@ Open `server.js` for the round rules, then restart the server:
 - `ROUNDS_PER_LEVEL` how many rounds before the room moves to the next level
 - `NEXT_ROUND_DELAY` seconds the scoreboard shows before the next round
 - `FINISH_POINTS` for reaching the flag, `FIRST_BONUS` for the first finisher in a race of three or more
+- `KILL_POINTS` for the owner of a trap each time it kills someone else (level spikes, falls, and your own trap pay nothing)
 - `MAX_PLAYERS` room size (24, one per palette color)
 
 The 24 swatch colors live in `PALETTE` at the top of `js/main.js`.

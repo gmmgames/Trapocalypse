@@ -66,7 +66,7 @@ const Player = {
     // Traps are checked after movement so brushing a spike is immediately fatal.
     for (const hazard of Level.hazards) {
       if (Physics.overlaps(this, hazard)) {
-        this.die();
+        this.die(hazard);   // pass the spike along so its owner can get credit
         return;
       }
     }
@@ -82,9 +82,10 @@ const Player = {
     if (Physics.overlaps(this, Level.flag)) this.finish();
   },
 
-  die() {
+  // hazard is the spike that got us, or nothing if we fell off the bottom.
+  die(hazard = null) {
     this.alive = false;
-    Game.onPlayerDied();
+    Game.onPlayerDied(hazard);
   },
 
   finish() {
