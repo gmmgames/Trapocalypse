@@ -1,0 +1,253 @@
+/* ------------------------------------------------------------
+   Trapocalypse styles
+   The game itself is drawn on the canvas. CSS only handles the
+   page around it: dark background, centering, and touch buttons.
+   ------------------------------------------------------------ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  background: #0b0b14;
+  color: #e8e8ff;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;              /* no scrollbars, ever */
+  touch-action: none;            /* stop phones from scrolling or zooming while playing */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Wrapper keeps the 16:9 shape and scales to fit whatever screen we are on. */
+#game-wrap {
+  position: relative;
+  width: min(100vw, calc(100vh * 16 / 9));
+  aspect-ratio: 16 / 9;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #0b0b14;
+  image-rendering: pixelated;    /* crisp edges when scaled up */
+  box-shadow: 0 0 40px rgba(255, 60, 120, 0.25);
+}
+
+/* Message box in the top-left corner of the game */
+#hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font-size: clamp(14px, 2.2vw, 22px);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #ff3c78;
+  text-shadow: 0 0 10px rgba(255, 60, 120, 0.8);
+  pointer-events: none;          /* clicks go through it to the canvas */
+}
+
+#online-panel {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  gap: 8px;
+  width: 220px;
+  padding: 12px;
+  border: 1px solid #ffd23c;
+  border-radius: 6px;
+  background: rgba(22, 22, 37, 0.94);
+  color: #ffd23c;
+  font: inherit;
+  z-index: 2;
+}
+
+#online-panel input {
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #45455d;
+  border-radius: 4px;
+  background: #0b0b14;
+  color: #e8e8ff;
+}
+
+#online-panel button {
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffd23c;
+  color: #0b0b14;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+#online-status {
+  color: #e8e8ff;
+  font-size: 12px;
+}
+
+#build-hud {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+  min-width: 240px;
+  padding: 16px;
+  border: 1px solid rgba(255, 210, 60, 0.7);
+  border-radius: 6px;
+  background: rgba(11, 11, 20, 0.92);
+  color: #ffd23c;
+  text-align: center;
+  pointer-events: none;
+}
+
+#build-hud:not(.hidden) {
+  display: grid;
+  gap: 8px;
+}
+
+#build-hud span {
+  color: #e8e8ff;
+  font-size: 14px;
+}
+
+#start-run {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffd23c;
+  color: #0b0b14;
+  font-weight: 800;
+  pointer-events: auto;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ---------------- Color picker ---------------- */
+
+#color-picker {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(255, 210, 60, 0.7);
+  border-radius: 6px;
+  background: rgba(11, 11, 20, 0.94);
+  color: #ffd23c;
+  text-align: center;
+  z-index: 3;
+}
+
+#swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);   /* 4 rows x 6 columns = 24 colors */
+  gap: 6px;
+}
+
+.swatch {
+  position: relative;
+  width: clamp(28px, 5vw, 44px);
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch:hover:not(:disabled) {
+  border-color: #ffffff;
+  transform: scale(1.08);
+}
+
+.swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+/* Cross out a swatch another player already took */
+.swatch:disabled::after {
+  content: "";
+  position: absolute;
+  inset: 40% -10%;
+  height: 2px;
+  margin: auto;
+  background: #ffffff;
+  transform: rotate(-45deg);
+}
+
+#color-note {
+  color: #e8e8ff;
+  font-size: 12px;
+}
+
+/* ---------------- Touch controls ---------------- */
+
+#touch-controls {
+  display: none;                 /* hidden by default, shown on touch devices below */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px 18px;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;          /* only the buttons should catch taps */
+}
+
+.touch-group {
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.touch-btn {
+  width: 72px;
+  height: 72px;
+  border: 2px solid rgba(255, 60, 120, 0.7);
+  border-radius: 18px;
+  background: rgba(255, 60, 120, 0.15);
+  color: #ff3c78;
+  font-size: 26px;
+  font-weight: 800;
+  touch-action: none;
+}
+
+.touch-btn.jump {
+  width: 110px;
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+
+.touch-btn:active,
+.touch-btn.pressed {
+  background: rgba(255, 60, 120, 0.45);
+}
+
+/* "pointer: coarse" means the main pointer is a finger, not a mouse. */
+@media (pointer: coarse) {
+  #touch-controls {
+    display: flex;
+  }
+  #game-wrap {
+    /* Leave room at the bottom so buttons do not cover the game */
+    width: min(100vw, calc((100vh - 110px) * 16 / 9));
+  }
+}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- This line makes the game fit phone screens instead of zooming out. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Trapocalypse</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- The game draws everything onto this canvas, like a painting we redraw 60 times a second. -->
+  <div id="game-wrap">
+    <canvas id="game" width="960" height="540"></canvas>
+
+    <!-- Little text box in the corner. Useful for messages like "You made it!" -->
+    <div id="hud"></div>
+    <div id="build-hud">
+      <strong id="build-title">BUILD PHASE</strong>
+      <span id="build-instructions">Place traps for the other runner.</span>
+      <button id="start-run" type="button">Start Run</button>
+    </div>
+
+    <!-- Color picker shown at the start of every online round. main.js fills in the 24 swatches. -->
+    <div id="color-picker" class="hidden">
+      <strong>PICK YOUR COLOR</strong>
+      <div id="swatches"></div>
+      <span id="color-note">Taken colors are crossed out.</span>
+    </div>
+  </div>
+
+  <section id="online-panel" aria-label="Online multiplayer">
+    <strong>ONLINE RUN</strong>
+    <input id="player-name" maxlength="18" placeholder="Your name" aria-label="Your name">
+    <input id="room-code" maxlength="6" placeholder="Room code" aria-label="Room code">
+    <div>
+      <button id="create-room" type="button">Create Room</button>
+      <button id="join-room" type="button">Join Room</button>
+    </div>
+    <span id="online-status">Create a room or join a friend.</span>
+  </section>
+
+  <!-- Touch buttons. CSS hides these on devices that have a mouse and keyboard. -->
+  <div id="touch-controls">
+    <div class="touch-group">
+      <button class="touch-btn" data-action="left" aria-label="Move left">&#9664;</button>
+      <button class="touch-btn" data-action="right" aria-label="Move right">&#9654;</button>
+    </div>
+    <div class="touch-group">
+      <button class="touch-btn jump" data-action="jump" aria-label="Jump">JUMP</button>
+    </div>
+  </div>
+
+  <!--
+    Scripts load in this order on purpose. Each file adds one piece:
+      input.js    reads the keyboard and touch buttons
+      physics.js  gravity and "did we bump into something" math
+      level.js    where the ground, platforms, start, and flag are
+      player.js   the runner: moving, jumping, dying, finishing
+      main.js     the game loop that ties it all together
+  -->
+  <script src="js/input.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/level.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
