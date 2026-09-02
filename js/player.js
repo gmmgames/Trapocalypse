@@ -10,6 +10,8 @@ const Player = {
   JUMP_SPEED: 720,     // how hard we launch upward (bigger = higher jump)
   COYOTE_TIME: 0.08,   // seconds you can still jump after walking off an edge
   JUMP_BUFFER: 0.10,   // seconds a jump press is "remembered" before landing
+  SPIKE_INSET_SIDE: 4, // pixels shaved off each side of a spike's deadly area
+  SPIKE_INSET_TOP: 6,  // pixels shaved off the top, so grazing the tips is not a death
 
   // --- the body the physics engine moves ---
   x: 0, y: 0, w: 22, h: 26,
@@ -63,9 +65,17 @@ const Player = {
     // 3. Move and bump into things
     Physics.moveAndCollide(this, Level.solids, dt);
 
-    // Traps are checked after movement so brushing a spike is immediately fatal.
+    // Traps are checked after movement so touching a spike is immediately fatal.
+    // The deadly box is a little smaller than the drawn tile (a "hitbox" is the
+    // invisible rectangle used for touching), so near misses feel fair.
     for (const hazard of Level.hazards) {
-      if (Physics.overlaps(this, hazard)) {
+      const deadly = {
+        x: hazard.x + this.SPIKE_INSET_SIDE,
+        y: hazard.y + this.SPIKE_INSET_TOP,
+        w: hazard.w - this.SPIKE_INSET_SIDE * 2,
+        h: hazard.h - this.SPIKE_INSET_TOP,
+      };
+      if (Physics.overlaps(this, deadly)) {
         this.die(hazard);   // pass the spike along so its owner can get credit
         return;
       }
