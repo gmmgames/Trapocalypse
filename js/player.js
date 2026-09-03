@@ -63,6 +63,7 @@ const Player = {
     if (!Input.jump && this.vy < -200) this.vy = -200;
 
     // 3. Move and bump into things
+    const wasOnGround = this.onGround;   // remembered so we can tell a landing from standing still
     Physics.moveAndCollide(this, Level.solids, dt);
 
     // Traps are checked after movement so touching a spike is immediately fatal.
@@ -86,9 +87,15 @@ const Player = {
     if (this.x + this.w > LEVEL_W) this.x = LEVEL_W - this.w;
 
     // 5. Fell off the bottom? That is a death.
-    if (this.y > LEVEL_H + 100) this.die();
+    if (this.y > LEVEL_H + 100) { this.die(); return; }
 
-    // 6. Touched the flag? Victory.
+    // 6. Dust under our feet. We only get here if the spikes didn't get us,
+    //    so a landing on spikes never puffs (the spike check above returned).
+    const feetX = this.x + this.w / 2, feetY = this.y + this.h;
+    if (this.onGround && !wasOnGround) Dust.landing(feetX, feetY);
+    else if (this.onGround && this.vx !== 0) Dust.trail("me", feetX, feetY, dt);
+
+    // 7. Touched the flag? Victory.
     if (Physics.overlaps(this, Level.flag)) this.finish();
   },
 

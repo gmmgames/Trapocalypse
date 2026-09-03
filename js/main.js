@@ -387,7 +387,17 @@ const Game = {
     }
     if (message.type === "player_update" && message.playerId !== Network.id) {
       if (!this.remotePlayers[message.playerId]) this.remotePlayers[message.playerId] = { name: "Runner" };
-      Object.assign(this.remotePlayers[message.playerId], message);
+      const remote = this.remotePlayers[message.playerId];
+      // Other runners' dust is guessed from how they moved since their last update
+      // (about every 50 ms): level movement = running, falling then level = landing.
+      if (remote.alive && !remote.finished && message.alive && remote.x !== undefined) {
+        const dx = message.x - remote.x, dy = message.y - remote.y;
+        const feetX = message.x + Player.w / 2, feetY = message.y + Player.h;
+        if (remote._falling && dy === 0) Dust.landing(feetX, feetY);
+        else if (dy === 0 && dx !== 0) Dust.trail(message.playerId, feetX, feetY, 0.05);
+        remote._falling = dy > 0;
+      }
+      Object.assign(remote, message);
     }
     if (message.type === "status") {
       const who = this.players.find((player) => player.id === message.playerId);
@@ -524,6 +534,7 @@ const Game = {
 
   update(dt) {
     Input.update();
+    Dust.update(dt);
     if (this.phase === "run" && !this.complete) {
       Player.update(dt);
       if (this.mode === "online") {
@@ -704,6 +715,7 @@ const Game = {
     // Wipe the whole canvas, then redraw the scene from scratch.
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     Level.draw(ctx);
+    Dust.draw(ctx);   // under the runners, over the ground
 
     // Other runners first, so your own square is always drawn on top.
     for (const [id, remote] of Object.entries(this.remotePlayers)) {
