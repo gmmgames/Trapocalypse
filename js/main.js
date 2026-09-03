@@ -33,6 +33,8 @@ const leaveRoomButton = document.getElementById("leave-room");
 const mapVote = document.getElementById("map-vote");
 const mapButtons = document.getElementById("map-buttons");
 const gameWrap = document.getElementById("game-wrap");
+const helpPanel = document.getElementById("help");
+const helpPoints = document.getElementById("help-points");
 const winnerHud = document.getElementById("winner-hud");
 const backToLobbyButton = document.getElementById("back-to-lobby");
 const winnerNote = document.getElementById("winner-note");
@@ -247,6 +249,26 @@ const Game = {
       button.addEventListener("click", () => Network.send({ type: "choose_color", color: index }));
       swatchGrid.appendChild(button);
     });
+  },
+
+  // --- How to Play ---
+  // The point list uses the room's real settings when you are in one, otherwise the defaults.
+  showHelp() {
+    const s = this.settings || { winPoints: 4, killPoints: 1, firstPoints: 2, pointsToWin: 45, roundCap: 30, timeLimit: 60 };
+    const time = s.timeLimit === null ? "no time limit" : `${s.timeLimit} seconds per run`;
+    const lines = [
+      `Reaching the flag: ${s.winPoints} point${s.winPoints === 1 ? "" : "s"}.`,
+      `Trailblazer (first to the flag when 3 or more run and 2 or more finish): ${s.firstPoints} more.`,
+      `Each time your trap kills someone: ${s.killPoints}, paid at the end of the round only if you reach the flag too.`,
+      `Final Battle: first to the flag 5, second 3, third 1. Nothing else pays in a Final Battle.`,
+      `${this.settings ? "This match" : "Default"}: first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`,
+    ];
+    helpPoints.replaceChildren(...lines.map((text) => { const li = document.createElement("li"); li.textContent = text; return li; }));
+    helpPanel.classList.remove("hidden");
+  },
+
+  hideHelp() {
+    helpPanel.classList.add("hidden");
   },
 
   // --- course vote ---
@@ -931,6 +953,10 @@ startRunButton.addEventListener("click", () => {
 startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
 leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
+document.getElementById("help-button").addEventListener("click", () => Game.showHelp());
+document.getElementById("help-close").addEventListener("click", () => Game.hideHelp());
+helpPanel.addEventListener("click", (event) => { if (event.target === helpPanel) Game.hideHelp(); });   // click outside the box
+window.addEventListener("keydown", (event) => { if (event.key === "Escape") Game.hideHelp(); });
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
 
 // The canvas only picks up a web font once the browser has loaded it, so ask for both now.
