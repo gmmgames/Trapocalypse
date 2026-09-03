@@ -18,7 +18,7 @@ const MIME = {
 // --- round rules (the knobs) ---
 const TRAPS_PER_ROUND = 1;     // traps each player places before a run
 const ROUNDS_PER_LEVEL = 3;    // rounds on one course before rotating to the next
-const NEXT_ROUND_DELAY = 4;    // seconds the scoreboard shows before the next build phase
+const NEXT_ROUND_DELAY = 10;   // seconds the scoreboard shows before the next build phase
 const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
 const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
@@ -207,25 +207,32 @@ function checkRoundOver(room) {
   const everyoneFinished = !room.finalBattle && finishers.length > 0 && finishers.length === runners.length;
   let firstFinisher = null;
   const killBonus = {};   // playerId -> points earned from their trap's kills this round
+  const gains = {};       // playerId -> [{ label, points }] so the scoreboard can show where points came from
+  const award = (player, label, points) => {
+    if (points <= 0) return;
+    player.score += points;
+    (gains[player.id] = gains[player.id] || []).push({ label, points });
+  };
   if (room.finalBattle) {
     // Final Battle: only the podium bonuses, in finishing order. Nothing else pays.
+    const placeNames = ["1st place", "2nd place", "3rd place"];
     room.finishOrder.forEach((id, place) => {
       const player = room.players.get(id);
-      if (player && room.finalBattle.ids.includes(id) && place < FINAL_BONUSES.length) player.score += FINAL_BONUSES[place];
+      if (player && room.finalBattle.ids.includes(id) && place < FINAL_BONUSES.length) award(player, placeNames[place], FINAL_BONUSES[place]);
     });
   } else if (!everyoneFinished) {
     const { winPoints, killPoints, firstPoints } = room.settings;   // the host's values
     for (const player of finishers) {
-      player.score += winPoints;
+      award(player, "win", winPoints);
       // Trap kills only pay if you made it to the flag yourself.
       if (player.pendingKills > 0 && killPoints > 0) {
         killBonus[player.id] = player.pendingKills * killPoints;
-        player.score += killBonus[player.id];
+        award(player, player.pendingKills === 1 ? "trap kill" : `${player.pendingKills} trap kills`, killBonus[player.id]);
       }
     }
     if (runners.length > 2 && finishers.length >= 2) {
       firstFinisher = room.players.get(room.finishOrder[0]) || null;
-      if (firstFinisher) firstFinisher.score += firstPoints;
+      if (firstFinisher) award(firstFinisher, "Trailblazer", firstPoints);
     }
   }
   for (const player of players) player.pendingKills = 0;
@@ -249,6 +256,7 @@ function checkRoundOver(room) {
     firstFinisher: firstFinisher ? firstFinisher.id : null,
     firstBonus: room.settings.firstPoints,
     killBonus,
+    gains,
     nextIn: NEXT_ROUND_DELAY,
     players: playerList(room),
     finalBattle: decision.kind === "final" ? { ids: decision.ids, again: wasFinalBattle && finishers.length === 0 } : null,

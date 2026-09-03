@@ -122,6 +122,8 @@ const Game = {
   finalBattleIds: [],   // who is fighting in the current Final Battle (empty = normal round)
   _finalBattleNext: null, // the round_over said a Final Battle is coming
   _winnerPending: null,   // the round_over said a winner is about to be crowned
+  _gains: {},             // playerId -> [{ label, points }] for this round, from the server
+  _resultsElapsed: 0,     // seconds since the results screen appeared (drives the bar animation)
   myColor: null,        // index into PALETTE, chosen once when you join
   _nextRoundIn: 0,      // countdown shown on the scoreboard
   _chartX: {},          // where each player's bar currently sits (slides toward its sorted spot)
@@ -492,6 +494,8 @@ const Game = {
       this._bannerTimer = this._firstFinisher ? BANNER_SECONDS : 0;
       this._finalBattleNext = message.finalBattle || null;
       this._winnerPending = message.winnerPending || null;
+      this._gains = message.gains || {};
+      this._resultsElapsed = 0;
       this.votes = {};
       this.voteOpen = Boolean(message.voteOpen);
       this.renderVote();
@@ -610,6 +614,7 @@ const Game = {
       }
     }
     if (this.phase === "results" && this._nextRoundIn > 0) this._nextRoundIn -= dt;
+    if (this.phase === "results") this._resultsElapsed += dt;
     // Countdown from the wall clock, so a tab that was hidden still shows the right time.
     if (this.phase === "run" && this._runTimeLimit !== null && this._runTimeLeft !== null) {
       this._runTimeLeft = Math.max(0, this._runTimeLimit - (performance.now() - this._runStartedAt) / 1000);
@@ -656,6 +661,26 @@ const Game = {
     ctx.fillText(name, centerX, y - 7);
   },
 
+  // The bar animation: each player's points arrive one stage at a time (win, then
+  // trap kills, then Trailblazer). Returns the score to draw right now plus the
+  // labels that should be floating above the bar.
+  //   stage i grows from STAGE_START + i * STAGE_GAP over STAGE_GROW seconds.
+  animatedScore(player) {
+    const STAGE_START = 0.7, STAGE_GAP = 1.0, STAGE_GROW = 0.6, LABEL_LIFE = 1.4;
+    const stages = this._gains[player.id] || [];
+    const total = stages.reduce((sum, stage) => sum + stage.points, 0);
+    let shown = player.score - total;   // where the bar was before this round
+    const labels = [];
+    stages.forEach((stage, i) => {
+      const t = this._resultsElapsed - (STAGE_START + i * STAGE_GAP);
+      if (t <= 0) return;
+      const grow = Math.min(1, t / STAGE_GROW);
+      shown += stage.points * (1 - (1 - grow) * (1 - grow));   // ease out: fast start, gentle finish
+      if (t < LABEL_LIFE) labels.push({ text: `+${stage.points} ${stage.label}`, age: t / LABEL_LIFE });
+    });
+    return { shown, labels };
+  },
+
   // End-of-round scoreboard: one bar per player, tallest score on the left,
   // the player's color at the foot of each bar, their name across the top.
   drawScoreboard() {
@@ -668,7 +693,9 @@ const Game = {
     const gap = Math.min(40, Math.floor(880 / count / 4));
     const barW = Math.min(110, Math.floor((880 - gap * (count - 1)) / count));
     const nameFont = Math.max(9, Math.min(18, Math.floor(barW / 4)));
-    const baseline = 440, maxBarH = 260, swatchH = 22;
+    // When the course vote is floating at the bottom, lift the chart out of its way.
+    const baseline = this.voteOpen ? 370 : 440, maxBarH = this.voteOpen ? 200 : 260, swatchH = 22;
+    const animate = this.phase === "results";   // the winner screen shows final numbers straight away
     const totalW = sorted.length * barW + (sorted.length - 1) * gap;
     const leftX = (LEVEL_W - totalW) / 2;
     const topScore = Math.max(1, ...sorted.map((player) => player.score));
@@ -700,7 +727,8 @@ const Game = {
 
       const isMe = player.id === Network.id;
       const color = player.color !== null ? PALETTE[player.color] : "#4df0ff";
-      const barH = 8 + (player.score / topScore) * maxBarH;
+      const { shown, labels } = animate ? this.animatedScore(player) : { shown: player.score, labels: [] };
+      const barH = 8 + (shown / topScore) * maxBarH;
 
       // The bar
       ctx.fillStyle = color;
@@ -728,11 +756,20 @@ const Game = {
       ctx.font = `bold ${Math.max(12, Math.min(22, barW / 3))}px 'Segoe UI', system-ui, sans-serif`;
       if (barH >= 40) {
         ctx.fillStyle = "#0b0b14";
-        ctx.fillText(String(player.score), x + barW / 2, baseline - 12);
+        ctx.fillText(String(Math.round(shown)), x + barW / 2, baseline - 12);
       } else {
         ctx.fillStyle = "#e8e8ff";
-        ctx.fillText(String(player.score), x + barW / 2, baseline - barH - 14 - nameFont);
+        ctx.fillText(String(Math.round(shown)), x + barW / 2, baseline - barH - 14 - nameFont);
       }
+
+      // "+4 win" style labels float up from the top of the bar and fade.
+      ctx.font = `bold ${Math.max(10, Math.min(15, barW / 6))}px 'Segoe UI', system-ui, sans-serif`;
+      labels.forEach((label) => {
+        ctx.globalAlpha = 1 - label.age;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(label.text, x + barW / 2, baseline - barH - 26 - nameFont - label.age * 40);
+      });
+      ctx.globalAlpha = 1;
     });
 
     ctx.strokeStyle = "rgba(255,255,255,0.3)";
