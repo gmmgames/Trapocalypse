@@ -32,6 +32,7 @@ const Player = {
     this.y = Level.start.y;
     this.vx = 0;
     this.vy = 0;
+    this.onGround = true;   // every start point is on the ground, so no "landing" puff on spawn
     this.alive = true;
     this.finished = false;
     this.facing = 1;
