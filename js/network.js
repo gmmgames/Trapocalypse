@@ -5,7 +5,8 @@ const Network = {
   connected: false,
   onMessage: null,
 
-  connect(name, code = "") {
+  // settings: the host's match settings, only used when creating a room.
+  connect(name, code = "", settings = null) {
     if (location.protocol === "file:") {
       if (this.onMessage) this.onMessage({ type: "error", message: "Start the online server, then open http://localhost:8080." });
       return;
@@ -13,7 +14,7 @@ const Network = {
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     this.socket = new WebSocket(`${protocol}://${location.host}`);
     this.socket.addEventListener("open", () => {
-      this.socket.send(JSON.stringify({ type: code ? "join_room" : "create_room", name, code }));
+      this.socket.send(JSON.stringify({ type: code ? "join_room" : "create_room", name, code, settings }));
     });
     this.socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);

@@ -26,11 +26,35 @@ const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
 
+// --- match settings the host picks when creating a room ---
+// timeLimit is seconds per run, or null for Infinite.
+const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 99], roundCap: [3, 60] };
+const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30 };
+const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap" };
+
 function roomCode() {
   let code;
   do code = crypto.randomBytes(3).toString("hex").toUpperCase();
   while (rooms.has(code));
   return code;
+}
+
+// Check the settings a host sent. A missing value means "use the default".
+// Anything outside the limits is refused with a message, never silently changed.
+function validateSettings(raw) {
+  const settings = {};
+  for (const key of Object.keys(SETTING_LIMITS)) {
+    const [min, max] = SETTING_LIMITS[key];
+    const value = raw ? raw[key] : undefined;
+    if (value === undefined) { settings[key] = SETTING_DEFAULTS[key]; continue; }
+    if (key === "timeLimit" && value === null) { settings[key] = null; continue; }   // Infinite
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < min || n > max) {
+      return { ok: false, message: `${SETTING_LABELS[key]} must be between ${min} and ${max}.` };
+    }
+    settings[key] = n;
+  }
+  return { ok: true, settings };
 }
 
 function send(socket, message) {
@@ -61,6 +85,8 @@ function snapshot(room) {
     roundsPerLevel: ROUNDS_PER_LEVEL,
     trapsPerRound: TRAPS_PER_ROUND,
     maxPlayers: MAX_PLAYERS,
+    settings: room.settings,
+    hostId: room.hostId,
     traps: room.traps,
     players: playerList(room),
   };
@@ -155,12 +181,17 @@ webSocketServer.on("connection", (socket) => {
       const code = message.type === "create_room" ? roomCode() : String(message.code || "").toUpperCase();
       let room = rooms.get(code);
       if (message.type === "join_room" && !room) { send(socket, { type: "error", message: "Room not found." }); return; }
-      if (!room) room = { code, phase: "build", round: 1, levelIndex: 0, traps: [], players: new Map(), timer: null, finishOrder: [] };
+      if (!room) {
+        const check = validateSettings(message.settings);
+        if (!check.ok) { send(socket, { type: "error", message: check.message }); return; }
+        room = { code, phase: "build", round: 1, levelIndex: 0, traps: [], players: new Map(), timer: null, finishOrder: [], settings: check.settings, hostId: null };
+      }
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).` }); return; }
       // Joining mid-run means sitting this round out.
       const status = room.phase === "build" ? "building" : "out";
       const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, status, color: null };
       room.players.set(player.id, player);
+      if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
       rooms.set(code, room);
       socket.player = player; socket.room = room;
       send(socket, { type: "joined", id: player.id, host: room.players.size === 1 });

@@ -33,6 +33,33 @@
     <strong>ONLINE RUN</strong>
     <input id="player-name" maxlength="18" placeholder="Your name" aria-label="Your name">
     <input id="room-code" maxlength="6" placeholder="Room code" aria-label="Room code">
+    <!-- Match settings. Only used by Create Room; the host picks them once for the whole match. -->
+    <fieldset id="match-settings">
+      <legend>Match settings (host)</legend>
+      <label>Time limit
+        <select id="set-time">
+          <option value="30">30 s</option><option value="45">45 s</option><option value="60" selected>60 s</option>
+          <option value="90">90 s</option><option value="120">120 s</option><option value="null">Infinite</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <input id="set-time-custom" type="number" min="30" max="600" step="1" placeholder="30–600" class="hidden">
+      </label>
+      <label>Points to win
+        <select id="set-points">
+          <option value="20">20</option><option value="30">30</option><option value="45" selected>45</option>
+          <option value="60">60</option><option value="99">99</option><option value="custom">Custom…</option>
+        </select>
+        <input id="set-points-custom" type="number" min="15" max="99" step="1" placeholder="15–99" class="hidden">
+      </label>
+      <label>Round cap
+        <select id="set-rounds">
+          <option value="5">5</option><option value="10">10</option><option value="15">15</option>
+          <option value="20">20</option><option value="30" selected>30</option><option value="60">60</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <input id="set-rounds-custom" type="number" min="3" max="60" step="1" placeholder="3–60" class="hidden">
+      </label>
+    </fieldset>
     <div>
       <button id="create-room" type="button">Create Room</button>
       <button id="join-room" type="button">Join Room</button>

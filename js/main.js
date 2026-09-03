@@ -33,6 +33,37 @@ const PALETTE = [
   "#ffd6a8", "#c8ff9e", "#a8e8ff", "#d9b8ff", "#c0c0d8", "#8a6a4a",
 ];
 
+// --- match settings (host only) ---
+// Each dropdown has presets plus "Custom…", which reveals a number box.
+// The server checks these again; this copy just gives instant feedback.
+const SETTING_FIELDS = {
+  timeLimit:   { select: "set-time",   custom: "set-time-custom",   min: 30, max: 600, label: "Time limit" },
+  pointsToWin: { select: "set-points", custom: "set-points-custom", min: 15, max: 99,  label: "Points to win" },
+  roundCap:    { select: "set-rounds", custom: "set-rounds-custom", min: 3,  max: 60,  label: "Round cap" },
+};
+for (const field of Object.values(SETTING_FIELDS)) {
+  const select = document.getElementById(field.select);
+  const custom = document.getElementById(field.custom);
+  select.addEventListener("change", () => custom.classList.toggle("hidden", select.value !== "custom"));
+}
+
+// Read the three settings. Returns null (and says why) if a value is out of range.
+function readSettings() {
+  const settings = {};
+  for (const [key, field] of Object.entries(SETTING_FIELDS)) {
+    const select = document.getElementById(field.select);
+    const text = select.value === "custom" ? document.getElementById(field.custom).value : select.value;
+    if (text === "null") { settings[key] = null; continue; }   // Infinite time limit
+    const n = Number(text);
+    if (text.trim() === "" || !Number.isInteger(n) || n < field.min || n > field.max) {
+      onlineStatus.textContent = `${field.label} must be between ${field.min} and ${field.max}.`;
+      return null;
+    }
+    settings[key] = n;
+  }
+  return settings;
+}
+
 const Game = {
   // Day 1 only has one thing to do: run. Later days add
   // "setup", "build", "results", and "winner" states here.
@@ -58,6 +89,8 @@ const Game = {
   trapsPerRound: 1,
   players: [],          // everyone in the room: { id, name, score, status, color }
   maxPlayers: 24,
+  settings: null,       // the host's match settings, from the server
+  hostId: null,         // who the host is, from the server
   myColor: null,        // index into PALETTE, chosen once when you join
   _nextRoundIn: 0,      // countdown shown on the scoreboard
   _chartX: {},          // where each player's bar currently sits (slides toward its sorted spot)
@@ -142,6 +175,8 @@ const Game = {
     this.roundsPerLevel = message.roundsPerLevel;
     this.trapsPerRound = message.trapsPerRound;
     this.maxPlayers = message.maxPlayers || this.maxPlayers;
+    this.settings = message.settings || this.settings;
+    this.hostId = message.hostId || null;
     this.levelIndex = message.levelIndex;
     this.players = message.players;
     Level.load(message.levelIndex);
@@ -566,9 +601,11 @@ const Game = {
 
 Network.onMessage = (message) => Game.onNetworkMessage(message);
 createRoomButton.addEventListener("click", () => {
+  const settings = readSettings();
+  if (!settings) return;   // a setting is out of range; the message is already on screen
   const name = playerNameInput.value.trim() || "Runner";
   Game.startOnline();
-  Network.connect(name);
+  Network.connect(name, "", settings);
 });
 joinRoomButton.addEventListener("click", () => {
   const name = playerNameInput.value.trim() || "Runner";
