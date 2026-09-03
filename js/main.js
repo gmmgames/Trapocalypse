@@ -46,6 +46,8 @@ const PALETTE = [
   "#ffd6a8", "#c8ff9e", "#a8e8ff", "#d9b8ff", "#c0c0d8", "#8a6a4a",
 ];
 
+const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
+
 // --- match settings (host only) ---
 // Each dropdown has presets plus "Custom…", which reveals a number box.
 // The server checks these again; this copy just gives instant feedback.
@@ -487,7 +489,7 @@ const Game = {
       this._nextRoundIn = message.nextIn;
       this._firstFinisher = message.firstFinisher || null;
       this._firstBonus = message.firstBonus || this._firstBonus;
-      this._bannerTimer = this._firstFinisher ? 3 : 0;
+      this._bannerTimer = this._firstFinisher ? BANNER_SECONDS : 0;
       this._finalBattleNext = message.finalBattle || null;
       this._winnerPending = message.winnerPending || null;
       this.votes = {};
@@ -737,40 +739,67 @@ const Game = {
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(leftX - 20, baseline); ctx.lineTo(leftX + totalW + 20, baseline); ctx.stroke();
 
-    if (this._bannerTimer > 0 && this._firstFinisher) this.drawFirstBanner();
+    if (this._bannerTimer > 0 && this._firstFinisher) this.drawTrailblazer();
   },
 
-  // "First One There!" for the first finisher, shown to everyone for a few seconds.
-  drawFirstBanner() {
+  // "Trailblazer!" for the first finisher: a jagged comic burst that slams down
+  // into place, holds, then fades. Everyone sees it for BANNER_SECONDS.
+  drawTrailblazer() {
     const winner = this.players.find((player) => player.id === this._firstFinisher);
     const color = winner && winner.color !== null ? PALETTE[winner.color] : "#ffd23c";
-    const fade = Math.min(1, this._bannerTimer / 0.4);   // quick fade-out at the end
-    const centerX = LEVEL_W / 2, centerY = 250;
+    const elapsed = BANNER_SECONDS - this._bannerTimer;   // seconds since it appeared
+    const centerX = LEVEL_W / 2, centerY = 200;
 
+    // Slam: starts huge and far, shrinks and drops into place over 0.25 s...
+    const drop = Math.min(1, elapsed / 0.25);
+    const eased = drop * drop;                            // speeds up as it falls, like gravity
+    let scaleX = 2.2 - 1.2 * eased, scaleY = scaleX;
+    let offsetY = -60 * (1 - eased);
+    // ...then squashes on impact for 0.2 s and springs back.
+    const impact = Math.max(0, Math.min(1, (elapsed - 0.25) / 0.2));
+    const squash = Math.sin(impact * Math.PI);
+    scaleX += 0.14 * squash;
+    scaleY -= 0.2 * squash;
+    const fade = Math.min(1, this._bannerTimer / 0.4);   // quick fade-out at the end
+
+    ctx.save();
     ctx.globalAlpha = fade;
-    ctx.fillStyle = "rgba(11, 11, 20, 0.9)";
-    ctx.fillRect(centerX - 300, centerY - 70, 600, 140);
+    ctx.translate(centerX, centerY + offsetY);
+    ctx.scale(scaleX, scaleY);
+
+    // The burst: points alternate between an outer and inner radius around an ellipse.
+    const spikes = 18, outerW = 170, outerH = 62, innerW = 148, innerH = 48;
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i / (spikes * 2)) * Math.PI * 2;
+      const rw = i % 2 === 0 ? outerW : innerW, rh = i % 2 === 0 ? outerH : innerH;
+      const px = Math.cos(angle) * rw, py = Math.sin(angle) * rh;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "rgba(11, 11, 20, 0.95)";
+    ctx.fill();
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;
-    ctx.strokeRect(centerX - 300, centerY - 70, 600, 140);
+    ctx.stroke();
 
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = color;
-    ctx.font = "900 54px 'Segoe UI', system-ui, sans-serif";
-    ctx.fillText("First One There!", centerX, centerY + 5);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 26px 'Segoe UI', system-ui, sans-serif";
-    ctx.fillText(`+${this._firstBonus} Points`, centerX, centerY + 45);
     if (winner) {
-      ctx.fillStyle = "#c0c0d8";
+      ctx.fillStyle = "#ffffff";
       ctx.font = "bold 14px 'Segoe UI', system-ui, sans-serif";
-      ctx.fillText(winner.name, centerX, centerY - 48);
+      ctx.fillText(winner.name, 0, -20);
     }
-    ctx.globalAlpha = 1;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = color;
+    ctx.font = "900 28px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillText("Trailblazer!", 0, 8);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#e8e8ff";
+    ctx.font = "bold 15px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillText(`+${this._firstBonus} Points`, 0, 30);
+    ctx.restore();
   },
 
   draw() {
