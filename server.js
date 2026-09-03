@@ -91,6 +91,8 @@ function snapshot(room) {
     hostId: room.hostId,
     winnerIds: room.winnerIds,
     finalBattleIds: room.finalBattle ? room.finalBattle.ids : [],
+    votes: room.votes,
+    voteOpen: room.voteOpen,
     traps: room.traps,
     players: playerList(room),
   };
@@ -233,6 +235,9 @@ function checkRoundOver(room) {
   const wasFinalBattle = room.finalBattle !== null;
   if (decision.kind === "final") room.finalBattle = { ids: decision.ids, runs: wasFinalBattle ? room.finalBattle.runs : 0 };
   else room.finalBattle = null;
+  // If the next round starts a new course, everyone votes on which one during the results.
+  room.votes = {};
+  room.voteOpen = decision.kind === "next" && room.round % ROUNDS_PER_LEVEL === 0;
 
   broadcast(room, {
     type: "round_over",
@@ -246,11 +251,22 @@ function checkRoundOver(room) {
     players: playerList(room),
     finalBattle: decision.kind === "final" ? { ids: decision.ids, again: wasFinalBattle && finishers.length === 0 } : null,
     winnerPending: decision.kind === "winner" ? decision.ids : null,
+    voteOpen: room.voteOpen,
   });
   const delay = NEXT_ROUND_DELAY * 1000;
   if (decision.kind === "next") room.timer = setTimeout(() => startNextRound(room), delay);
   else if (decision.kind === "final") room.timer = setTimeout(() => startFinalBattle(room), delay);
   else room.timer = setTimeout(() => declareWinner(room, decision.ids), delay);
+}
+
+// The course with the most votes. Ties are settled at random; no votes means `fallback`.
+function pickVotedLevel(room, fallback) {
+  const counts = new Array(LEVELS.length).fill(0);
+  for (const level of Object.values(room.votes)) counts[level] += 1;
+  const top = Math.max(...counts);
+  if (top === 0) return fallback;
+  const tied = counts.map((count, index) => (count === top ? index : -1)).filter((index) => index >= 0);
+  return tied[Math.floor(Math.random() * tied.length)];
 }
 
 // Everyone back to the lobby. Colors and settings are kept; scores only if asked.
@@ -259,6 +275,7 @@ function toLobby(room, { resetScores }) {
   room.timer = null; room.runTimer = null;
   room.phase = "lobby"; room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0;
   room.traps = []; room.finishOrder = []; room.finalBattle = null; room.winnerIds = [];
+  room.votes = {}; room.voteOpen = false;
   for (const player of room.players.values()) {
     player.trapCount = 0; player.pendingKills = 0; player.status = "waiting";
     if (resetScores) player.score = 0;
@@ -273,6 +290,7 @@ function removePlayer(socket) {
   if (!room || !player) return;
   socket.room = null; socket.player = null;
   room.players.delete(player.id);
+  delete room.votes[player.id];
   if (room.players.size === 0) {
     clearTimeout(room.timer); clearTimeout(room.runTimer);
     rooms.delete(room.code);
@@ -307,9 +325,11 @@ function startNextRound(room) {
   // so rounds 4, 7, 10, ... start fresh on the next level.
   room.round += 1;
   if ((room.round - 1) % ROUNDS_PER_LEVEL === 0) {
-    room.levelIndex = (room.levelIndex + 1) % LEVELS.length;
+    // The voted course, or simply the next one in the list if nobody voted.
+    room.levelIndex = pickVotedLevel(room, (room.levelIndex + 1) % LEVELS.length);
     room.traps = [];
   }
+  room.votes = {}; room.voteOpen = false;
   room.phase = "build";
   // Colors are picked once when you join and kept for the whole game.
   for (const player of room.players.values()) { player.trapCount = 0; player.pendingKills = 0; player.status = "building"; }
@@ -344,7 +364,7 @@ webSocketServer.on("connection", (socket) => {
       if (!room) {
         const check = validateSettings(message.settings);
         if (!check.ok) { send(socket, { type: "error", message: check.message, fatal: true }); return; }
-        room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null, finalBattle: null, winnerIds: [] };
+        room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null, finalBattle: null, winnerIds: [], votes: {}, voteOpen: false };
       }
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
       // In the lobby you wait for the host. Joining mid-run means sitting this round out.
@@ -375,11 +395,23 @@ webSocketServer.on("connection", (socket) => {
       else if (room.players.size < 2) problem = "You need at least 2 players.";
       else if (!everyoneColored) problem = "Everyone needs to pick a color first.";
       if (problem) { send(socket, { type: "error", message: problem }); return; }
-      room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0; room.traps = []; room.finishOrder = [];
+      room.round = 1; room.roundsPlayed = 0; room.traps = []; room.finishOrder = [];
+      room.levelIndex = pickVotedLevel(room, 0);   // the lobby vote picks the first course
+      room.votes = {}; room.voteOpen = false;
       room.finalBattle = null; room.winnerIds = [];
       for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; }
       room.phase = "build";
       broadcast(room, { ...snapshot(room), type: "round_start" });
+      return;
+    }
+    // Vote for a course: in the lobby, or on the results screen when the course is about to change.
+    if (message.type === "vote_map") {
+      const level = Number(message.level);
+      const open = room.phase === "lobby" || (room.phase === "results" && room.voteOpen);
+      if (open && Number.isInteger(level) && level >= 0 && level < LEVELS.length) {
+        room.votes[player.id] = level;
+        broadcast(room, { type: "votes", votes: room.votes });
+      }
       return;
     }
     if (message.type === "back_to_lobby") {

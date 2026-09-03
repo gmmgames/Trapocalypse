@@ -30,6 +30,9 @@ const lobbyPlayers = document.getElementById("lobby-players");
 const lobbyNote = document.getElementById("lobby-note");
 const startMatchButton = document.getElementById("start-match");
 const leaveRoomButton = document.getElementById("leave-room");
+const mapVote = document.getElementById("map-vote");
+const mapButtons = document.getElementById("map-buttons");
+const gameWrap = document.getElementById("game-wrap");
 const winnerHud = document.getElementById("winner-hud");
 const backToLobbyButton = document.getElementById("back-to-lobby");
 const winnerNote = document.getElementById("winner-note");
@@ -102,6 +105,8 @@ const Game = {
   settings: null,       // the host's match settings, from the server
   hostId: null,         // who the host is, from the server
   inRoom: false,        // true from the first room update until you leave
+  votes: {},            // playerId -> course index, from the server
+  voteOpen: false,      // true on a results screen where the next course is being voted on
   winnerIds: [],        // who won, once the match is over
   finalBattleIds: [],   // who is fighting in the current Final Battle (empty = normal round)
   _finalBattleNext: null, // the round_over said a Final Battle is coming
@@ -178,6 +183,7 @@ const Game = {
     colorPicker.classList.add("hidden");
     leaveRoomButton.classList.add("hidden");
     winnerHud.classList.add("hidden");
+    mapVote.classList.add("hidden");
     onlinePanel.classList.remove("hidden");
     onlineStatus.textContent = statusText;
     roomCodeInput.value = "";
@@ -194,6 +200,7 @@ const Game = {
     winnerHud.classList.toggle("hidden", this.phase !== "winner");
     backToLobbyButton.classList.toggle("hidden", !isHost);
     winnerNote.textContent = isHost ? "" : "Waiting for the host…";
+    this.renderVote();
     if (this.phase !== "lobby") return;
     const s = this.settings || {};
     lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
@@ -223,6 +230,41 @@ const Game = {
       button.setAttribute("aria-label", `Color ${index + 1}`);
       button.addEventListener("click", () => Network.send({ type: "choose_color", color: index }));
       swatchGrid.appendChild(button);
+    });
+  },
+
+  // --- course vote ---
+  buildMapButtons() {
+    LEVELS.forEach((level, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "map-btn";
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.style.background = level.theme.bg;
+      chip.style.borderBottomColor = level.theme.solidTop;
+      const count = document.createElement("span");
+      count.className = "count";
+      button.append(chip, level.name, count);
+      button.addEventListener("click", () => Network.send({ type: "vote_map", level: index }));
+      mapButtons.appendChild(button);
+    });
+  },
+
+  // Show the vote where it belongs: inside the lobby, or floating over the results chart.
+  renderVote() {
+    const inLobby = this.phase === "lobby";
+    const onResults = this.phase === "results" && this.voteOpen;
+    mapVote.classList.toggle("hidden", !(inLobby || onResults));
+    mapVote.classList.toggle("floating", onResults);
+    if (inLobby && mapVote.parentElement !== lobby) lobby.insertBefore(mapVote, lobbyPlayers);
+    if (onResults && mapVote.parentElement !== gameWrap) gameWrap.appendChild(mapVote);
+    document.getElementById("map-vote-title").textContent = inLobby ? "Vote for the first course" : "Vote for the next course";
+    const counts = new Array(LEVELS.length).fill(0);
+    for (const level of Object.values(this.votes)) counts[level] += 1;
+    [...mapButtons.children].forEach((button, index) => {
+      button.querySelector(".count").textContent = counts[index] ? `×${counts[index]}` : "";
+      button.classList.toggle("mine", this.votes[Network.id] === index);
     });
   },
 
@@ -264,6 +306,8 @@ const Game = {
     this.hostId = message.hostId || null;
     this.winnerIds = message.winnerIds || [];
     this.finalBattleIds = message.finalBattleIds || [];
+    this.votes = message.votes || {};
+    this.voteOpen = Boolean(message.voteOpen);
     this.levelIndex = message.levelIndex;
     this.players = message.players;
     Level.load(message.levelIndex);
@@ -349,6 +393,8 @@ const Game = {
       buildHud.classList.add("hidden");
       colorPicker.classList.add("hidden");
       onlinePanel.classList.add("hidden");   // the room UI goes away once the round starts
+      this.voteOpen = false;
+      this.renderVote();
       Player.spawn();
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
@@ -361,6 +407,10 @@ const Game = {
       if (this.finalBattleIds.length === 0) this.say("Run! One life. Reach the flag.", 2);
       else if (fighting(Network.id)) this.say("FINAL BATTLE! First to the flag gets +5.", 3);
       else { Player.alive = false; this.say("Final Battle! Watch the tied players fight it out.", 3); }
+    }
+    if (message.type === "votes") {
+      this.votes = message.votes;
+      this.renderVote();
     }
     if (message.type === "match_over") {
       this.phase = "winner";
@@ -431,6 +481,9 @@ const Game = {
       this._bannerTimer = this._firstFinisher ? 3 : 0;
       this._finalBattleNext = message.finalBattle || null;
       this._winnerPending = message.winnerPending || null;
+      this.votes = {};
+      this.voteOpen = Boolean(message.voteOpen);
+      this.renderVote();
       const iFinished = message.finishers.includes(Network.id);
       // Points from your trap's kills, banked because you finished.
       const myKills = message.killBonus ? message.killBonus[Network.id] : 0;
@@ -803,4 +856,5 @@ backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
 
 Game.buildSwatches();
+Game.buildMapButtons();
 Game.start();

@@ -277,6 +277,72 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+/* ---------------- Course vote ---------------- */
+
+#map-vote {
+  display: grid;
+  gap: 6px;
+}
+
+#map-vote-title {
+  color: #e8e8ff;
+  font-size: 12px;
+}
+
+#map-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.map-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 2px solid #45455d;
+  border-radius: 4px;
+  background: #0b0b14;
+  color: #e8e8ff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.map-btn:hover { border-color: #ffd23c; }
+.map-btn.mine { border-color: #ffffff; }
+
+/* A tiny preview of the course's colors: background with its platform color underneath */
+.map-btn .chip {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 16px;
+  border-radius: 3px;
+  border-bottom: 5px solid;
+}
+
+.map-btn .count {
+  margin-left: auto;
+  color: #ffd23c;
+  font-weight: 800;
+}
+
+/* On the results screen the vote floats at the bottom over the chart */
+#map-vote.floating {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: min(90%, 760px);
+  padding: 10px;
+  border: 1px solid rgba(255, 210, 60, 0.7);
+  border-radius: 6px;
+  background: rgba(11, 11, 20, 0.94);
+  text-align: center;
+  z-index: 2;
+}
+
 #start-match {
   padding: 10px 14px;
   border: 0;
