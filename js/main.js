@@ -572,7 +572,8 @@ const Game = {
     if (this.mode === "online" && this.phase === "results") this.drawScoreboard();
 
     if (this.mode === "online") {
-      const roundLabel = `ROUND ${this.round}/${this.roundsPerLevel}  ${Level.name}`;
+      const cap = this.settings ? this.settings.roundCap : "?";
+      const roundLabel = `ROUND ${this.round} of ${cap}  ${Level.name}`;
       hud.textContent = `${roundLabel}  •  ${this.message}`;
     } else {
       const progress = `LEVEL ${this.levelIndex + 1}/${LEVELS.length}  ${Level.name}`;

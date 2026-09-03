@@ -138,6 +138,7 @@ function checkRoundOver(room) {
     }
   }
   for (const player of players) player.pendingKills = 0;
+  room.roundsPlayed += 1;   // what the round cap is checked against
   room.phase = "results";
   broadcast(room, {
     type: "round_over",
@@ -156,9 +157,11 @@ function checkRoundOver(room) {
 function startNextRound(room) {
   room.timer = null;
   if (room.players.size === 0) return;
+  // room.round counts up for the whole match (1, 2, 3, 4, ...). Every
+  // ROUNDS_PER_LEVEL rounds the course rotates and its traps are cleared,
+  // so rounds 4, 7, 10, ... start fresh on the next level.
   room.round += 1;
-  if (room.round > ROUNDS_PER_LEVEL) {
-    room.round = 1;
+  if ((room.round - 1) % ROUNDS_PER_LEVEL === 0) {
     room.levelIndex = (room.levelIndex + 1) % LEVELS.length;
     room.traps = [];
   }
@@ -194,7 +197,7 @@ webSocketServer.on("connection", (socket) => {
       if (!room) {
         const check = validateSettings(message.settings);
         if (!check.ok) { send(socket, { type: "error", message: check.message }); return; }
-        room = { code, phase: "build", round: 1, levelIndex: 0, traps: [], players: new Map(), timer: null, finishOrder: [], settings: check.settings, hostId: null };
+        room = { code, phase: "build", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, finishOrder: [], settings: check.settings, hostId: null };
       }
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).` }); return; }
       // Joining mid-run means sitting this round out.
