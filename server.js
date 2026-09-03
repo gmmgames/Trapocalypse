@@ -22,6 +22,8 @@ const NEXT_ROUND_DELAY = 4;    // seconds the scoreboard shows before the next b
 const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
 const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
+const FINAL_BONUSES = [5, 3, 1];   // Final Battle: 1st, 2nd, 3rd to the flag. Everyone else 0.
+const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no decision, the tie is shared
 const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
@@ -87,6 +89,8 @@ function snapshot(room) {
     maxPlayers: MAX_PLAYERS,
     settings: room.settings,
     hostId: room.hostId,
+    winnerIds: room.winnerIds,
+    finalBattleIds: room.finalBattle ? room.finalBattle.ids : [],
     traps: room.traps,
     players: playerList(room),
   };
@@ -104,13 +108,72 @@ function trapBlocked(room, trap) {
 function startRun(room) {
   room.phase = "run";
   room.finishOrder = [];
-  for (const player of room.players.values()) player.status = "running";
+  // In a Final Battle the statuses were already set: tied players run, the rest watch.
+  if (!room.finalBattle) for (const player of room.players.values()) player.status = "running";
   // The host's time limit: when it runs out, anyone still running is out.
   clearTimeout(room.runTimer);
   room.runTimer = null;
   const timeLimit = room.settings.timeLimit;
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
-  broadcast(room, { type: "phase", phase: "run", timeLimit });
+  broadcast(room, { type: "phase", phase: "run", timeLimit, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [] });
+}
+
+// Ids of the players with the top score (ignoring anyone sitting out, unless that is everyone).
+function maxScoreIds(room) {
+  const everyone = [...room.players.values()];
+  const active = everyone.filter((player) => player.status !== "out");
+  const pool = active.length ? active : everyone;
+  const top = Math.max(...pool.map((player) => player.score));
+  return pool.filter((player) => player.score === top).map((player) => player.id);
+}
+
+// After a round: keep going, hold a Final Battle, or crown a winner?
+//   next   - nobody has reached the target and the round cap is not hit
+//   final  - two or more players qualify (or are still tied after a Final Battle)
+//   winner - exactly one player stands on top
+function decideMatchState(room) {
+  const settings = room.settings;
+  if (room.finalBattle) {
+    const participants = room.finalBattle.ids.map((id) => room.players.get(id)).filter(Boolean);
+    if (participants.length === 0) return { kind: "winner", ids: maxScoreIds(room) };
+    const capped = room.finalBattle.runs >= FINAL_BATTLE_MAX_RUNS;
+    const finished = participants.filter((player) => player.status === "finished");
+    if (finished.length === 0) return { kind: capped ? "winner" : "final", ids: participants.map((player) => player.id) };
+    const top = Math.max(...participants.map((player) => player.score));
+    const leaders = participants.filter((player) => player.score === top).map((player) => player.id);
+    return { kind: leaders.length === 1 || capped ? "winner" : "final", ids: leaders };
+  }
+  const active = [...room.players.values()].filter((player) => player.status !== "out");
+  // Everyone who reaches the target in the same round goes to the Final Battle, even with different scores.
+  let qualified = active.filter((player) => player.score >= settings.pointsToWin).map((player) => player.id);
+  if (qualified.length === 0 && room.roundsPlayed >= settings.roundCap) qualified = maxScoreIds(room);
+  if (qualified.length === 0) return { kind: "next" };
+  return { kind: qualified.length === 1 ? "winner" : "final", ids: qualified };
+}
+
+// The tied players run the current course again, no build phase. Everyone else watches.
+function startFinalBattle(room) {
+  room.timer = null;
+  if (room.phase !== "results" || room.players.size === 0 || !room.finalBattle) return;
+  room.finalBattle.ids = room.finalBattle.ids.filter((id) => room.players.has(id));
+  if (room.finalBattle.ids.length < 2) { declareWinner(room, room.finalBattle.ids); return; }
+  room.finalBattle.runs += 1;
+  for (const player of room.players.values()) {
+    player.pendingKills = 0;
+    player.status = room.finalBattle.ids.includes(player.id) ? "running" : "out";
+  }
+  startRun(room);
+}
+
+function declareWinner(room, ids) {
+  room.timer = null;
+  if (room.phase !== "results" || room.players.size === 0) return;
+  let winners = ids.filter((id) => room.players.has(id));
+  if (winners.length === 0) winners = maxScoreIds(room);
+  room.phase = "winner";
+  room.winnerIds = winners;
+  room.finalBattle = null;
+  broadcast(room, { type: "match_over", winnerIds: winners, players: playerList(room) });
 }
 
 function timeUp(room) {
@@ -138,10 +201,16 @@ function checkRoundOver(room) {
 
   const runners = players.filter((player) => player.status !== "out");
   const finishers = runners.filter((player) => player.status === "finished");
-  const everyoneFinished = finishers.length > 0 && finishers.length === runners.length;
+  const everyoneFinished = !room.finalBattle && finishers.length > 0 && finishers.length === runners.length;
   let firstFinisher = null;
   const killBonus = {};   // playerId -> points earned from their trap's kills this round
-  if (!everyoneFinished) {
+  if (room.finalBattle) {
+    // Final Battle: only the podium bonuses, in finishing order. Nothing else pays.
+    room.finishOrder.forEach((id, place) => {
+      const player = room.players.get(id);
+      if (player && room.finalBattle.ids.includes(id) && place < FINAL_BONUSES.length) player.score += FINAL_BONUSES[place];
+    });
+  } else if (!everyoneFinished) {
     for (const player of finishers) {
       player.score += FINISH_POINTS;
       // Trap kills only pay if you made it to the flag yourself.
@@ -156,8 +225,15 @@ function checkRoundOver(room) {
     }
   }
   for (const player of players) player.pendingKills = 0;
-  room.roundsPlayed += 1;   // what the round cap is checked against
+  if (!room.finalBattle) room.roundsPlayed += 1;   // what the round cap is checked against
   room.phase = "results";
+
+  // Decide what comes next BEFORE telling everyone, so the scoreboard can say so.
+  const decision = decideMatchState(room);
+  const wasFinalBattle = room.finalBattle !== null;
+  if (decision.kind === "final") room.finalBattle = { ids: decision.ids, runs: wasFinalBattle ? room.finalBattle.runs : 0 };
+  else room.finalBattle = null;
+
   broadcast(room, {
     type: "round_over",
     round: room.round,
@@ -168,8 +244,13 @@ function checkRoundOver(room) {
     killBonus,
     nextIn: NEXT_ROUND_DELAY,
     players: playerList(room),
+    finalBattle: decision.kind === "final" ? { ids: decision.ids, again: wasFinalBattle && finishers.length === 0 } : null,
+    winnerPending: decision.kind === "winner" ? decision.ids : null,
   });
-  room.timer = setTimeout(() => startNextRound(room), NEXT_ROUND_DELAY * 1000);
+  const delay = NEXT_ROUND_DELAY * 1000;
+  if (decision.kind === "next") room.timer = setTimeout(() => startNextRound(room), delay);
+  else if (decision.kind === "final") room.timer = setTimeout(() => startFinalBattle(room), delay);
+  else room.timer = setTimeout(() => declareWinner(room, decision.ids), delay);
 }
 
 // Everyone back to the lobby. Colors and settings are kept; scores only if asked.
@@ -177,7 +258,7 @@ function toLobby(room, { resetScores }) {
   clearTimeout(room.timer); clearTimeout(room.runTimer);
   room.timer = null; room.runTimer = null;
   room.phase = "lobby"; room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0;
-  room.traps = []; room.finishOrder = [];
+  room.traps = []; room.finishOrder = []; room.finalBattle = null; room.winnerIds = [];
   for (const player of room.players.values()) {
     player.trapCount = 0; player.pendingKills = 0; player.status = "waiting";
     if (resetScores) player.score = 0;
@@ -200,6 +281,19 @@ function removePlayer(socket) {
   // If the host left, the player who has been here longest takes over.
   if (player.id === room.hostId) room.hostId = room.players.keys().next().value;
   broadcast(room, snapshot(room));
+  // A Final Battle needs at least two fighters. If one walks out mid-run, the other wins.
+  if (room.finalBattle && room.finalBattle.ids.includes(player.id)) {
+    room.finalBattle.ids = room.finalBattle.ids.filter((id) => id !== player.id);
+    if (room.phase === "run" && room.finalBattle.ids.length < 2) {
+      clearTimeout(room.runTimer); room.runTimer = null;
+      for (const item of room.players.values()) if (item.status === "running") item.status = "out";
+      room.phase = "results";
+      const ids = room.finalBattle.ids.length ? room.finalBattle.ids : maxScoreIds(room);
+      room.finalBattle = null;
+      broadcast(room, { type: "round_over", round: room.round, finishers: [], everyoneFinished: false, firstFinisher: null, firstBonus: FIRST_BONUS, killBonus: {}, nextIn: NEXT_ROUND_DELAY, players: playerList(room), finalBattle: null, winnerPending: ids });
+      room.timer = setTimeout(() => declareWinner(room, ids), NEXT_ROUND_DELAY * 1000);
+    }
+  }
   // If the last runner left mid-run, do not leave the others waiting.
   checkRoundOver(room);
   if (room.phase === "build" && room.players.size >= 2 && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
@@ -250,7 +344,7 @@ webSocketServer.on("connection", (socket) => {
       if (!room) {
         const check = validateSettings(message.settings);
         if (!check.ok) { send(socket, { type: "error", message: check.message, fatal: true }); return; }
-        room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null };
+        room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null, finalBattle: null, winnerIds: [] };
       }
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
       // In the lobby you wait for the host. Joining mid-run means sitting this round out.
@@ -282,9 +376,16 @@ webSocketServer.on("connection", (socket) => {
       else if (!everyoneColored) problem = "Everyone needs to pick a color first.";
       if (problem) { send(socket, { type: "error", message: problem }); return; }
       room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0; room.traps = []; room.finishOrder = [];
+      room.finalBattle = null; room.winnerIds = [];
       for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; }
       room.phase = "build";
       broadcast(room, { ...snapshot(room), type: "round_start" });
+      return;
+    }
+    if (message.type === "back_to_lobby") {
+      if (player.id !== room.hostId) send(socket, { type: "error", message: "Only the host can do that." });
+      else if (room.phase !== "winner") send(socket, { type: "error", message: "The match isn't over." });
+      else toLobby(room, { resetScores: true });
       return;
     }
 

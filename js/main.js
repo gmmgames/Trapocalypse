@@ -30,6 +30,9 @@ const lobbyPlayers = document.getElementById("lobby-players");
 const lobbyNote = document.getElementById("lobby-note");
 const startMatchButton = document.getElementById("start-match");
 const leaveRoomButton = document.getElementById("leave-room");
+const winnerHud = document.getElementById("winner-hud");
+const backToLobbyButton = document.getElementById("back-to-lobby");
+const winnerNote = document.getElementById("winner-note");
 
 // The 24 colors players can pick from, laid out as 4 rows of 6.
 // White is reserved for "you", so it is not in the palette.
@@ -99,6 +102,10 @@ const Game = {
   settings: null,       // the host's match settings, from the server
   hostId: null,         // who the host is, from the server
   inRoom: false,        // true from the first room update until you leave
+  winnerIds: [],        // who won, once the match is over
+  finalBattleIds: [],   // who is fighting in the current Final Battle (empty = normal round)
+  _finalBattleNext: null, // the round_over said a Final Battle is coming
+  _winnerPending: null,   // the round_over said a winner is about to be crowned
   myColor: null,        // index into PALETTE, chosen once when you join
   _nextRoundIn: 0,      // countdown shown on the scoreboard
   _chartX: {},          // where each player's bar currently sits (slides toward its sorted spot)
@@ -162,12 +169,15 @@ const Game = {
     this._resetTimer = 0;
     this._advanceLevel = false;
     this._runTimeLeft = null;
+    this.winnerIds = [];
+    this.finalBattleIds = [];
     Player.color = "#ff3c78";
     Level.load(0);
     Player.spawn();
     lobby.classList.add("hidden");
     colorPicker.classList.add("hidden");
     leaveRoomButton.classList.add("hidden");
+    winnerHud.classList.add("hidden");
     onlinePanel.classList.remove("hidden");
     onlineStatus.textContent = statusText;
     roomCodeInput.value = "";
@@ -179,6 +189,11 @@ const Game = {
     onlinePanel.classList.add("hidden");
     leaveRoomButton.classList.toggle("hidden", !this.inRoom);
     lobby.classList.toggle("hidden", this.phase !== "lobby");
+    const isHost = Network.id === this.hostId;
+    // Winner screen: only the host gets the button, everyone else waits.
+    winnerHud.classList.toggle("hidden", this.phase !== "winner");
+    backToLobbyButton.classList.toggle("hidden", !isHost);
+    winnerNote.textContent = isHost ? "" : "Waiting for the host…";
     if (this.phase !== "lobby") return;
     const s = this.settings || {};
     lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
@@ -191,7 +206,6 @@ const Game = {
       item.append(dot, `${player.name}${player.id === this.hostId ? " (host)" : ""}`);
       return item;
     }));
-    const isHost = Network.id === this.hostId;
     startMatchButton.classList.toggle("hidden", !isHost);
     if (!isHost) lobbyNote.textContent = "Waiting for the host to start";
     else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players";
@@ -233,6 +247,11 @@ const Game = {
     return player && player.color !== null ? PALETTE[player.color] : "#4df0ff";
   },
 
+  nameOf(playerId) {
+    const player = this.players.find((item) => item.id === playerId);
+    return player ? player.name : "Someone";
+  },
+
   // The server sends the whole room whenever something big changes:
   // someone joins or leaves, or a new round begins.
   applyRoomState(message) {
@@ -243,6 +262,8 @@ const Game = {
     this.maxPlayers = message.maxPlayers || this.maxPlayers;
     this.settings = message.settings || this.settings;
     this.hostId = message.hostId || null;
+    this.winnerIds = message.winnerIds || [];
+    this.finalBattleIds = message.finalBattleIds || [];
     this.levelIndex = message.levelIndex;
     this.players = message.players;
     Level.load(message.levelIndex);
@@ -292,7 +313,10 @@ const Game = {
       const me = this.players.find((player) => player.id === Network.id);
       if (this.phase === "lobby") Player.spawn();
       else if (this.phase === "build") { Player.spawn(); this.say("Pick a color, then place your trap.", 3); }
-      else if (me && me.status === "out") { Player.spawn(); Player.alive = false; this.say("Round in progress. Pick a color for next round.", 3); }
+      else if (me && me.status === "out") {
+        Player.spawn(); Player.alive = false;
+        this.say(this.phase === "winner" ? "Match over. Pick a color and wait for the lobby." : "Round in progress. Pick a color for next round.", 3);
+      }
     }
     if (message.type === "round_start") {
       this.applyRoomState(message);
@@ -327,11 +351,25 @@ const Game = {
       onlinePanel.classList.add("hidden");   // the room UI goes away once the round starts
       Player.spawn();
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
-      for (const player of this.players) player.status = "running";   // mirror what the server just did
+      // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
+      this.finalBattleIds = message.finalBattleIds || [];
+      const fighting = (id) => this.finalBattleIds.length === 0 || this.finalBattleIds.includes(id);
+      for (const player of this.players) player.status = fighting(player.id) ? "running" : "out";
       this._runTimeLimit = message.timeLimit === undefined ? null : message.timeLimit;
       this._runStartedAt = performance.now();
       this._runTimeLeft = this._runTimeLimit;
-      this.say("Run! One life. Reach the flag.", 2);
+      if (this.finalBattleIds.length === 0) this.say("Run! One life. Reach the flag.", 2);
+      else if (fighting(Network.id)) this.say("FINAL BATTLE! First to the flag gets +5.", 3);
+      else { Player.alive = false; this.say("Final Battle! Watch the tied players fight it out.", 3); }
+    }
+    if (message.type === "match_over") {
+      this.phase = "winner";
+      this.players = message.players;
+      this.winnerIds = message.winnerIds;
+      this._bannerTimer = 0;
+      this._runTimeLeft = null;
+      this.showScores();
+      this.renderRoom();
     }
     if (message.type === "time_up") {
       // The clock ran out. Everyone the server lists is out of this round.
@@ -381,11 +419,20 @@ const Game = {
       this._firstFinisher = message.firstFinisher || null;
       this._firstBonus = message.firstBonus || this._firstBonus;
       this._bannerTimer = this._firstFinisher ? 3 : 0;
+      this._finalBattleNext = message.finalBattle || null;
+      this._winnerPending = message.winnerPending || null;
       const iFinished = message.finishers.includes(Network.id);
       // Points from your trap's kills, banked because you finished.
       const myKills = message.killBonus ? message.killBonus[Network.id] : 0;
       const extra = myKills ? ` +${myKills} from your traps` : "";
-      if (message.finishers.length === 0) this.say("Everyone's out. No points.", message.nextIn);
+      if (message.finalBattle) {
+        const names = message.finalBattle.ids.map((id) => this.nameOf(id));
+        this.say(message.finalBattle.again ? "Final Battle again: nobody finished!" : `FINAL BATTLE next: ${names.join(" vs ")}`, message.nextIn);
+      } else if (message.winnerPending) {
+        const names = message.winnerPending.map((id) => this.nameOf(id));
+        this.say(`${names.join(" & ")} win${names.length === 1 ? "s" : ""} the match!`, message.nextIn);
+      }
+      else if (message.finishers.length === 0) this.say("Everyone's out. No points.", message.nextIn);
       else if (message.everyoneFinished) this.say("Everyone made it. No points.", message.nextIn);
       else if (iFinished) this.say(`You scored!${extra}`, message.nextIn);
       else this.say("Round over.", message.nextIn);
@@ -555,10 +602,19 @@ const Game = {
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#ffd23c";
-    ctx.fillText(`ROUND ${this.round} RESULTS`, LEVEL_W / 2, 70);
-    ctx.font = "16px 'Segoe UI', system-ui, sans-serif";
-    ctx.fillStyle = "#c0c0d8";
-    ctx.fillText(`Next round in ${Math.max(0, Math.ceil(this._nextRoundIn))}`, LEVEL_W / 2, 96);
+    ctx.fillText(this.phase === "winner" ? "FINAL RESULTS" : `ROUND ${this.round} RESULTS`, LEVEL_W / 2, 70);
+    if (this.phase === "winner") {
+      // The winner's name (or names, for a shared win) in their color.
+      const names = this.winnerIds.map((id) => this.nameOf(id));
+      ctx.font = "bold 22px 'Segoe UI', system-ui, sans-serif";
+      ctx.fillStyle = this.winnerIds.length ? this.colorOf(this.winnerIds[0]) : "#ffd23c";
+      ctx.fillText(`${names.join(" & ")} win${names.length === 1 ? "s" : ""}!`, LEVEL_W / 2, 100);
+    } else {
+      const label = this._finalBattleNext ? "Final Battle in" : this._winnerPending ? "Final results in" : "Next round in";
+      ctx.font = "16px 'Segoe UI', system-ui, sans-serif";
+      ctx.fillStyle = "#c0c0d8";
+      ctx.fillText(`${label} ${Math.max(0, Math.ceil(this._nextRoundIn))}`, LEVEL_W / 2, 96);
+    }
 
     sorted.forEach((player, rank) => {
       // Slide each bar toward its sorted slot so the order change is visible.
@@ -663,10 +719,12 @@ const Game = {
       this.drawNametag(Player.x, Player.y, me ? me.name : "You", "#ffffff");
     }
 
-    if (this.mode === "online" && this.phase === "results") this.drawScoreboard();
+    if (this.mode === "online" && (this.phase === "results" || this.phase === "winner")) this.drawScoreboard();
 
     if (this.mode === "online" && this.phase === "lobby") {
       hud.textContent = `ROOM ${roomCodeInput.value}  •  ${this.message}`;
+    } else if (this.mode === "online" && this.phase === "winner") {
+      hud.textContent = `MATCH OVER  •  ${this.message}`;
     } else if (this.mode === "online") {
       const cap = this.settings ? this.settings.roundCap : "?";
       const roundLabel = `ROUND ${this.round} of ${cap}  ${Level.name}`;
@@ -729,6 +787,7 @@ startRunButton.addEventListener("click", () => {
 });
 startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
 leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
+backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
 
 Game.buildSwatches();

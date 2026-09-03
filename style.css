@@ -287,6 +287,28 @@ body {
   cursor: pointer;
 }
 
+#winner-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  color: #e8e8ff;
+  font-size: 14px;
+}
+
+#back-to-lobby {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffd23c;
+  color: #0b0b14;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 #leave-room {
   position: fixed;
   top: 18px;
