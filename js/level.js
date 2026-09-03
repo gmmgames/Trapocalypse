@@ -200,8 +200,15 @@ const Level = {
       ctx.fillRect(s.x, s.y, s.w, 3);
     }
 
-    // Hazards: spikes in the theme's warning color, readable at a glance.
+    // Traps. Each kind looks different so you know what you are running at:
+    //   spike    kills on touch (the level's built-in hazards are spikes too)
+    //   crumble  a fake platform that gives way just after you land on it
+    //   glue     slows you to a crawl, and you cannot jump while in it
+    //   bumper   flings you sideways, away from it
     for (const hazard of this.hazards) {
+      if (hazard.kind === "crumble") { this.drawCrumbler(ctx, hazard, t); continue; }
+      if (hazard.kind === "glue") { this.drawGlue(ctx, hazard); continue; }
+      if (hazard.kind === "bumper") { this.drawBumper(ctx, hazard); continue; }
       ctx.fillStyle = t.spike;
       const spikeWidth = 12;
       for (let x = hazard.x; x < hazard.x + hazard.w; x += spikeWidth) {
@@ -227,6 +234,53 @@ const Level = {
     ctx.lineTo(f.x + 7, f.y + 18);
     ctx.closePath();
     ctx.fill();
+  },
+
+  // A platform-looking block with cracks. It shivers once someone has stepped on it.
+  drawCrumbler(ctx, c, t) {
+    if (c._gone) return;
+    const shake = c._crumbleAt !== undefined ? Math.sin(c._crumbleAt * 60) * 2 : 0;
+    const x = c.x + shake;
+    ctx.fillStyle = t.solid;
+    ctx.fillRect(x, c.y, c.w, c.h);
+    ctx.fillStyle = t.solidTop;
+    ctx.fillRect(x, c.y, c.w, 3);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, c.y + 4); ctx.lineTo(x + 12, c.y + 13); ctx.lineTo(x + 8, c.y + 22); ctx.lineTo(x + 14, c.y + 29);
+    ctx.moveTo(x + 22, c.y + 3); ctx.lineTo(x + 18, c.y + 12); ctx.lineTo(x + 25, c.y + 19);
+    ctx.stroke();
+  },
+
+  // A green blob with drips over the top edge of the tile.
+  drawGlue(ctx, g) {
+    ctx.fillStyle = "rgba(140, 255, 60, 0.85)";
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y + g.h);
+    ctx.lineTo(g.x, g.y + 14);
+    ctx.quadraticCurveTo(g.x + 5, g.y + 2, g.x + 10, g.y + 12);
+    ctx.quadraticCurveTo(g.x + 15, g.y - 2, g.x + 20, g.y + 10);
+    ctx.quadraticCurveTo(g.x + 25, g.y + 4, g.x + g.w, g.y + 16);
+    ctx.lineTo(g.x + g.w, g.y + g.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "rgba(60, 160, 20, 0.9)";
+    ctx.fillRect(g.x + 8, g.y + 18, 3, 8);
+    ctx.fillRect(g.x + 19, g.y + 20, 3, 6);
+  },
+
+  // A round pink bumper with arrows pointing the way it will throw you.
+  drawBumper(ctx, b) {
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    ctx.fillStyle = "#ff3cb4";
+    ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, cy - 5); ctx.lineTo(cx - 8, cy); ctx.lineTo(cx - 3, cy + 5);
+    ctx.moveTo(cx + 3, cy - 5); ctx.lineTo(cx + 8, cy); ctx.lineTo(cx + 3, cy + 5);
+    ctx.stroke();
   },
 };
 

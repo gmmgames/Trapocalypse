@@ -21,6 +21,13 @@
     <div id="build-hud">
       <strong id="build-title">BUILD PHASE</strong>
       <span id="build-instructions">Place traps for the other runner.</span>
+      <!-- Which trap you place. Keys 1-4 work too. -->
+      <div id="trap-kinds">
+        <button type="button" class="trap-kind selected" data-kind="spike" title="Kills on touch">1 Spikes</button>
+        <button type="button" class="trap-kind" data-kind="crumble" title="A fake platform that gives way">2 Crumbler</button>
+        <button type="button" class="trap-kind" data-kind="glue" title="Slows to a crawl, no jumping">3 Glue</button>
+        <button type="button" class="trap-kind" data-kind="bumper" title="Flings you sideways">4 Bumper</button>
+      </div>
       <button id="start-run" type="button">Start Run</button>
     </div>
 
@@ -85,6 +92,8 @@
       <p>The host creates a room and picks the settings. Everyone joins with the six-letter code, picks a color, and votes on the first course. The host presses Start.</p>
       <p>Each round, every player places one trap by tapping the course. Once everyone has placed, everyone runs at once with a single life. Reach the flag before the clock runs out. Traps stay for three rounds, then the room votes on the next course.</p>
       <p>The match ends when someone reaches the points target, or when the round cap is hit and the top score wins. If two or more players qualify at once, they fight a Final Battle: one more run, no traps placed, everyone else watching.</p>
+      <h3>Traps</h3>
+      <p>Pick one with the buttons or keys 1 to 4. <b>Spikes</b> kill on touch. A <b>Crumbler</b> looks like a platform but gives way a moment after you land on it. <b>Glue</b> slows you to a crawl and you can't jump out of it. A <b>Bumper</b> flings you sideways, away from it.</p>
       <h3>Points</h3>
       <ul id="help-points"></ul>
       <p class="help-note">No points if everyone finishes, or everyone dies. Your own trap never pays you.</p>

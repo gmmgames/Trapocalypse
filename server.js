@@ -27,6 +27,7 @@ const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no deci
 const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
+const TRAP_KINDS = ["spike", "crumble", "glue", "bumper"];   // what a player may place (see js/level.js for what each does)
 const CHAT_MAX_LENGTH = 140;   // characters per chat message
 const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 
@@ -106,7 +107,9 @@ function snapshot(room) {
 function trapBlocked(room, trap) {
   const level = LEVELS[room.levelIndex];
   const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
-  return overlaps(trap, level.flag) || overlaps(trap, startBox) ||
+  // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
+  const inWall = trap.kind === "crumble" && level.solids.some((solid) => overlaps(solid, trap));
+  return inWall || overlaps(trap, level.flag) || overlaps(trap, startBox) ||
     room.traps.some((item) => overlaps(item, trap));
 }
 
@@ -461,7 +464,8 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "place_trap" && room.phase === "build" && player.color !== null && player.trapCount < TRAPS_PER_ROUND) {
       const x = Math.round((Number(message.x) || 0) / TILE) * TILE;
       const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
-      const trap = { x, y, w: TILE, h: TILE, owner: player.id };
+      const kind = TRAP_KINDS.includes(message.kind) ? message.kind : "spike";
+      const trap = { x, y, w: TILE, h: TILE, owner: player.id, kind };
       const inBounds = x >= 2 * TILE && x + TILE <= LEVEL_W - TILE && y >= 0 && y + TILE <= LEVEL_H;
       if (inBounds && !trapBlocked(room, trap)) {
         room.traps.push(trap); player.trapCount += 1;

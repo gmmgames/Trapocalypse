@@ -165,6 +165,28 @@ body {
   font-size: 14px;
 }
 
+/* Trap picker inside the build box */
+#trap-kinds {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.trap-kind {
+  padding: 6px 4px;
+  border: 2px solid #45455d;
+  border-radius: 4px;
+  background: #0b0b14;
+  color: #e8e8ff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.trap-kind:hover { border-color: #ffd23c; }
+.trap-kind.selected { border-color: #ffffff; background: #1c1c2e; }
+
 #start-run {
   margin-top: 6px;
   padding: 8px 12px;

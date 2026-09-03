@@ -74,6 +74,12 @@ const Sfx = {
     this.tone(110, 0, 0.18, "sawtooth", 0.18);
   },
 
+  // Bumper: a springy boing.
+  bump() {
+    this.tone(200, 0, 0.08, "square", 0.14);
+    this.tone(400, 0.06, 0.16, "triangle", 0.14);
+  },
+
   // The clock ran out: a falling two-note buzz.
   timeUp() {
     this.tone(330, 0, 0.18, "square", 0.12);

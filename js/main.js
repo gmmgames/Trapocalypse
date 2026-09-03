@@ -138,6 +138,7 @@ const Game = {
   _gains: {},             // playerId -> [{ label, points }] for this round, from the server
   _resultsElapsed: 0,     // seconds since the results screen appeared (drives the bar animation)
   myColor: null,        // index into PALETTE, chosen once when you join
+  trapKind: "spike",    // which trap you place next (spike, crumble, glue, bumper)
   _nextRoundIn: 0,      // countdown shown on the scoreboard
   _chartX: {},          // where each player's bar currently sits (slides toward its sorted spot)
   _firstFinisher: null, // who earned the "First One There!" bonus this round
@@ -280,6 +281,12 @@ const Game = {
 
   hideHelp() {
     helpPanel.classList.add("hidden");
+  },
+
+  // --- trap picker ---
+  setTrapKind(kind) {
+    this.trapKind = kind;
+    document.querySelectorAll(".trap-kind").forEach((button) => button.classList.toggle("selected", button.dataset.kind === kind));
   },
 
   // --- settings and chat ---
@@ -646,7 +653,7 @@ const Game = {
     const bounds = canvas.getBoundingClientRect();
     const x = Math.floor(((clientX - bounds.left) / bounds.width) * LEVEL_W / TILE) * TILE;
     const y = Math.floor(((clientY - bounds.top) / bounds.height) * LEVEL_H / TILE) * TILE;
-    const trap = { x, y, w: TILE, h: TILE };
+    const trap = { x, y, w: TILE, h: TILE, kind: this.trapKind };
 
     // No traps on the flag, on any player, on another trap, or off the edges.
     const onSomeone = Physics.overlaps(trap, Player) ||
@@ -655,10 +662,11 @@ const Game = {
       Level.hazards.some((hazard) => Physics.overlaps(trap, hazard)) ||
       Physics.overlaps(trap, Level.flag) || onSomeone;
     if (blocked) { this.say("You can't place a trap there.", 1.5); return; }
+    if (trap.kind === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) { this.say("A crumbler needs open air, not a wall.", 1.5); return; }
 
     if (this.mode === "online") {
       if (this.placements[0] >= this.trapsPerRound) { this.say("You've placed your trap. Waiting for the others.", 1.5); return; }
-      Network.send({ type: "place_trap", x, y });
+      Network.send({ type: "place_trap", x, y, kind: this.trapKind });
       return;
     }
     Level.hazards.push(trap);
@@ -1002,7 +1010,7 @@ const Game = {
       } else if (this.placements[0] >= this.trapsPerRound) {
         buildInstructions.textContent = `Trap placed. Waiting for ${waiting} more...`;
       } else {
-        buildInstructions.textContent = `Tap the level to place your trap. Not on a runner or the flag.`;
+        buildInstructions.textContent = `Pick a trap, then tap the level to place it. Not on a runner or the flag.`;
       }
     }
   },
@@ -1057,8 +1065,11 @@ chatInput.addEventListener("keydown", (event) => {
   if (event.key === "Escape") chatInput.blur();
   event.stopPropagation();   // typing never reaches the game's key handlers
 });
+document.querySelectorAll(".trap-kind").forEach((button) => button.addEventListener("click", () => Game.setTrapKind(button.dataset.kind)));
+const TRAP_KEYS = { "1": "spike", "2": "crumble", "3": "glue", "4": "bumper" };
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); }
+  if (TRAP_KEYS[event.key] && Game.phase === "build" && !event.target.matches("input, textarea, select")) Game.setTrapKind(TRAP_KEYS[event.key]);
   // Enter opens the chat when you are in a room and not already typing somewhere.
   if (event.key === "Enter" && Game.inRoom && !event.target.matches("input, textarea, select, button")) { chatInput.focus(); event.preventDefault(); }
 });
