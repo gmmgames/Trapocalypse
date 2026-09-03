@@ -55,6 +55,24 @@
   <!-- Shown whenever you are in a room. Takes you back to this page as it is on load. -->
   <button id="leave-room" type="button" class="hidden">Leave Room</button>
 
+  <!-- Settings gear: chat filter, and the host's early Back to Lobby. -->
+  <button id="settings-button" type="button" aria-label="Settings">⚙</button>
+  <div id="settings" class="hidden" role="dialog" aria-label="Settings">
+    <div id="settings-box">
+      <strong>SETTINGS</strong>
+      <label class="switch"><input id="chat-filter" type="checkbox" checked> Chat filter (bleep rude words on my screen)</label>
+      <button id="settings-back-to-lobby" type="button" class="hidden">Back to Lobby (ends the match)</button>
+      <span id="settings-note"></span>
+      <button id="settings-close" type="button">Close</button>
+    </div>
+  </div>
+
+  <!-- Chat, bottom left, while you are in a room. Enter to start typing, Enter again to send. -->
+  <div id="chat" class="hidden">
+    <div id="chat-log" aria-live="polite"></div>
+    <input id="chat-input" maxlength="140" placeholder="Press Enter to chat" aria-label="Chat message">
+  </div>
+
   <!-- How to Play: always available, bottom right. main.js fills in the point values. -->
   <button id="help-button" type="button" aria-label="How to play">? How to Play</button>
   <div id="help" class="hidden" role="dialog" aria-label="How to play">
@@ -143,6 +161,7 @@
   <script src="js/dust.js"></script>
   <script src="js/player.js"></script>
   <script src="js/network.js"></script>
+  <script src="js/chatfilter.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

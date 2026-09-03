@@ -27,6 +27,8 @@ const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no deci
 const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
+const CHAT_MAX_LENGTH = 140;   // characters per chat message
+const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 
 // --- match settings the host picks when creating a room ---
 // timeLimit is seconds per run, or null for Infinite.
@@ -424,10 +426,20 @@ webSocketServer.on("connection", (socket) => {
       }
       return;
     }
+    // The host can send everyone back to the lobby from the winner screen, or end a match early.
     if (message.type === "back_to_lobby") {
       if (player.id !== room.hostId) send(socket, { type: "error", message: "Only the host can do that." });
-      else if (room.phase !== "winner") send(socket, { type: "error", message: "The match isn't over." });
+      else if (room.phase === "lobby") send(socket, { type: "error", message: "You're already in the lobby." });
       else toLobby(room, { resetScores: true });
+      return;
+    }
+    // Chat: short text, at most one message every half second per player. Everyone sees it.
+    if (message.type === "chat") {
+      const text = String(message.text || "").replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_LENGTH);
+      const now = Date.now();
+      if (!text || now - (player.lastChatAt || 0) < CHAT_MIN_GAP_MS) return;
+      player.lastChatAt = now;
+      broadcast(room, { type: "chat", playerId: player.id, name: player.name, color: player.color, text });
       return;
     }
 

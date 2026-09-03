@@ -410,6 +410,110 @@ body {
   cursor: pointer;
 }
 
+/* ---------------- Settings ---------------- */
+
+#settings-button {
+  position: fixed;
+  top: 18px;
+  right: 150px;                  /* left of Leave Room */
+  z-index: 4;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #ffd23c;
+  border-radius: 4px;
+  background: rgba(22, 22, 37, 0.94);
+  color: #ffd23c;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+#settings {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#settings-box {
+  display: grid;
+  gap: 12px;
+  width: min(92vw, 380px);
+  padding: 18px 22px;
+  border: 1px solid rgba(255, 210, 60, 0.7);
+  border-radius: 8px;
+  background: rgba(11, 11, 20, 0.97);
+  color: #e8e8ff;
+  font-size: 14px;
+}
+
+#settings-box > strong {
+  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: 1px;
+  color: #ffd23c;
+  text-align: center;
+}
+
+.switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.switch input { width: 18px; height: 18px; accent-color: #ffd23c; }
+
+#settings-back-to-lobby, #settings-close {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffd23c;
+  color: #0b0b14;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#settings-back-to-lobby { background: #ff5a3c; color: #ffffff; }
+#settings-note { color: #c0c0d8; font-size: 12px; }
+
+/* ---------------- Chat ---------------- */
+
+#chat {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 3;
+  display: grid;
+  gap: 4px;
+  width: min(320px, 60vw);
+}
+
+#chat-log {
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(11, 11, 20, 0.7);
+  font-size: 13px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+#chat-log:empty { display: none; }
+
+.chat-name { font-weight: 700; }
+
+#chat-input {
+  padding: 7px;
+  border: 1px solid #45455d;
+  border-radius: 4px;
+  background: rgba(11, 11, 20, 0.85);
+  color: #e8e8ff;
+  font: inherit;
+  font-size: 13px;
+}
+
+#chat-input:focus { border-color: #ffd23c; outline: none; }
+
 /* ---------------- How to Play ---------------- */
 
 #help-button {
@@ -540,4 +644,5 @@ body {
     /* Leave room at the bottom so buttons do not cover the game */
     width: min(100vw, calc((100vh - 110px) * 16 / 9));
   }
+  #chat { bottom: 120px; }       /* above the touch buttons */
 }

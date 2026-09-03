@@ -33,6 +33,13 @@ const leaveRoomButton = document.getElementById("leave-room");
 const mapVote = document.getElementById("map-vote");
 const mapButtons = document.getElementById("map-buttons");
 const gameWrap = document.getElementById("game-wrap");
+const chatBox = document.getElementById("chat");
+const chatLog = document.getElementById("chat-log");
+const chatInput = document.getElementById("chat-input");
+const settingsPanel = document.getElementById("settings");
+const chatFilterToggle = document.getElementById("chat-filter");
+const settingsBackToLobby = document.getElementById("settings-back-to-lobby");
+const settingsNote = document.getElementById("settings-note");
 const helpPanel = document.getElementById("help");
 const helpPoints = document.getElementById("help-points");
 const winnerHud = document.getElementById("winner-hud");
@@ -202,6 +209,8 @@ const Game = {
     leaveRoomButton.classList.add("hidden");
     winnerHud.classList.add("hidden");
     mapVote.classList.add("hidden");
+    chatBox.classList.add("hidden");
+    chatLog.replaceChildren();
     onlinePanel.classList.remove("hidden");
     onlineStatus.textContent = statusText;
     roomCodeInput.value = "";
@@ -212,6 +221,7 @@ const Game = {
   renderRoom() {
     onlinePanel.classList.add("hidden");
     leaveRoomButton.classList.toggle("hidden", !this.inRoom);
+    chatBox.classList.toggle("hidden", !this.inRoom);
     lobby.classList.toggle("hidden", this.phase !== "lobby");
     const isHost = Network.id === this.hostId;
     // Winner screen: only the host gets the button, everyone else waits.
@@ -269,6 +279,48 @@ const Game = {
 
   hideHelp() {
     helpPanel.classList.add("hidden");
+  },
+
+  // --- settings and chat ---
+  // The chat filter is a per-player choice, remembered in this browser.
+  chatFilterOn: true,
+  loadPreferences() {
+    try { this.chatFilterOn = localStorage.getItem("trapocalypse.chatFilter") !== "off"; } catch (error) { /* private mode etc. */ }
+    chatFilterToggle.checked = this.chatFilterOn;
+  },
+  setChatFilter(on) {
+    this.chatFilterOn = on;
+    try { localStorage.setItem("trapocalypse.chatFilter", on ? "on" : "off"); } catch (error) { /* ignore */ }
+  },
+  showSettings() {
+    const hostInMatch = this.inRoom && Network.id === this.hostId && this.phase !== "lobby";
+    settingsBackToLobby.classList.toggle("hidden", !hostInMatch);
+    settingsNote.textContent = hostInMatch ? "Ends the match for everyone and clears the scores." : this.inRoom ? "Only the host can end a match early." : "";
+    settingsPanel.classList.remove("hidden");
+  },
+  hideSettings() {
+    settingsPanel.classList.add("hidden");
+  },
+
+  addChatLine(message) {
+    const line = document.createElement("div");
+    line.className = "chat-line";
+    const name = document.createElement("span");
+    name.className = "chat-name";
+    name.style.color = message.color !== null && message.color !== undefined ? PALETTE[message.color] : "#e8e8ff";
+    name.textContent = `${message.name}: `;
+    const text = document.createTextNode(this.chatFilterOn ? ChatFilter.censor(message.text) : message.text);
+    line.append(name, text);
+    chatLog.appendChild(line);
+    while (chatLog.children.length > 60) chatLog.removeChild(chatLog.firstChild);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  },
+
+  sendChat() {
+    const text = chatInput.value.trim();
+    if (text) Network.send({ type: "chat", text });
+    chatInput.value = "";
+    chatInput.blur();   // hand the keyboard back to the runner
   },
 
   // --- course vote ---
@@ -450,6 +502,7 @@ const Game = {
       this.votes = message.votes;
       this.renderVote();
     }
+    if (message.type === "chat") this.addChatLine(message);
     if (message.type === "match_over") {
       this.phase = "winner";
       this.players = message.players;
@@ -956,7 +1009,22 @@ backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_
 document.getElementById("help-button").addEventListener("click", () => Game.showHelp());
 document.getElementById("help-close").addEventListener("click", () => Game.hideHelp());
 helpPanel.addEventListener("click", (event) => { if (event.target === helpPanel) Game.hideHelp(); });   // click outside the box
-window.addEventListener("keydown", (event) => { if (event.key === "Escape") Game.hideHelp(); });
+document.getElementById("settings-button").addEventListener("click", () => Game.showSettings());
+document.getElementById("settings-close").addEventListener("click", () => Game.hideSettings());
+settingsPanel.addEventListener("click", (event) => { if (event.target === settingsPanel) Game.hideSettings(); });
+chatFilterToggle.addEventListener("change", () => Game.setChatFilter(chatFilterToggle.checked));
+settingsBackToLobby.addEventListener("click", () => { Network.send({ type: "back_to_lobby" }); Game.hideSettings(); });
+chatInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") Game.sendChat();
+  if (event.key === "Escape") chatInput.blur();
+  event.stopPropagation();   // typing never reaches the game's key handlers
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); }
+  // Enter opens the chat when you are in a room and not already typing somewhere.
+  if (event.key === "Enter" && Game.inRoom && !event.target.matches("input, textarea, select, button")) { chatInput.focus(); event.preventDefault(); }
+});
+Game.loadPreferences();
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
 
 // The canvas only picks up a web font once the browser has loaded it, so ask for both now.
