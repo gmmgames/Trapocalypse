@@ -105,7 +105,23 @@ function startRun(room) {
   room.phase = "run";
   room.finishOrder = [];
   for (const player of room.players.values()) player.status = "running";
-  broadcast(room, { type: "phase", phase: "run" });
+  // The host's time limit: when it runs out, anyone still running is out.
+  clearTimeout(room.runTimer);
+  room.runTimer = null;
+  const timeLimit = room.settings.timeLimit;
+  if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
+  broadcast(room, { type: "phase", phase: "run", timeLimit });
+}
+
+function timeUp(room) {
+  room.runTimer = null;
+  if (room.phase !== "run") return;   // the round already ended on its own
+  const timedOut = [];
+  for (const player of room.players.values()) {
+    if (player.status === "running") { player.status = "dead"; timedOut.push(player.id); }
+  }
+  broadcast(room, { type: "time_up", timedOut });
+  checkRoundOver(room);
 }
 
 // The round is over when nobody is still running. Scoring:
@@ -117,6 +133,8 @@ function checkRoundOver(room) {
   if (room.phase !== "run") return;
   const players = [...room.players.values()];
   if (players.some((player) => player.status === "running")) return;
+  clearTimeout(room.runTimer);   // everyone is done, the clock is no longer needed
+  room.runTimer = null;
 
   const runners = players.filter((player) => player.status !== "out");
   const finishers = runners.filter((player) => player.status === "finished");
@@ -197,7 +215,7 @@ webSocketServer.on("connection", (socket) => {
       if (!room) {
         const check = validateSettings(message.settings);
         if (!check.ok) { send(socket, { type: "error", message: check.message }); return; }
-        room = { code, phase: "build", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, finishOrder: [], settings: check.settings, hostId: null };
+        room = { code, phase: "build", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null };
       }
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).` }); return; }
       // Joining mid-run means sitting this round out.
@@ -271,7 +289,8 @@ webSocketServer.on("connection", (socket) => {
     if (!room || !socket.player) return;
     room.players.delete(socket.player.id);
     if (room.players.size === 0) {
-      if (room.timer) clearTimeout(room.timer);
+      clearTimeout(room.timer);
+      clearTimeout(room.runTimer);
       rooms.delete(room.code);
       return;
     }

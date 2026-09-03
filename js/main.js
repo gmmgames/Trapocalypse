@@ -97,6 +97,9 @@ const Game = {
   _firstFinisher: null, // who earned the "First One There!" bonus this round
   _firstBonus: 2,       // how many points that bonus is worth (the server tells us)
   _bannerTimer: 0,      // seconds left to show that banner
+  _runTimeLimit: null,  // seconds allowed for this run, or null for no limit
+  _runStartedAt: 0,     // wall-clock time the run began, so the countdown can't drift
+  _runTimeLeft: null,   // seconds left, shown in the HUD
 
   start() {
     Level.load(this.levelIndex);
@@ -256,7 +259,24 @@ const Game = {
       Player.spawn();
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       for (const player of this.players) player.status = "running";   // mirror what the server just did
+      this._runTimeLimit = message.timeLimit === undefined ? null : message.timeLimit;
+      this._runStartedAt = performance.now();
+      this._runTimeLeft = this._runTimeLimit;
       this.say("Run! One life. Reach the flag.", 2);
+    }
+    if (message.type === "time_up") {
+      // The clock ran out. Everyone the server lists is out of this round.
+      for (const id of message.timedOut) {
+        const who = this.players.find((player) => player.id === id);
+        if (who) who.status = "dead";
+        if (this.remotePlayers[id]) this.remotePlayers[id].alive = false;
+      }
+      if (message.timedOut.includes(Network.id)) {
+        this.say(Player.finished ? "Too late! Time ran out." : "Time's up!", 2);
+        Player.alive = false;
+        Player.finished = false;
+      }
+      this._runTimeLeft = null;
     }
     if (message.type === "player_update" && message.playerId !== Network.id) {
       if (!this.remotePlayers[message.playerId]) this.remotePlayers[message.playerId] = { name: "Runner" };
@@ -287,6 +307,7 @@ const Game = {
     if (message.type === "round_over") {
       this.phase = "results";
       this.players = message.players;
+      this._runTimeLeft = null;
       this._nextRoundIn = message.nextIn;
       this._firstFinisher = message.firstFinisher || null;
       this._firstBonus = message.firstBonus || this._firstBonus;
@@ -398,6 +419,10 @@ const Game = {
       }
     }
     if (this.phase === "results" && this._nextRoundIn > 0) this._nextRoundIn -= dt;
+    // Countdown from the wall clock, so a tab that was hidden still shows the right time.
+    if (this.phase === "run" && this._runTimeLimit !== null && this._runTimeLeft !== null) {
+      this._runTimeLeft = Math.max(0, this._runTimeLimit - (performance.now() - this._runStartedAt) / 1000);
+    }
     if (this._bannerTimer > 0) this._bannerTimer -= dt;
 
     // Count down timers
@@ -574,7 +599,8 @@ const Game = {
     if (this.mode === "online") {
       const cap = this.settings ? this.settings.roundCap : "?";
       const roundLabel = `ROUND ${this.round} of ${cap}  ${Level.name}`;
-      hud.textContent = `${roundLabel}  •  ${this.message}`;
+      const clock = this.phase === "run" && this._runTimeLeft !== null ? `  •  ⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
+      hud.textContent = `${roundLabel}${clock}  •  ${this.message}`;
     } else {
       const progress = `LEVEL ${this.levelIndex + 1}/${LEVELS.length}  ${Level.name}`;
       hud.textContent = this.complete ? `${progress}  •  COMPLETE` : `${progress}  •  ${this.message}`;
