@@ -95,6 +95,7 @@ const Game = {
   _nextRoundIn: 0,      // countdown shown on the scoreboard
   _chartX: {},          // where each player's bar currently sits (slides toward its sorted spot)
   _firstFinisher: null, // who earned the "First One There!" bonus this round
+  _firstBonus: 2,       // how many points that bonus is worth (the server tells us)
   _bannerTimer: 0,      // seconds left to show that banner
 
   start() {
@@ -254,6 +255,7 @@ const Game = {
       onlinePanel.classList.add("hidden");   // the room UI goes away once the round starts
       Player.spawn();
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
+      for (const player of this.players) player.status = "running";   // mirror what the server just did
       this.say("Run! One life. Reach the flag.", 2);
     }
     if (message.type === "player_update" && message.playerId !== Network.id) {
@@ -267,10 +269,16 @@ const Game = {
       const killer = message.killedBy ? this.players.find((player) => player.id === message.killedBy) : null;
       if (killer) {
         const victim = who ? who.name : "someone";
-        if (killer.id === Network.id) this.say(`Your trap got ${victim}! +${message.killPoints}`, 2);
+        if (killer.id === Network.id) {
+          // Kills only pay if you reach the flag too, so the wording depends on how you're doing.
+          const me = this.players.find((player) => player.id === Network.id);
+          const mine = me ? me.status : "";
+          if (mine === "running") this.say(`Your trap got ${victim}! Finish to bank +${message.killPoints}`, 2);
+          else if (mine === "finished") this.say(`Your trap got ${victim}! +${message.killPoints} banked`, 2);
+          else this.say(`Your trap got ${victim}! No points, you didn't finish.`, 2);
+        }
         else if (message.playerId === Network.id) this.say(`${killer.name}'s trap got you! Watching the others...`, 4);
         else this.say(`${killer.name}'s trap got ${victim}!`, 1.5);
-        killer.score += message.killPoints;   // keep the room panel's scores current until the next full update
         this.showScores();
       } else if (message.playerId !== Network.id && who) {
         this.say(message.status === "dead" ? `${who.name} is out!` : `${who.name} made it!`, 1.5);
@@ -281,11 +289,15 @@ const Game = {
       this.players = message.players;
       this._nextRoundIn = message.nextIn;
       this._firstFinisher = message.firstFinisher || null;
+      this._firstBonus = message.firstBonus || this._firstBonus;
       this._bannerTimer = this._firstFinisher ? 3 : 0;
       const iFinished = message.finishers.includes(Network.id);
+      // Points from your trap's kills, banked because you finished.
+      const myKills = message.killBonus ? message.killBonus[Network.id] : 0;
+      const extra = myKills ? ` +${myKills} from your traps` : "";
       if (message.finishers.length === 0) this.say("Everyone's out. No points.", message.nextIn);
       else if (message.everyoneFinished) this.say("Everyone made it. No points.", message.nextIn);
-      else if (iFinished) this.say("You scored!", message.nextIn);
+      else if (iFinished) this.say(`You scored!${extra}`, message.nextIn);
       else this.say("Round over.", message.nextIn);
       this.showScores();
     }
@@ -529,7 +541,7 @@ const Game = {
     ctx.shadowBlur = 0;
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 26px 'Segoe UI', system-ui, sans-serif";
-    ctx.fillText("+1 Point", centerX, centerY + 45);
+    ctx.fillText(`+${this._firstBonus} Points`, centerX, centerY + 45);
     if (winner) {
       ctx.fillStyle = "#c0c0d8";
       ctx.font = "bold 14px 'Segoe UI', system-ui, sans-serif";

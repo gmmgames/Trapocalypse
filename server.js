@@ -19,9 +19,9 @@ const MIME = {
 const TRAPS_PER_ROUND = 1;     // traps each player places before a run
 const ROUNDS_PER_LEVEL = 3;    // rounds on one course before rotating to the next
 const NEXT_ROUND_DELAY = 4;    // seconds the scoreboard shows before the next build phase
-const FINISH_POINTS = 1;       // points for reaching the flag
-const FIRST_BONUS = 1;         // extra point for the first finisher when 3+ play and 2+ finish
-const KILL_POINTS = 1;         // points to a trap's owner each time it kills someone else
+const FINISH_POINTS = 4;       // points for reaching the flag
+const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
+const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
 const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
@@ -122,13 +122,22 @@ function checkRoundOver(room) {
   const finishers = runners.filter((player) => player.status === "finished");
   const everyoneFinished = finishers.length > 0 && finishers.length === runners.length;
   let firstFinisher = null;
+  const killBonus = {};   // playerId -> points earned from their trap's kills this round
   if (!everyoneFinished) {
-    for (const player of finishers) player.score += FINISH_POINTS;
+    for (const player of finishers) {
+      player.score += FINISH_POINTS;
+      // Trap kills only pay if you made it to the flag yourself.
+      if (player.pendingKills > 0) {
+        killBonus[player.id] = player.pendingKills * KILL_POINTS;
+        player.score += killBonus[player.id];
+      }
+    }
     if (runners.length > 2 && finishers.length >= 2) {
       firstFinisher = room.players.get(room.finishOrder[0]) || null;
       if (firstFinisher) firstFinisher.score += FIRST_BONUS;
     }
   }
+  for (const player of players) player.pendingKills = 0;
   room.phase = "results";
   broadcast(room, {
     type: "round_over",
@@ -137,6 +146,7 @@ function checkRoundOver(room) {
     everyoneFinished,
     firstFinisher: firstFinisher ? firstFinisher.id : null,
     firstBonus: FIRST_BONUS,
+    killBonus,
     nextIn: NEXT_ROUND_DELAY,
     players: playerList(room),
   });
@@ -154,7 +164,7 @@ function startNextRound(room) {
   }
   room.phase = "build";
   // Colors are picked once when you join and kept for the whole game.
-  for (const player of room.players.values()) { player.trapCount = 0; player.status = "building"; }
+  for (const player of room.players.values()) { player.trapCount = 0; player.pendingKills = 0; player.status = "building"; }
   broadcast(room, { ...snapshot(room), type: "round_start" });
 }
 
@@ -189,7 +199,7 @@ webSocketServer.on("connection", (socket) => {
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).` }); return; }
       // Joining mid-run means sitting this round out.
       const status = room.phase === "build" ? "building" : "out";
-      const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, status, color: null };
+      const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null };
       room.players.set(player.id, player);
       if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
       rooms.set(code, room);
@@ -239,9 +249,10 @@ webSocketServer.on("connection", (socket) => {
       // Credit the trap's owner. The trap is looked up by position in the server's own
       // list, not trusted from the browser, so nobody can award points to themselves.
       // Level spikes and falls have no owner. Your own trap never pays you.
+      // The kill is only counted for now; it turns into points at round end if the owner finishes.
       const trap = room.traps.find((item) => item.x === Number(message.trapX) && item.y === Number(message.trapY));
       const killer = trap && trap.owner !== player.id ? room.players.get(trap.owner) : null;
-      if (killer) killer.score += KILL_POINTS;
+      if (killer) killer.pendingKills += 1;
       broadcast(room, { type: "status", playerId: player.id, status: "dead", killedBy: killer ? killer.id : null, killPoints: KILL_POINTS });
       checkRoundOver(room);
     }
