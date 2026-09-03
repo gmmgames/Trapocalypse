@@ -15,20 +15,35 @@ machine reachable by the other devices and have everyone open that machine's URL
 | Move | Arrow keys or A / D | Left and right buttons |
 | Jump | Up, W, or Space | JUMP button |
 
-Enter your name and create a room. Share the six-character room code, then other
-players join from their own browsers, up to 24 in a room. When you join you pick a color
-from the 24-color palette, and it's yours for the whole game. Nothing starts until at
-least two players are in. Each round, every player places one trap. Once everyone has
-placed, the room panel disappears and everyone runs at once with a single life. Your own
-nametag is white; everyone else's shows in the color they picked.
+Enter your name, pick the match settings (time limit per run, points to win, round cap;
+each dropdown has a Custom box for your own number inside the allowed range), and create
+a room. Share the six-character room code, then other players join from their own
+browsers, up to 24 in a room. Everyone lands in a lobby that lists who is here and the
+settings. When you join you pick a color from the 24-color palette, and it's yours for
+the whole match. Only the host can press Start Trap Apocalypse, and only once at least
+two players are in and everyone has a color. Leave Room, top right, takes you back to
+this page at any time. If the host leaves, the longest-present player becomes host.
 
-The round ends when every runner has either reached the flag or died. Each finisher
-scores one point. If everyone dies, or everyone makes it, nobody scores. With three or
-more runners and at least two finishers, the first to the flag gets an extra point and
-"First One There!" flashes on everyone's screen. A bar chart shows the standings, tallest
+Each round, every player places one trap. Once everyone has placed, everyone runs at once
+with a single life. Your own nametag is white; everyone else's shows in the color they
+picked. A clock counts down in the corner; when it hits zero, anyone still running is out.
+
+The round ends when every runner has reached the flag, died, or run out of time. Each
+finisher scores 4. If everyone dies, or everyone makes it, nobody scores. With three or
+more runners and at least two finishers, the first to the flag gets 2 more and "First
+One There!" flashes on everyone's screen. Your trap's kills are worth 1 each, but only
+paid if you reach the flag yourself that round. A bar chart shows the standings, tallest
 on the left, then the next round starts on its own a few seconds later with the old
 traps still in place. After three rounds the room moves to the next level with a clean
 course. Traps can't be placed on a runner or on the flag.
+
+The match ends when someone reaches the points target, or when the round cap is hit and
+the top score wins. If two or more players qualify in the same round, or tie on top at
+the cap, they fight a Final Battle: one more run on the current course, no build phase,
+everyone else watching. First to the flag gets 5, second 3, third 1, nobody else scores.
+If nobody finishes it runs again; after three Final Battles with no decision the tie is
+shared. The winner screen shows the final chart and the winner's name. The host's Back to
+Lobby button resets the scores and keeps everyone's colors and settings.
 
 Tap jump early before you land and it still counts. Let go of jump early for a shorter hop.
 
@@ -41,8 +56,9 @@ Tap jump early before you land and it still counts. Let go of jump early for a s
 - **Day 5:** The round loop. One life per round, a point for finishing, automatic next round, one trap per player, traps accumulate, levels rotate every three rounds.
 - **Day 6:** Identity. A 24-color picker, nametags over every runner, a sorted bar chart between rounds, and the room panel gets out of the way once the run starts.
 - **Day 7:** Bigger rooms. Up to 24 players, colors kept for the whole game, no points when everyone finishes, and a "First One There!" bonus in races of three or more.
+- **Day 8:** A real match. Host settings (time limit, points to win, round cap), a lobby with a host-only start and a Leave Room button, a run clock, 4/2/1 scoring with trap kills paid only to owners who finish, a winner screen, and a Final Battle to settle ties.
 
-Coming up: trap variety, a closing timer after the first finish, polish.
+Coming up: map voting, weapons in the Final Battle, trap variety, sounds, polish.
 
 ## What each file does
 
@@ -73,8 +89,10 @@ Open `server.js` for the round rules, then restart the server:
 - `TRAPS_PER_ROUND` how many traps each player places before a run
 - `ROUNDS_PER_LEVEL` how many rounds before the room moves to the next level
 - `NEXT_ROUND_DELAY` seconds the scoreboard shows before the next round
-- `FINISH_POINTS` for reaching the flag, `FIRST_BONUS` for the first finisher in a race of three or more
-- `KILL_POINTS` for the owner of a trap each time it kills someone else (level spikes, falls, and your own trap pay nothing)
+- `FINISH_POINTS` (4) for reaching the flag, `FIRST_BONUS` (2) for the first finisher in a race of three or more
+- `KILL_POINTS` (1) for the owner of a trap each time it kills someone else, paid at round end only if the owner finished (level spikes, falls, and your own trap pay nothing)
+- `FINAL_BONUSES` (5, 3, 1) for the podium in a Final Battle, `FINAL_BATTLE_MAX_RUNS` (3) before a tie is shared
+- `SETTING_LIMITS` and `SETTING_DEFAULTS` for what the host may pick: time limit 30-600 s or Infinite (default 60), points to win 15-99 (default 45), round cap 3-60 (default 30). The dropdown presets live in `index.html`.
 - `MAX_PLAYERS` room size (24, one per palette color)
 
 The 24 swatch colors live in `PALETTE` at the top of `js/main.js`.
