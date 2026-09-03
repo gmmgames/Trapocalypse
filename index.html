@@ -82,6 +82,12 @@
         </select>
         <input id="set-rounds-custom" type="number" min="3" max="60" step="1" placeholder="3–60" class="hidden">
       </label>
+      <!-- What each kind of point is worth -->
+      <div id="point-values">
+        <label>Win <input id="set-win" type="number" min="1" max="20" step="1" value="4"></label>
+        <label>Kill <input id="set-kill" type="number" min="0" max="10" step="1" value="1"></label>
+        <label>Trailblazer <input id="set-first" type="number" min="0" max="10" step="1" value="2"></label>
+      </div>
     </fieldset>
     <div>
       <button id="create-room" type="button">Create Room</button>

@@ -49,23 +49,32 @@ const PALETTE = [
 // --- match settings (host only) ---
 // Each dropdown has presets plus "Custom…", which reveals a number box.
 // The server checks these again; this copy just gives instant feedback.
+// The point values are plain number boxes ("input") with no presets.
 const SETTING_FIELDS = {
   timeLimit:   { select: "set-time",   custom: "set-time-custom",   min: 30, max: 600, label: "Time limit" },
   pointsToWin: { select: "set-points", custom: "set-points-custom", min: 15, max: 99,  label: "Points to win" },
   roundCap:    { select: "set-rounds", custom: "set-rounds-custom", min: 3,  max: 60,  label: "Round cap" },
+  winPoints:   { input: "set-win",   min: 1, max: 20, label: "Win points" },
+  killPoints:  { input: "set-kill",  min: 0, max: 10, label: "Trap kill points" },
+  firstPoints: { input: "set-first", min: 0, max: 10, label: "Trailblazer points" },
 };
 for (const field of Object.values(SETTING_FIELDS)) {
+  if (!field.select) continue;
   const select = document.getElementById(field.select);
   const custom = document.getElementById(field.custom);
   select.addEventListener("change", () => custom.classList.toggle("hidden", select.value !== "custom"));
 }
 
-// Read the three settings. Returns null (and says why) if a value is out of range.
+// Read the settings. Returns null (and says why) if a value is out of range.
 function readSettings() {
   const settings = {};
   for (const [key, field] of Object.entries(SETTING_FIELDS)) {
-    const select = document.getElementById(field.select);
-    const text = select.value === "custom" ? document.getElementById(field.custom).value : select.value;
+    let text;
+    if (field.input) text = document.getElementById(field.input).value;
+    else {
+      const select = document.getElementById(field.select);
+      text = select.value === "custom" ? document.getElementById(field.custom).value : select.value;
+    }
     if (text === "null") { settings[key] = null; continue; }   // Infinite time limit
     const n = Number(text);
     if (text.trim() === "" || !Number.isInteger(n) || n < field.min || n > field.max) {
@@ -204,7 +213,7 @@ const Game = {
     if (this.phase !== "lobby") return;
     const s = this.settings || {};
     lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
-    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds`;
+    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}`;
     lobbyPlayers.replaceChildren(...this.players.map((player) => {
       const item = document.createElement("li");
       const dot = document.createElement("span");

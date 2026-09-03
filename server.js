@@ -30,9 +30,10 @@ const PLAYER_W = 22, PLAYER_H = 26;
 
 // --- match settings the host picks when creating a room ---
 // timeLimit is seconds per run, or null for Infinite.
-const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 99], roundCap: [3, 60] };
-const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30 };
-const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap" };
+// The host can also set how much each kind of point is worth (defaults from the constants above).
+const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 99], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10] };
+const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS };
+const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points" };
 
 function roomCode() {
   let code;
@@ -213,17 +214,18 @@ function checkRoundOver(room) {
       if (player && room.finalBattle.ids.includes(id) && place < FINAL_BONUSES.length) player.score += FINAL_BONUSES[place];
     });
   } else if (!everyoneFinished) {
+    const { winPoints, killPoints, firstPoints } = room.settings;   // the host's values
     for (const player of finishers) {
-      player.score += FINISH_POINTS;
+      player.score += winPoints;
       // Trap kills only pay if you made it to the flag yourself.
-      if (player.pendingKills > 0) {
-        killBonus[player.id] = player.pendingKills * KILL_POINTS;
+      if (player.pendingKills > 0 && killPoints > 0) {
+        killBonus[player.id] = player.pendingKills * killPoints;
         player.score += killBonus[player.id];
       }
     }
     if (runners.length > 2 && finishers.length >= 2) {
       firstFinisher = room.players.get(room.finishOrder[0]) || null;
-      if (firstFinisher) firstFinisher.score += FIRST_BONUS;
+      if (firstFinisher) firstFinisher.score += firstPoints;
     }
   }
   for (const player of players) player.pendingKills = 0;
@@ -245,7 +247,7 @@ function checkRoundOver(room) {
     finishers: finishers.map((player) => player.id),
     everyoneFinished,
     firstFinisher: firstFinisher ? firstFinisher.id : null,
-    firstBonus: FIRST_BONUS,
+    firstBonus: room.settings.firstPoints,
     killBonus,
     nextIn: NEXT_ROUND_DELAY,
     players: playerList(room),
@@ -308,7 +310,7 @@ function removePlayer(socket) {
       room.phase = "results";
       const ids = room.finalBattle.ids.length ? room.finalBattle.ids : maxScoreIds(room);
       room.finalBattle = null;
-      broadcast(room, { type: "round_over", round: room.round, finishers: [], everyoneFinished: false, firstFinisher: null, firstBonus: FIRST_BONUS, killBonus: {}, nextIn: NEXT_ROUND_DELAY, players: playerList(room), finalBattle: null, winnerPending: ids });
+      broadcast(room, { type: "round_over", round: room.round, finishers: [], everyoneFinished: false, firstFinisher: null, firstBonus: room.settings.firstPoints, killBonus: {}, nextIn: NEXT_ROUND_DELAY, players: playerList(room), finalBattle: null, winnerPending: ids, voteOpen: false });
       room.timer = setTimeout(() => declareWinner(room, ids), NEXT_ROUND_DELAY * 1000);
     }
   }
@@ -461,7 +463,7 @@ webSocketServer.on("connection", (socket) => {
       const trap = room.traps.find((item) => item.x === Number(message.trapX) && item.y === Number(message.trapY));
       const killer = trap && trap.owner !== player.id ? room.players.get(trap.owner) : null;
       if (killer) killer.pendingKills += 1;
-      broadcast(room, { type: "status", playerId: player.id, status: "dead", killedBy: killer ? killer.id : null, killPoints: KILL_POINTS });
+      broadcast(room, { type: "status", playerId: player.id, status: "dead", killedBy: killer ? killer.id : null, killPoints: room.settings.killPoints });
       checkRoundOver(room);
     }
     if (message.type === "finished" && room.phase === "run" && player.status === "running") {

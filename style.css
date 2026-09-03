@@ -118,6 +118,17 @@ body {
   color: #e8e8ff;
 }
 
+/* The three point-value boxes sit side by side */
+#point-values {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+#point-values label {
+  font-size: 11px;
+}
+
 #match-settings select {
   width: 100%;
   padding: 5px;
@@ -252,6 +263,7 @@ body {
 #lobby-note {
   color: #e8e8ff;
   font-size: 12px;
+  white-space: pre-line;         /* the settings text has a line break in it */
 }
 
 #lobby-players {
