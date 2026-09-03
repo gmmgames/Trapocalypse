@@ -23,6 +23,13 @@ const onlineStatus = document.getElementById("online-status");
 const onlinePanel = document.getElementById("online-panel");
 const colorPicker = document.getElementById("color-picker");
 const swatchGrid = document.getElementById("swatches");
+const lobby = document.getElementById("lobby");
+const lobbyTitle = document.getElementById("lobby-title");
+const lobbySettings = document.getElementById("lobby-settings");
+const lobbyPlayers = document.getElementById("lobby-players");
+const lobbyNote = document.getElementById("lobby-note");
+const startMatchButton = document.getElementById("start-match");
+const leaveRoomButton = document.getElementById("leave-room");
 
 // The 24 colors players can pick from, laid out as 4 rows of 6.
 // White is reserved for "you", so it is not in the palette.
@@ -91,6 +98,7 @@ const Game = {
   maxPlayers: 24,
   settings: null,       // the host's match settings, from the server
   hostId: null,         // who the host is, from the server
+  inRoom: false,        // true from the first room update until you leave
   myColor: null,        // index into PALETTE, chosen once when you join
   _nextRoundIn: 0,      // countdown shown on the scoreboard
   _chartX: {},          // where each player's bar currently sits (slides toward its sorted spot)
@@ -126,6 +134,7 @@ const Game = {
   startOnline() {
     this.mode = "online";
     this.phase = "lobby";
+    this.inRoom = false;
     this.complete = false;
     this.remotePlayers = {};
     this.players = [];
@@ -134,7 +143,60 @@ const Game = {
     Level.load(0);
     Player.spawn();
     buildHud.classList.add("hidden");
+    lobby.classList.add("hidden");
     onlineStatus.textContent = "Connecting to room...";
+  },
+
+  // Back to the page as it is on load: solo mode, room panel showing.
+  leaveOnline(statusText = "Create a room or join a friend.") {
+    this.mode = "solo";
+    this.phase = "run";
+    this.inRoom = false;
+    this.players = [];
+    this.remotePlayers = {};
+    this._chartX = {};
+    this.myColor = null;
+    this.hostId = null;
+    this.levelIndex = 0;
+    this.complete = false;
+    this._resetTimer = 0;
+    this._advanceLevel = false;
+    this._runTimeLeft = null;
+    Player.color = "#ff3c78";
+    Level.load(0);
+    Player.spawn();
+    lobby.classList.add("hidden");
+    colorPicker.classList.add("hidden");
+    leaveRoomButton.classList.add("hidden");
+    onlinePanel.classList.remove("hidden");
+    onlineStatus.textContent = statusText;
+    roomCodeInput.value = "";
+    this.say("Left the room.", 2);
+  },
+
+  // Fill in the lobby box and the Leave button from the latest room info.
+  renderRoom() {
+    onlinePanel.classList.add("hidden");
+    leaveRoomButton.classList.toggle("hidden", !this.inRoom);
+    lobby.classList.toggle("hidden", this.phase !== "lobby");
+    if (this.phase !== "lobby") return;
+    const s = this.settings || {};
+    lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
+    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds`;
+    lobbyPlayers.replaceChildren(...this.players.map((player) => {
+      const item = document.createElement("li");
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = player.color !== null ? PALETTE[player.color] : "#45455d";
+      item.append(dot, `${player.name}${player.id === this.hostId ? " (host)" : ""}`);
+      return item;
+    }));
+    const isHost = Network.id === this.hostId;
+    startMatchButton.classList.toggle("hidden", !isHost);
+    if (!isHost) lobbyNote.textContent = "Waiting for the host to start";
+    else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players";
+    else if (this.players.some((player) => player.color === null)) lobbyNote.textContent = "Waiting for everyone to pick a color";
+    else lobbyNote.textContent = "";
   },
 
   // --- color picker ---
@@ -196,7 +258,10 @@ const Game = {
     this.myColor = me ? me.color : null;
     Player.color = this.myColor === null ? "#ff3c78" : PALETTE[this.myColor];
     roomCodeInput.value = message.code;
+    this.inRoom = true;
+    if (this.phase === "lobby") this._chartX = {};   // a fresh match gets a fresh chart
     this.showScores();
+    this.renderRoom();
     startRunButton.classList.add("hidden");
     // The picker only shows until you have a color. After that it stays away for good.
     if (this.myColor === null) this.showColorPicker();
@@ -213,6 +278,8 @@ const Game = {
     if (message.type === "error") {
       onlineStatus.textContent = message.message;
       this.say(message.message, 3);
+      // A fatal error means we are not in any room: go back to the start page, keeping the reason on screen.
+      if (message.fatal && this.mode === "online") this.leaveOnline(message.message);
       return;
     }
     if (message.type === "joined") return;
@@ -223,7 +290,8 @@ const Game = {
       // sitting this round out. Anyone already running, dead, or finished keeps
       // exactly where they were.
       const me = this.players.find((player) => player.id === Network.id);
-      if (this.phase === "build") { Player.spawn(); this.say("Pick a color, then place your trap.", 3); }
+      if (this.phase === "lobby") Player.spawn();
+      else if (this.phase === "build") { Player.spawn(); this.say("Pick a color, then place your trap.", 3); }
       else if (me && me.status === "out") { Player.spawn(); Player.alive = false; this.say("Round in progress. Pick a color for next round.", 3); }
     }
     if (message.type === "round_start") {
@@ -239,9 +307,10 @@ const Game = {
         this.myColor = message.color;
         Player.color = PALETTE[message.color];
         this.hideColorPicker();
-        this.say("Now tap the level to place your trap.", 3);
+        this.say(this.phase === "lobby" ? "Color picked. Waiting in the lobby." : "Now tap the level to place your trap.", 3);
       }
       this.refreshSwatches();
+      this.renderRoom();
     }
     if (message.type === "color_rejected") { this.say(message.message, 1.5); this.refreshSwatches(); }
     if (message.type === "trap_placed") {
@@ -596,7 +665,9 @@ const Game = {
 
     if (this.mode === "online" && this.phase === "results") this.drawScoreboard();
 
-    if (this.mode === "online") {
+    if (this.mode === "online" && this.phase === "lobby") {
+      hud.textContent = `ROOM ${roomCodeInput.value}  •  ${this.message}`;
+    } else if (this.mode === "online") {
       const cap = this.settings ? this.settings.roundCap : "?";
       const roundLabel = `ROUND ${this.round} of ${cap}  ${Level.name}`;
       const clock = this.phase === "run" && this._runTimeLeft !== null ? `  •  ⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
@@ -656,6 +727,8 @@ joinRoomButton.addEventListener("click", () => {
 startRunButton.addEventListener("click", () => {
   if (Game.phase === "build") Game.startPartyRun();
 });
+startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
+leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
 
 Game.buildSwatches();

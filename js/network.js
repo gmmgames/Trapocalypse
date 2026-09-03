@@ -12,18 +12,34 @@ const Network = {
       return;
     }
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    this.socket = new WebSocket(`${protocol}://${location.host}`);
-    this.socket.addEventListener("open", () => {
-      this.socket.send(JSON.stringify({ type: code ? "join_room" : "create_room", name, code, settings }));
+    const sock = new WebSocket(`${protocol}://${location.host}`);
+    this.socket = sock;
+    // Each listener checks it still belongs to the current socket, so an old
+    // connection we deliberately closed can't fire "Connection lost." later.
+    sock.addEventListener("open", () => {
+      if (this.socket !== sock) return;
+      sock.send(JSON.stringify({ type: code ? "join_room" : "create_room", name, code, settings }));
     });
-    this.socket.addEventListener("message", (event) => {
+    sock.addEventListener("message", (event) => {
+      if (this.socket !== sock) return;
       const message = JSON.parse(event.data);
       if (message.type === "joined") { this.id = message.id; this.connected = true; }
       if (message.type === "room_state") this.room = message.code;
       if (this.onMessage) this.onMessage(message);
     });
-    this.socket.addEventListener("close", () => { this.connected = false; if (this.onMessage) this.onMessage({ type: "error", message: "Connection lost." }); });
-    this.socket.addEventListener("error", () => { if (this.onMessage) this.onMessage({ type: "error", message: "Could not connect to the game server." }); });
+    sock.addEventListener("close", () => { if (this.socket !== sock) return; this.connected = false; if (this.onMessage) this.onMessage({ type: "error", message: "Connection lost.", fatal: true }); });
+    sock.addEventListener("error", () => { if (this.socket !== sock) return; if (this.onMessage) this.onMessage({ type: "error", message: "Could not connect to the game server.", fatal: true }); });
+  },
+
+  // Leave on purpose: tell the server, then drop the socket so its events are ignored.
+  leave() {
+    this.send({ type: "leave_room" });
+    const old = this.socket;
+    this.socket = null;
+    this.connected = false;
+    this.id = null;
+    this.room = "";
+    if (old) old.close();
   },
 
   send(message) {

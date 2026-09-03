@@ -27,7 +27,19 @@
       <div id="swatches"></div>
       <span id="color-note">Taken colors are crossed out.</span>
     </div>
+
+    <!-- The lobby: who is here, the match settings, and the host's start button. -->
+    <div id="lobby" class="hidden">
+      <strong id="lobby-title">ROOM ------</strong>
+      <span id="lobby-settings"></span>
+      <ul id="lobby-players"></ul>
+      <button id="start-match" type="button" class="hidden">Start Trap Apocalypse</button>
+      <span id="lobby-note"></span>
+    </div>
   </div>
+
+  <!-- Shown whenever you are in a room. Takes you back to this page as it is on load. -->
+  <button id="leave-room" type="button" class="hidden">Leave Room</button>
 
   <section id="online-panel" aria-label="Online multiplayer">
     <strong>ONLINE RUN</strong>

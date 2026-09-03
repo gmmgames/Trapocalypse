@@ -172,9 +172,42 @@ function checkRoundOver(room) {
   room.timer = setTimeout(() => startNextRound(room), NEXT_ROUND_DELAY * 1000);
 }
 
+// Everyone back to the lobby. Colors and settings are kept; scores only if asked.
+function toLobby(room, { resetScores }) {
+  clearTimeout(room.timer); clearTimeout(room.runTimer);
+  room.timer = null; room.runTimer = null;
+  room.phase = "lobby"; room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0;
+  room.traps = []; room.finishOrder = [];
+  for (const player of room.players.values()) {
+    player.trapCount = 0; player.pendingKills = 0; player.status = "waiting";
+    if (resetScores) player.score = 0;
+  }
+  broadcast(room, snapshot(room));
+}
+
+// Take a player out of their room (they left, or their connection dropped).
+// Safe to call twice: the second call finds nothing to do.
+function removePlayer(socket) {
+  const room = socket.room, player = socket.player;
+  if (!room || !player) return;
+  socket.room = null; socket.player = null;
+  room.players.delete(player.id);
+  if (room.players.size === 0) {
+    clearTimeout(room.timer); clearTimeout(room.runTimer);
+    rooms.delete(room.code);
+    return;
+  }
+  // If the host left, the player who has been here longest takes over.
+  if (player.id === room.hostId) room.hostId = room.players.keys().next().value;
+  broadcast(room, snapshot(room));
+  // If the last runner left mid-run, do not leave the others waiting.
+  checkRoundOver(room);
+  if (room.phase === "build" && room.players.size >= 2 && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
+}
+
 function startNextRound(room) {
   room.timer = null;
-  if (room.players.size === 0) return;
+  if (room.phase !== "results" || room.players.size === 0) return;   // the room moved on; stale timer
   // room.round counts up for the whole match (1, 2, 3, 4, ...). Every
   // ROUNDS_PER_LEVEL rounds the course rotates and its traps are cleared,
   // so rounds 4, 7, 10, ... start fresh on the next level.
@@ -209,17 +242,19 @@ webSocketServer.on("connection", (socket) => {
     try { message = JSON.parse(raw); } catch { return; }
 
     if (message.type === "create_room" || message.type === "join_room") {
+      if (socket.room) { send(socket, { type: "error", message: "You're already in a room." }); return; }
       const code = message.type === "create_room" ? roomCode() : String(message.code || "").toUpperCase();
       let room = rooms.get(code);
-      if (message.type === "join_room" && !room) { send(socket, { type: "error", message: "Room not found." }); return; }
+      // "fatal" tells the browser it is not in any room and should go back to the start page.
+      if (message.type === "join_room" && !room) { send(socket, { type: "error", message: "Room not found.", fatal: true }); return; }
       if (!room) {
         const check = validateSettings(message.settings);
-        if (!check.ok) { send(socket, { type: "error", message: check.message }); return; }
-        room = { code, phase: "build", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null };
+        if (!check.ok) { send(socket, { type: "error", message: check.message, fatal: true }); return; }
+        room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null };
       }
-      if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).` }); return; }
-      // Joining mid-run means sitting this round out.
-      const status = room.phase === "build" ? "building" : "out";
+      if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
+      // In the lobby you wait for the host. Joining mid-run means sitting this round out.
+      const status = room.phase === "lobby" ? "waiting" : room.phase === "build" ? "building" : "out";
       const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null };
       room.players.set(player.id, player);
       if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
@@ -233,6 +268,25 @@ webSocketServer.on("connection", (socket) => {
     const room = socket.room;
     const player = socket.player;
     if (!room || !player) return;
+
+    if (message.type === "leave_room") { removePlayer(socket); return; }
+
+    // Only the host starts the match, from the lobby, with 2+ players who all have colors.
+    if (message.type === "start_match") {
+      const everyoneColored = [...room.players.values()].every((item) => item.color !== null);
+      let problem = null;
+      if (player.id !== room.hostId) problem = "Only the host can start.";
+      else if (room.phase === "winner") problem = "Use Back to Lobby first.";
+      else if (room.phase !== "lobby") problem = "The match has already started.";
+      else if (room.players.size < 2) problem = "You need at least 2 players.";
+      else if (!everyoneColored) problem = "Everyone needs to pick a color first.";
+      if (problem) { send(socket, { type: "error", message: problem }); return; }
+      room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0; room.traps = []; room.finishOrder = [];
+      for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; }
+      room.phase = "build";
+      broadcast(room, { ...snapshot(room), type: "round_start" });
+      return;
+    }
 
     // Pick a color once, when you first join. Two players can't share one.
     if (message.type === "choose_color" && player.color === null) {
@@ -284,21 +338,7 @@ webSocketServer.on("connection", (socket) => {
       checkRoundOver(room);
     }
   });
-  socket.on("close", () => {
-    const room = socket.room;
-    if (!room || !socket.player) return;
-    room.players.delete(socket.player.id);
-    if (room.players.size === 0) {
-      clearTimeout(room.timer);
-      clearTimeout(room.runTimer);
-      rooms.delete(room.code);
-      return;
-    }
-    broadcast(room, snapshot(room));
-    // If the last runner left mid-run, do not leave the others waiting.
-    checkRoundOver(room);
-    if (room.phase === "build" && room.players.size >= 2 && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
-  });
+  socket.on("close", () => removePlayer(socket));
 });
 
 server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));
