@@ -58,6 +58,7 @@ const Player = {
       this.vy = -this.JUMP_SPEED;   // negative Y is UP on a canvas
       this._buffer = 0;
       this._coyote = 0;
+      Sfx.jump();
     }
 
     // Let go of jump early = shorter hop. Feels much better than fixed jumps.

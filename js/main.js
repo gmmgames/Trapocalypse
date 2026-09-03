@@ -38,6 +38,7 @@ const chatLog = document.getElementById("chat-log");
 const chatInput = document.getElementById("chat-input");
 const settingsPanel = document.getElementById("settings");
 const chatFilterToggle = document.getElementById("chat-filter");
+const soundsToggle = document.getElementById("sounds-toggle");
 const settingsBackToLobby = document.getElementById("settings-back-to-lobby");
 const settingsNote = document.getElementById("settings-note");
 const helpPanel = document.getElementById("help");
@@ -285,12 +286,21 @@ const Game = {
   // The chat filter is a per-player choice, remembered in this browser.
   chatFilterOn: true,
   loadPreferences() {
-    try { this.chatFilterOn = localStorage.getItem("trapocalypse.chatFilter") !== "off"; } catch (error) { /* private mode etc. */ }
+    try {
+      this.chatFilterOn = localStorage.getItem("trapocalypse.chatFilter") !== "off";
+      Sfx.muted = localStorage.getItem("trapocalypse.sounds") === "off";
+    } catch (error) { /* private mode etc. */ }
     chatFilterToggle.checked = this.chatFilterOn;
+    soundsToggle.checked = !Sfx.muted;
   },
   setChatFilter(on) {
     this.chatFilterOn = on;
     try { localStorage.setItem("trapocalypse.chatFilter", on ? "on" : "off"); } catch (error) { /* ignore */ }
+  },
+  setSounds(on) {
+    Sfx.muted = !on;
+    try { localStorage.setItem("trapocalypse.sounds", on ? "on" : "off"); } catch (error) { /* ignore */ }
+    if (on) Sfx.pickup();   // a little confirmation blip
   },
   showSettings() {
     const hostInMatch = this.inRoom && Network.id === this.hostId && this.phase !== "lobby";
@@ -314,6 +324,29 @@ const Game = {
     chatLog.appendChild(line);
     while (chatLog.children.length > 60) chatLog.removeChild(chatLog.firstChild);
     chatLog.scrollTop = chatLog.scrollHeight;
+  },
+
+  // Sounds for the results screen, timed to the growing bars: a chime when your
+  // points land, a fanfare if you were Trailblazer, and an arpeggio plus a message
+  // each time you pass another 10 points. Others' points get a soft blip.
+  MILESTONE_STEP: 10,
+  playRoundSounds(message) {
+    const gains = message.gains || {};
+    const mine = gains[Network.id] || [];
+    const before = this.players.find((player) => player.id === Network.id);
+    const after = message.players.find((player) => player.id === Network.id);
+    const othersScored = Object.keys(gains).some((id) => id !== Network.id);
+    if (mine.length) setTimeout(() => Sfx.score(), 700);            // first bar stage starts at 0.7 s
+    else if (othersScored) setTimeout(() => Sfx.otherScore(), 700);
+    if (message.firstFinisher === Network.id) setTimeout(() => Sfx.fanfare(), 1900);
+    if (before && after) {
+      const step = this.MILESTONE_STEP;
+      const crossed = Math.floor(after.score / step) - Math.floor(before.score / step);
+      if (crossed > 0) {
+        const milestone = Math.floor(after.score / step) * step;
+        setTimeout(() => { Sfx.milestone(); this.say(`Milestone! ${milestone} points!`, 3); }, 700 + mine.length * 1000);
+      }
+    }
   },
 
   sendChat() {
@@ -473,7 +506,7 @@ const Game = {
     if (message.type === "color_rejected") { this.say(message.message, 1.5); this.refreshSwatches(); }
     if (message.type === "trap_placed") {
       if (!Level.hazards.some((hazard) => hazard.x === message.trap.x && hazard.y === message.trap.y)) Level.hazards.push(message.trap);
-      if (message.playerId === Network.id) this.placements[0] += 1;
+      if (message.playerId === Network.id) { this.placements[0] += 1; Sfx.pickup(); }
       const who = this.players.find((player) => player.id === message.playerId);
       if (who) who.trapCount += 1;
     }
@@ -504,6 +537,7 @@ const Game = {
     }
     if (message.type === "chat") this.addChatLine(message);
     if (message.type === "match_over") {
+      Sfx.victory();
       this.phase = "winner";
       this.players = message.players;
       this.winnerIds = message.winnerIds;
@@ -519,6 +553,7 @@ const Game = {
         if (who) who.status = "dead";
         if (this.remotePlayers[id]) this.remotePlayers[id].alive = false;
       }
+      Sfx.timeUp();
       if (message.timedOut.includes(Network.id)) {
         this.say(Player.finished ? "Too late! Time ran out." : "Time's up!", 2);
         Player.alive = false;
@@ -563,6 +598,7 @@ const Game = {
       }
     }
     if (message.type === "round_over") {
+      this.playRoundSounds(message);
       this.phase = "results";
       this.players = message.players;
       this._runTimeLeft = null;
@@ -644,6 +680,7 @@ const Game = {
   },
 
   onPlayerDied(hazard) {
+    Sfx.splat();
     if (this.mode === "online") {
       // One life per round: no respawn until the next round starts.
       // Tell the server which spike got us (by grid position) so its owner can score.
@@ -1013,6 +1050,7 @@ document.getElementById("settings-button").addEventListener("click", () => Game.
 document.getElementById("settings-close").addEventListener("click", () => Game.hideSettings());
 settingsPanel.addEventListener("click", (event) => { if (event.target === settingsPanel) Game.hideSettings(); });
 chatFilterToggle.addEventListener("change", () => Game.setChatFilter(chatFilterToggle.checked));
+soundsToggle.addEventListener("change", () => Game.setSounds(soundsToggle.checked));
 settingsBackToLobby.addEventListener("click", () => { Network.send({ type: "back_to_lobby" }); Game.hideSettings(); });
 chatInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") Game.sendChat();

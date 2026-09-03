@@ -61,6 +61,7 @@
     <div id="settings-box">
       <strong>SETTINGS</strong>
       <label class="switch"><input id="chat-filter" type="checkbox" checked> Chat filter (bleep rude words on my screen)</label>
+      <label class="switch"><input id="sounds-toggle" type="checkbox" checked> Sounds</label>
       <button id="settings-back-to-lobby" type="button" class="hidden">Back to Lobby (ends the match)</button>
       <span id="settings-note"></span>
       <button id="settings-close" type="button">Close</button>
@@ -152,6 +153,7 @@
       physics.js  gravity and "did we bump into something" math
       level.js    where the ground, platforms, start, and flag are
       dust.js     the puffs under runners' feet (visual only)
+      audio.js    sound effects made from scratch, no sound files
       player.js   the runner: moving, jumping, dying, finishing
       main.js     the game loop that ties it all together
   -->
@@ -159,6 +161,7 @@
   <script src="js/physics.js"></script>
   <script src="js/level.js"></script>
   <script src="js/dust.js"></script>
+  <script src="js/audio.js"></script>
   <script src="js/player.js"></script>
   <script src="js/network.js"></script>
   <script src="js/chatfilter.js"></script>

@@ -62,6 +62,24 @@ const Sfx = {
 
   // --- the actual effects the game calls ---
 
+  // A little hop: two quick rising notes.
+  jump() {
+    this.tone(440, 0, 0.06, "square", 0.06);
+    this.tone(660, 0.05, 0.08, "square", 0.06);
+  },
+
+  // Splat: a burst of static and a low thud.
+  splat() {
+    this.noise(0.22, 0.22);
+    this.tone(110, 0, 0.18, "sawtooth", 0.18);
+  },
+
+  // The clock ran out: a falling two-note buzz.
+  timeUp() {
+    this.tone(330, 0, 0.18, "square", 0.12);
+    this.tone(220, 0.18, 0.35, "square", 0.12);
+  },
+
   // You scored: two quick rising notes.
   score() {
     this.tone(660, 0, 0.12);
