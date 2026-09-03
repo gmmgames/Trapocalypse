@@ -46,6 +46,9 @@ const PALETTE = [
   "#ffd6a8", "#c8ff9e", "#a8e8ff", "#d9b8ff", "#c0c0d8", "#8a6a4a",
 ];
 
+// Canvas text uses the same fonts as the page (see index.html). Bangers is for big shouty titles.
+const FONT = "'Fredoka', 'Segoe UI', system-ui, sans-serif";
+const DISPLAY_FONT = "'Bangers', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
 
 // --- match settings (host only) ---
@@ -650,7 +653,7 @@ const Game = {
 
   // A name floating above a runner's head, with a dark backing so it reads over anything.
   drawNametag(x, y, name, color) {
-    ctx.font = "bold 13px 'Segoe UI', system-ui, sans-serif";
+    ctx.font = `bold 13px ${FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     const width = ctx.measureText(name).width + 10;
@@ -700,7 +703,7 @@ const Game = {
     const leftX = (LEVEL_W - totalW) / 2;
     const topScore = Math.max(1, ...sorted.map((player) => player.score));
 
-    ctx.font = "bold 28px 'Segoe UI', system-ui, sans-serif";
+    ctx.font = `36px ${DISPLAY_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#ffd23c";
@@ -708,12 +711,12 @@ const Game = {
     if (this.phase === "winner") {
       // The winner's name (or names, for a shared win) in their color.
       const names = this.winnerIds.map((id) => this.nameOf(id));
-      ctx.font = "bold 22px 'Segoe UI', system-ui, sans-serif";
+      ctx.font = `bold 22px ${FONT}`;
       ctx.fillStyle = this.winnerIds.length ? this.colorOf(this.winnerIds[0]) : "#ffd23c";
       ctx.fillText(`${names.join(" & ")} win${names.length === 1 ? "s" : ""}!`, LEVEL_W / 2, 100);
     } else {
       const label = this._finalBattleNext ? "Final Battle in" : this._winnerPending ? "Final results in" : "Next round in";
-      ctx.font = "16px 'Segoe UI', system-ui, sans-serif";
+      ctx.font = `16px ${FONT}`;
       ctx.fillStyle = "#c0c0d8";
       ctx.fillText(`${label} ${Math.max(0, Math.ceil(this._nextRoundIn))}`, LEVEL_W / 2, 96);
     }
@@ -745,7 +748,7 @@ const Game = {
 
       // Name across the top of the bar, white for you, their color for everyone else.
       // Long names get trimmed so they never spill into the next column.
-      ctx.font = `bold ${nameFont}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `bold ${nameFont}px ${FONT}`;
       ctx.textAlign = "center";
       ctx.fillStyle = isMe ? "#ffffff" : color;
       let label = player.name;
@@ -753,7 +756,7 @@ const Game = {
       ctx.fillText(label, x + barW / 2, baseline - barH - 10);
 
       // Score inside the bar when it is tall enough, otherwise above the name
-      ctx.font = `bold ${Math.max(12, Math.min(22, barW / 3))}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `bold ${Math.max(12, Math.min(22, barW / 3))}px ${FONT}`;
       if (barH >= 40) {
         ctx.fillStyle = "#0b0b14";
         ctx.fillText(String(Math.round(shown)), x + barW / 2, baseline - 12);
@@ -763,7 +766,7 @@ const Game = {
       }
 
       // "+4 win" style labels float up from the top of the bar and fade.
-      ctx.font = `bold ${Math.max(10, Math.min(15, barW / 6))}px 'Segoe UI', system-ui, sans-serif`;
+      ctx.font = `bold ${Math.max(10, Math.min(15, barW / 6))}px ${FONT}`;
       labels.forEach((label) => {
         ctx.globalAlpha = 1 - label.age;
         ctx.fillStyle = "#ffffff";
@@ -824,17 +827,17 @@ const Game = {
     ctx.textBaseline = "alphabetic";
     if (winner) {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 14px 'Segoe UI', system-ui, sans-serif";
+      ctx.font = `bold 14px ${FONT}`;
       ctx.fillText(winner.name, 0, -20);
     }
     ctx.shadowColor = color;
     ctx.shadowBlur = 14;
     ctx.fillStyle = color;
-    ctx.font = "900 28px 'Segoe UI', system-ui, sans-serif";
+    ctx.font = `34px ${DISPLAY_FONT}`;
     ctx.fillText("Trailblazer!", 0, 8);
     ctx.shadowBlur = 0;
     ctx.fillStyle = "#e8e8ff";
-    ctx.font = "bold 15px 'Segoe UI', system-ui, sans-serif";
+    ctx.font = `bold 15px ${FONT}`;
     ctx.fillText(`+${this._firstBonus} Points`, 0, 30);
     ctx.restore();
   },
@@ -930,6 +933,8 @@ leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnl
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
 
+// The canvas only picks up a web font once the browser has loaded it, so ask for both now.
+if (document.fonts) { document.fonts.load("16px Fredoka"); document.fonts.load("16px Bangers"); }
 Game.buildSwatches();
 Game.buildMapButtons();
 Game.start();

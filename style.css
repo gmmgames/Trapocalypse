@@ -14,7 +14,7 @@ html, body {
   height: 100%;
   background: #0b0b14;
   color: #e8e8ff;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: "Fredoka", "Segoe UI", system-ui, sans-serif;
   overflow: hidden;              /* no scrollbars, ever */
   touch-action: none;            /* stop phones from scrolling or zooming while playing */
   -webkit-user-select: none;
@@ -50,8 +50,8 @@ body {
   top: 12px;
   left: 12px;
   font-size: clamp(14px, 2.2vw, 22px);
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
   color: #ff3c78;
   text-shadow: 0 0 10px rgba(255, 60, 120, 0.8);
   pointer-events: none;          /* clicks go through it to the canvas */
@@ -238,6 +238,14 @@ body {
 #color-note {
   color: #e8e8ff;
   font-size: 12px;
+}
+
+/* Big shouty titles use the display font */
+#lobby-title, #online-panel > strong, #build-title, #color-picker > strong {
+  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: 1px;
 }
 
 /* ---------------- Lobby ---------------- */
