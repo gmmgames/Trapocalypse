@@ -457,11 +457,7 @@ function pickVoteOptions(room) {
   const all = levelsOf(room).map((level, index) => index).filter((index) => !levelsOf(room)[index].ee);   // event courses are never voted for
   let pool = all.filter((index) => index !== room.levelIndex || room.phase === "lobby");
   if (pool.length < VOTE_CHOICES) pool = all;
-  const options = [];
-  // A custom course would rarely come up among two dozen built-ins, so when the room has any,
-  // one of the choices is always a custom course (a random one, never the one just played).
-  const customs = pool.filter((index) => index >= LEVELS.length);
-  if (customs.length) options.push(customs[Math.floor(Math.random() * customs.length)]);
+  const options = [];   // custom courses take their chances with the built-ins: no reserved slot
   while (options.length < Math.min(VOTE_CHOICES, pool.length)) {
     const pick = pool[Math.floor(Math.random() * pool.length)];
     if (!options.includes(pick)) options.push(pick);
