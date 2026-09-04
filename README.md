@@ -125,3 +125,7 @@ Open `server.js` for the round rules, then restart the server:
 - `MAX_PLAYERS` room size (24, one per palette color)
 
 The 24 swatch colors live in `PALETTE` at the top of `js/main.js`.
+
+## Putting it online
+
+The game needs its Node server running somewhere public; GitHub only stores the files. On [Render](https://render.com): New → Web Service → pick the `gmmgames/Trapocalypse` repo, runtime Node, build command `npm install`, start command `npm start`, free plan. Render sets the `PORT` environment variable and the server already reads it; the browser connects back to whatever address the page came from, over `wss` on https. The free plan sleeps after 15 minutes without visitors, so the first join can take about half a minute.
