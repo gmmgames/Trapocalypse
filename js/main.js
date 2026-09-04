@@ -509,18 +509,13 @@ const Game = {
     }));
   },
 
-  // --- stuck? back to the start ---
-  _resetMeAt: 0,   // performance.now() of the last reset, for a short cooldown
+  // --- stuck? give up this run ---
   canResetMe() { return this.mode === "online" && this.phase === "run" && Player.alive && !Player.finished; },
   resetCharacter() {
     if (!this.canResetMe()) return;
-    if (performance.now() - this._resetMeAt < 2000) { this.say("Give it a second.", 1); return; }
-    this._resetMeAt = performance.now();
-    Player.x = Level.start.x; Player.y = Level.start.y; Player.vx = 0; Player.vy = 0;
-    Player._immune = 0.5;
-    Dust.spawn(Player.x + Player.w / 2, Player.y + Player.h, 12, 20);
-    Sfx.boots();
-    this.say("Back to the start.", 1.5);
+    // A reset counts as a death: you are out for this round, and nobody gets credit for it.
+    Player.die(null);
+    this.say("You reset: that counts as a death. Watching the others...", 3);
   },
 
   // --- Teleport Ball: grab the orb by touching it, throw it, appear where it lands ---
