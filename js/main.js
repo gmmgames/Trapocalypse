@@ -650,7 +650,7 @@ const Game = {
       }
       ball.age = (ball.age || 0) + dt;
       // Springs fling the ball back up; mirrors bounce it off whichever face it hit.
-      const spring = Level.hazards.find((h) => h.kind === "spring" && inside(ball, h));
+      const spring = Level.hazards.find((h) => h.kind === "spring" && inside(ball, h) && !Level.springCooling(h));
       if (spring && ball.vy > 0) { ball.vy = -Math.abs(ball.vy) * 0.9 - 250; ball.y = spring.y - 1; spring.bouncedAt = performance.now(); Sfx.bump(); continue; }
       const mirror = Level.hazards.find((h) => h.kind === "mirror" && inside(ball, h));
       if (mirror) {

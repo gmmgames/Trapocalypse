@@ -49,6 +49,7 @@ const THEMES = {
 // A placed Mover block slides this far to the right and back, taking this long per round trip.
 const MOVER_DX = 60;
 const MOVER_PERIOD = 3;
+const SPRING_COOLDOWN = 2;   // seconds a spring rests after launching someone
 const PLANK_TILES = 3;   // a placed Plank is three tiles wide
 
 const LEVELS = [
@@ -737,6 +738,12 @@ const Level = {
   // How tall the spring is right now, as a fraction of normal. A bounce (s.bouncedAt, a
   // performance.now() stamp set when someone lands on it) squashes it flat, then it
   // overshoots tall and settles: 1 -> 0.4 -> 1.3 -> 1 over about 0.6 s.
+  // A spring rests for SPRING_COOLDOWN seconds after firing: it will not launch anyone (or any ball) until then.
+  springCooling(s) {
+    if (!s.bouncedAt) return false;
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    return now - s.bouncedAt < SPRING_COOLDOWN * 1000;
+  },
   springScale(s) {
     if (!s.bouncedAt) return 1;
     const age = ((typeof performance !== "undefined" ? performance.now() : Date.now()) - s.bouncedAt) / 1000;
@@ -750,6 +757,7 @@ const Level = {
     // Squash and stretch from the base, so the pad stays planted on the ground.
     const scale = this.springScale(s);
     ctx.save();
+    if (this.springCooling(s)) ctx.globalAlpha = 0.5;   // resting: drawn dim until it is ready again
     ctx.translate(0, s.y + s.h);
     ctx.scale(1, scale);
     ctx.translate(0, -(s.y + s.h));

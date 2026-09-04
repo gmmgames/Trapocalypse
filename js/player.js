@@ -271,7 +271,8 @@ const Player = {
     // Springs: step or land on one and it launches you skyward. It only fires while you are
     // moving down or standing, so the launch itself does not re-trigger it.
     if (this.vy >= 0) {
-      const spring = Level.hazards.find((h) => h.kind === "spring" && Physics.overlaps(this, h));
+      // A spring that just fired needs SPRING_COOLDOWN seconds before it can fire again.
+      const spring = Level.hazards.find((h) => h.kind === "spring" && Physics.overlaps(this, h) && !Level.springCooling(h));
       if (spring) {
         this.vy = -this.SPRING_SPEED;
         this.onGround = false;
