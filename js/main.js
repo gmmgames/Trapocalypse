@@ -1320,6 +1320,7 @@ const Game = {
     }
     this.phase = message.phase;
     this._buildEndsAt = message.buildSecondsLeft != null ? performance.now() + message.buildSecondsLeft * 1000 : 0;
+    this.buildStage = message.buildStage || null;   // "pick" while choosing an item, "place" while putting it down
     this.round = message.round;
     this.roundsPerLevel = message.roundsPerLevel;
     this.trapsPerRound = message.trapsPerRound;
@@ -2364,8 +2365,8 @@ const Game = {
       // The build clock, red for the last ten seconds.
       if (this._buildEndsAt) {
         const left = Math.max(0, Math.ceil((this._buildEndsAt - performance.now()) / 1000));
-        hudClock.textContent = `⏱ ${left}s`;
-        hudClock.classList.toggle("urgent", left <= 10);
+        hudClock.textContent = `${this.buildStage === "place" ? "PLACE" : "PICK"} ⏱ ${left}s`;
+        hudClock.classList.toggle("urgent", left <= 5);
       }
       if (this.amSpectating()) {
         buildInstructions.textContent = "Watching: you joined mid-match, and you are in on the next round.";

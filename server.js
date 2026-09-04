@@ -130,6 +130,7 @@ function snapshot(room) {
     testMatch: Boolean(room.testMatch),
     customLevels: room.customLevels || [],
     buildSecondsLeft: room.phase === "build" && room.buildEndsAt ? Math.max(0, (room.buildEndsAt - Date.now()) / 1000) : null,
+    buildStage: room.phase === "build" ? room.buildStage || "pick" : null,
     traps: room.traps,
     players: playerList(room),
   };
@@ -234,7 +235,7 @@ function startRun(room) {
   // The host's time limit: when it runs out, anyone still running is out.
   clearTimeout(room.runTimer);
   room.runTimer = null;
-  clearTimeout(room.buildTimer); room.buildTimer = null; room.buildEndsAt = null;
+  clearTimeout(room.buildTimer); room.buildTimer = null; room.buildEndsAt = null; room.buildStage = null;
   const timeLimit = room.settings.timeLimit;
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
   // Some rounds get a twist. Never in a Final Battle. FORCE_EVENT=<name> is a test hook.
@@ -484,7 +485,7 @@ function toLobby(room, { resetScores }) {
   clearTimeout(room.timer); clearTimeout(room.runTimer);
   room.timer = null; room.runTimer = null;
   room.testMatch = false;   // back from a solo Test Match: the room can be listed again
-  clearTimeout(room.buildTimer); room.buildTimer = null; room.buildEndsAt = null;
+  clearTimeout(room.buildTimer); room.buildTimer = null; room.buildEndsAt = null; room.buildStage = null;
   room.phase = "lobby"; room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0;
   room.traps = []; room.finishOrder = []; room.finalBattle = null; room.winnerIds = [];
   room.votes = {}; room.voteOpen = false;
@@ -552,7 +553,10 @@ const ITEM_WEIGHTS = {
 };
 const PICKUP_KINDS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // placed in the build phase, collected by touch during the run
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
-const BUILD_SECONDS = Number(process.env.BUILD_SECONDS) || 45;   // time to pick and place; anyone slower loses their turn
+// The build phase runs on two clocks: one to choose an item, then a fresh one to put it down.
+// Anyone still choosing when the first runs out loses their turn. BUILD_SECONDS sets both (a test hook).
+const PICK_SECONDS = Number(process.env.PICK_SECONDS) || Number(process.env.BUILD_SECONDS) || 15;
+const PLACE_SECONDS = Number(process.env.PLACE_SECONDS) || Number(process.env.BUILD_SECONDS) || 20;
 const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
 const EVENT_CHANCE = 0.12;         // chance a normal round gets one (about one round in eight)
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
@@ -569,8 +573,9 @@ function dealItems(room) {
   room.countdown = false; clearTimeout(room.countdownTimer);   // a new round: any pending GO is off
   // The build clock: when it runs out, anyone who has not placed loses their turn and the run starts.
   clearTimeout(room.buildTimer);
-  room.buildEndsAt = Date.now() + BUILD_SECONDS * 1000;
-  room.buildTimer = setTimeout(() => buildTimeUp(room), BUILD_SECONDS * 1000);
+  room.buildStage = "pick";
+  room.buildEndsAt = Date.now() + PICK_SECONDS * 1000;
+  room.buildTimer = setTimeout(() => pickTimeUp(room), PICK_SECONDS * 1000);
   if (process.env.FORCE_ITEM) process.env.FORCE_ITEM.split(",").forEach((kind, slot) => { if (slot < room.offer.length) room.offer[slot] = kind; });   // test hook: FORCE_ITEM=pencil (or plank,spike to pin the first cards in order)
   for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = false; }
 }
@@ -594,6 +599,32 @@ function canPick(room, player, slot) {
   return null;
 }
 
+// Has every player still in the round chosen an item?
+function everyoneHasPicked(room) {
+  return [...room.players.values()].filter((item) => item.status !== "out").every((item) => item.pick);
+}
+
+// Choosing is over: a fresh clock to put the item down.
+function startPlacing(room) {
+  if (room.phase !== "build" || room.buildStage === "place") return;
+  room.buildStage = "place";
+  clearTimeout(room.buildTimer);
+  room.buildEndsAt = Date.now() + PLACE_SECONDS * 1000;
+  room.buildTimer = setTimeout(() => buildTimeUp(room), PLACE_SECONDS * 1000);
+  broadcast(room, snapshot(room));
+}
+
+// The choosing clock ran out: whoever has not chosen loses their turn, then placing begins.
+function pickTimeUp(room) {
+  room.buildTimer = null;
+  if (room.phase !== "build") return;
+  const slow = [...room.players.values()].filter((item) => item.status !== "out" && !item.pick && item.trapCount < TRAPS_PER_ROUND);
+  for (const item of slow) item.trapCount = TRAPS_PER_ROUND;
+  if (slow.length) broadcast(room, { type: "notice", message: `Time's up for choosing: ${slow.map((item) => item.name).join(", ")} lost the turn.` });
+  startPlacing(room);
+  maybeStartRun(room);
+}
+
 // After a trap is placed or an eraser used: once everyone has used their item, the run starts.
 function buildTimeUp(room) {
   room.buildTimer = null;
@@ -606,6 +637,8 @@ function buildTimeUp(room) {
 }
 
 function maybeStartRun(room) {
+  // The moment the last player chooses, choosing is over and the placing clock starts.
+  if (room.phase === "build" && room.buildStage !== "place" && everyoneHasPicked(room)) startPlacing(room);
   if (room.phase === "build" && !room.countdown && room.players.size >= (room.testMatch ? 1 : 2) && [...room.players.values()].every((item) => item.status === "out" || item.trapCount >= TRAPS_PER_ROUND)) {
     // Everyone has placed: three seconds of countdown, then GO.
     room.countdown = true;
@@ -989,14 +1022,16 @@ webSocketServer.on("connection", (socket) => {
         player.pencil = PENCIL_CHARGES;
         broadcast(room, { type: "picks", picks: itemPicks(room) });
         broadcast(room, { type: "pencil_taken", playerId: player.id, charges: PENCIL_CHARGES });
+        maybeStartRun(room);   // everyone has chosen? then the placing clock starts
         return;
       }
 
       broadcast(room, { type: "picks", picks: itemPicks(room) });
+      maybeStartRun(room);   // everyone has chosen? then the placing clock starts
       return;
     }
     // Nobody places anything until every player in the round has picked an item.
-    const everyonePicked = () => [...room.players.values()].filter((item) => item.status !== "out").every((item) => item.pick);
+    const everyonePicked = () => everyoneHasPicked(room);
     if ((message.type === "place_trap" || message.type === "erase_trap") && room.phase === "build" && !everyonePicked()) {
       send(socket, { type: "trap_rejected", message: "Waiting for everyone to pick an item." });
       return;
