@@ -702,6 +702,16 @@ const Game = {
         }
       }
       ball.age = (ball.age || 0) + dt;
+      // A fan blows the ball upward just as it does a runner, so a throw sent over one climbs
+      // instead of dropping. A Generator feeding the fan makes it reach higher and blow harder.
+      for (const fan of Level.hazards) {
+        if (fan.kind !== "fan") continue;
+        const reach = Level.fanReach(fan), power = Level.powerOf(fan);
+        if (ball.x < fan.x + 2 || ball.x > fan.x + fan.w - 2 || ball.y > fan.y || ball.y < fan.y - reach) continue;
+        ball.vy -= (3600 + 1200 * power) * dt;
+        const fastest = -(330 + 100 * power);
+        if (ball.vy < fastest) ball.vy = fastest;
+      }
       // Springs fling the ball back up; mirrors bounce it off whichever face it hit.
       const spring = Level.hazards.find((h) => h.kind === "spring" && inside(ball, h) && !Level.springCooling(h));
       if (spring && ball.vy > 0) { ball.vy = -Math.abs(ball.vy) * 0.9 - 250; ball.y = spring.y - 1; spring.bouncedAt = performance.now(); Sfx.bump(); continue; }
