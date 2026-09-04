@@ -490,6 +490,82 @@ const LEVELS = [
     flag: tileRect(32, 2, 1, 2),
   },
   {
+    // HARD, BIG (48 x 27). A storm-lashed run: three holes in the floor with nothing under them,
+    // crossed by sliding platforms or crumbling stones, and thorns on every tier.
+    name: "Thunder Run",
+    theme: THEMES.storm,
+    cols: 48, rows: 27,
+    hard: true,
+    solids: [
+      tileRect(0, 25, 12, 2), tileRect(17, 25, 9, 2), tileRect(31, 25, 8, 2), tileRect(43, 25, 5, 2),
+      tileRect(6, 22, 3, 1), tileRect(20, 22, 3, 1), tileRect(34, 22, 3, 1), tileRect(44, 22, 3, 1),
+      tileRect(11, 19, 3, 1), tileRect(24, 19, 3, 1), tileRect(37, 19, 3, 1),
+      tileRect(17, 16, 3, 1), tileRect(30, 16, 3, 1),
+    ],
+    hazards: [
+      tileRect(3, 24, 3, 1), tileRect(19, 24, 3, 1), tileRect(33, 24, 3, 1), tileRect(44, 24, 1, 1),
+      tileRect(7, 21, 1, 1), tileRect(21, 21, 1, 1), tileRect(35, 21, 1, 1),
+      tileRect(12, 18, 1, 1), tileRect(25, 18, 1, 1), tileRect(38, 18, 1, 1),
+      { ...tileRect(13, 22, 2, 1), kind: "crumble" }, { ...tileRect(27, 22, 2, 1), kind: "crumble" },
+      { ...tileRect(40, 22, 2, 1), kind: "crumble" },
+    ],
+    movers: [
+      { ...tileRect(12, 23, 3, 1), dx: 90, dy: 0, period: 3 },
+      { ...tileRect(26, 23, 3, 1), dx: 90, dy: 0, period: 3.5 },
+      { ...tileRect(39, 23, 3, 1), dx: 60, dy: 0, period: 2.5 },
+    ],
+    start: { x: 1 * TILE, y: 25 * TILE - 26 },
+    flag: tileRect(46, 23, 1, 2),
+  },
+  {
+    // HARD. A bog: the floor is half gum, which drags you to a crawl and kills your jump, with
+    // thorns in between. The ledges above are the quick way, if you can reach them.
+    name: "The Bog",
+    theme: THEMES.swamp,
+    hard: true,
+    solids: [
+      tileRect(0, 16, 32, 2),
+      tileRect(6, 13, 3, 1), tileRect(12, 12, 3, 1), tileRect(19, 12, 3, 1),
+      tileRect(25, 13, 3, 1), tileRect(29, 14, 3, 1),
+    ],
+    hazards: [
+      tileRect(8, 15, 2, 1), tileRect(17, 15, 2, 1), tileRect(26, 15, 2, 1),
+      tileRect(8, 12, 1, 1), tileRect(21, 11, 1, 1),
+      { ...tileRect(4, 15, 1, 1), kind: "glue" }, { ...tileRect(5, 15, 1, 1), kind: "glue" },
+      { ...tileRect(12, 15, 1, 1), kind: "glue" }, { ...tileRect(13, 15, 1, 1), kind: "glue" },
+      { ...tileRect(21, 15, 1, 1), kind: "glue" }, { ...tileRect(22, 15, 1, 1), kind: "glue" },
+      { ...tileRect(9, 13, 1, 1), kind: "crumble" }, { ...tileRect(16, 12, 1, 1), kind: "crumble" },
+      { ...tileRect(23, 12, 1, 1), kind: "crumble" },
+    ],
+    start: { x: 1 * TILE, y: 16 * TILE - 26 },
+    flag: tileRect(30, 12, 1, 2),
+  },
+  {
+    // HARD, BIG (48 x 27). The desert floor is a run of belts that shove you along, mostly straight
+    // at a bank of thorns. A fan and a spring are the way out, if you time them.
+    name: "Sandblast",
+    theme: THEMES.dune,
+    cols: 48, rows: 27,
+    hard: true,
+    solids: [
+      tileRect(0, 25, 48, 2),
+      tileRect(5, 22, 3, 1), tileRect(15, 22, 3, 1), tileRect(25, 22, 3, 1), tileRect(35, 22, 3, 1), tileRect(44, 22, 3, 1),
+      tileRect(10, 19, 3, 1), tileRect(20, 19, 3, 1), tileRect(30, 19, 3, 1), tileRect(40, 19, 3, 1),
+    ],
+    hazards: [
+      tileRect(13, 24, 2, 1), tileRect(27, 24, 2, 1),
+      tileRect(6, 21, 1, 1), tileRect(26, 21, 1, 1), tileRect(41, 18, 1, 1),
+      { ...tileRect(8, 24, 4, 1), kind: "belt", rot: 0 },
+      { ...tileRect(22, 24, 4, 1), kind: "belt", rot: 0 },
+      { ...tileRect(36, 24, 3, 1), kind: "belt", rot: 2 },
+      { ...tileRect(18, 24, 1, 1), kind: "fan" },
+      { ...tileRect(32, 24, 1, 1), kind: "spring" },
+      { ...tileRect(12, 22, 2, 1), kind: "crumble" }, { ...tileRect(30, 22, 2, 1), kind: "crumble" },
+    ],
+    start: { x: 1 * TILE, y: 25 * TILE - 26 },
+    flag: tileRect(46, 23, 1, 2),
+  },
+  {
     // HARD. Bands of thorns across the floor, and the only way over each is a ledge or a crumbling
     // stone. Land badly and you land on the needles.
     name: "Needle Alley",
