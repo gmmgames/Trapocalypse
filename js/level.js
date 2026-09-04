@@ -680,7 +680,7 @@ const Level = {
   powerOf(item) { return this.feeders(item).length; },
   // Is this Generator part of a chain powering something right now? (Only for how it is drawn.)
   generatorLive(g) {
-    return this.hazards.some((item) => (item.kind === "fan" || item.kind === "spring") && this.feeders(item).includes(g));
+    return this.hazards.some((item) => ["fan", "spring", "belt"].includes(item.kind) && this.feeders(item).includes(g));
   },
   touching(a, b) {
     const sideBySide = (a.x + a.w === b.x || b.x + b.w === a.x) && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -961,7 +961,7 @@ const Level = {
       if (hazard.kind === "heart") { if (!hazard.taken) this.drawHeart(ctx, hazard); continue; }
       if (["bat", "buckler", "boots", "feather", "speedshoes"].includes(hazard.kind)) { if (!hazard.taken) this.drawPickup(ctx, hazard); continue; }
       if (hazard.kind === "bigblock") { this.drawPlank(ctx, hazard, t); continue; }
-      if (hazard.kind === "belt") { this.drawBelt(ctx, hazard, t); continue; }
+      if (hazard.kind === "belt") { this.drawBelt(ctx, hazard, t, this.powerOf(hazard)); continue; }
       if (hazard.kind === "fan") { this.drawFan(ctx, hazard, t); continue; }
       if (hazard.kind === "generator") { this.drawGenerator(ctx, hazard, t); continue; }
       if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
@@ -1260,15 +1260,16 @@ const Level = {
     ctx.restore();
   },
   // Conveyor Belt: a dark block with arrows crawling the way it pushes (right, or left when turned).
-  drawBelt(ctx, b, t) {
+  drawBelt(ctx, b, t, power = 0) {
     const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
     const dir = (b.rot || 0) >= 2 ? -1 : 1;
+    const speed = 1 + 0.5 * power;   // a Generator feeding it makes the arrows race
     ctx.fillStyle = "#2a2a3a"; ctx.fillRect(b.x, b.y, b.w, b.h);
-    ctx.fillStyle = "#ffd23c"; ctx.fillRect(b.x, b.y, b.w, 3);
+    ctx.fillStyle = power ? "#ffe680" : "#ffd23c"; ctx.fillRect(b.x, b.y, b.w, 3);
     ctx.save();
     ctx.beginPath(); ctx.rect(b.x, b.y + 4, b.w, b.h - 4); ctx.clip();
-    ctx.strokeStyle = "rgba(255, 210, 60, 0.8)"; ctx.lineWidth = 2;
-    const shift = (now * 40 * dir) % 10;
+    ctx.strokeStyle = power ? "rgba(255, 240, 160, 0.95)" : "rgba(255, 210, 60, 0.8)"; ctx.lineWidth = power ? 2.5 : 2;
+    const shift = (now * 40 * speed * dir) % 10;
     for (let x = b.x - 10 + shift; x < b.x + b.w + 10; x += 10) {
       ctx.beginPath(); ctx.moveTo(x, b.y + 8); ctx.lineTo(x + 4 * dir, b.y + b.h / 2 + 2); ctx.lineTo(x, b.y + b.h - 4); ctx.stroke();
     }

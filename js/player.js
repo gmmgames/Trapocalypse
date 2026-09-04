@@ -200,7 +200,8 @@ const Player = {
     for (const belt of Level.hazards) {
       if (belt.kind !== "belt") continue;
       const onBelt = this.onGround && Math.abs(this.y + this.h - belt.y) < 3 && this.x + this.w > belt.x && this.x < belt.x + belt.w;
-      if (onBelt) this.vx += ((belt.rot || 0) >= 2 ? -1 : 1) * BELT_SPEED;
+      // Every Generator feeding the belt (up to three) makes it run half again as fast.
+      if (onBelt) this.vx += ((belt.rot || 0) >= 2 ? -1 : 1) * BELT_SPEED * (1 + 0.5 * Level.powerOf(belt));
     }
     for (const fan of Level.hazards) {
       if (fan.kind !== "fan") continue;
