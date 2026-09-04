@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trapocalypse logo source</title>
+<!--
+  This page IS the logo. Everything is drawn here as SVG: the word, and the
+  pink circle with the <> mark that replaces the "o". Render it to a PNG with
+  assets/logo/render-logo.sh, or open it in a browser to look at it.
+
+  Options in the URL:
+    ?font=Font+Name   any Google Fonts name (default Fredoka)
+    &weight=700       font weight, if the font has more than one
+    &caps=1           TRAPOCALYPSE in capitals instead of Trapocalypse
+-->
+<link id="fontlink" rel="stylesheet" href="">
+<style>
+  html, body { margin: 0; background: transparent; }
+  body { width: 1600px; height: 420px; overflow: hidden; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<svg id="logo" xmlns="http://www.w3.org/2000/svg" width="1600" height="420" viewBox="0 0 1600 420">
+  <defs>
+    <!-- The pink from the menu's glow, lit from the top like a button -->
+    <radialGradient id="pink" cx="40%" cy="30%" r="75%">
+      <stop offset="0%"   stop-color="#ff7ab0"/>
+      <stop offset="55%"  stop-color="#ff2f8e"/>
+      <stop offset="100%" stop-color="#c8106a"/>
+    </radialGradient>
+    <!-- Letters: white with a faint cool tint at the bottom so they are not flat -->
+    <linearGradient id="white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#dcdcf0"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="4" flood-color="#0b0b14" flood-opacity="0.55"/>
+    </filter>
+    <filter id="pinkglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#ff3c78" flood-opacity="0.75"/>
+    </filter>
+  </defs>
+
+  <!-- Scaled and centred by the script once the font is measured -->
+  <g id="mark" filter="url(#shadow)">
+    <text id="left"  x="0" y="0" fill="url(#white)" stroke="#0b0b14" stroke-width="4" paint-order="stroke">Trap</text>
+    <g id="orb">
+      <circle id="orbBg" cx="0" cy="0" r="0" fill="url(#pink)" stroke="#0b0b14" stroke-width="4" filter="url(#pinkglow)"/>
+      <!-- the <> code mark, drawn as two chevrons so they stay crisp at any size -->
+      <polyline id="chevL" points="" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline id="chevR" points="" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text id="right" x="0" y="0" fill="url(#white)" stroke="#0b0b14" stroke-width="4" paint-order="stroke">calypse</text>
+  </g>
+</svg>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const fontName = params.get('font') || 'Fredoka';
+  const weight = params.get('weight') || '700';
+  const caps = params.get('caps') === '1';
+
+  // Load the font from Google Fonts, then lay out once it is really in
+  const fam = encodeURIComponent(fontName).replace(/%20/g, '+');
+  document.getElementById('fontlink').href =
+    `https://fonts.googleapis.com/css2?family=${fam}:wght@${weight}&display=swap`;
+
+  const SIZE = 210;                        // font size before fitting
+  const mark = document.getElementById('mark');
+  const left = document.getElementById('left');
+  const right = document.getElementById('right');
+  const orb = document.getElementById('orb');
+  const orbBg = document.getElementById('orbBg');
+
+  for (const t of [left, right]) {
+    t.setAttribute('font-family', `'${fontName}', 'Fredoka', sans-serif`);
+    t.setAttribute('font-size', SIZE);
+    t.setAttribute('font-weight', weight);
+  }
+  if (caps) { left.textContent = 'TRAP'; right.textContent = 'CALYPSE'; }
+
+  function layout() {
+    // Measure the two halves, then place the orb in the gap where the "o" was
+    const wL = left.getComputedTextLength();
+    const wR = right.getComputedTextLength();
+    // Circle a touch taller than a lowercase o (capitals get a bigger one)
+    const r = SIZE * (caps ? 0.36 : 0.31);
+    const gap = SIZE * 0.06;
+    const total = wL + gap + 2 * r + gap + wR;
+
+    const baseline = 0;
+    left.setAttribute('x', 0);
+    left.setAttribute('y', baseline);
+    const ox = wL + gap + r;
+    const oy = baseline - (caps ? SIZE * 0.36 : SIZE * 0.27);   // sit on the x-height middle
+    orbBg.setAttribute('cx', ox); orbBg.setAttribute('cy', oy); orbBg.setAttribute('r', r);
+    right.setAttribute('x', wL + gap + 2 * r + gap);
+    right.setAttribute('y', baseline);
+
+    // Chevrons: < and > inside the circle
+    const h = r * 0.40, w = r * 0.30, sp = r * 0.15, sw = Math.max(6, r * 0.18);
+    const cl = document.getElementById('chevL');
+    const cr = document.getElementById('chevR');
+    cl.setAttribute('points', `${ox - sp},${oy - h} ${ox - sp - w},${oy} ${ox - sp},${oy + h}`);
+    cr.setAttribute('points', `${ox + sp},${oy - h} ${ox + sp + w},${oy} ${ox + sp},${oy + h}`);
+    cl.setAttribute('stroke-width', sw); cr.setAttribute('stroke-width', sw);
+
+    // Fit the whole mark inside 1480px wide and centre it in the 1600x420 canvas
+    const box = mark.getBBox();
+    const scale = Math.min(1480 / box.width, 300 / box.height);
+    const tx = 800 - (box.x + box.width / 2) * scale;
+    const ty = 210 - (box.y + box.height / 2) * scale;
+    mark.setAttribute('transform', `translate(${tx} ${ty}) scale(${scale})`);
+  }
+
+  layout();   // once with the fallback font so something shows immediately
+  window.logoReady = document.fonts.load(`${weight} ${SIZE}px '${fontName}'`)
+    .then(() => document.fonts.ready)
+    .then(() => { layout(); return true; });
+</script>
+</body>
+</html>

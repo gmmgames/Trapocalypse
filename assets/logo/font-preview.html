@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trapocalypse Font Tryouts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Rubik+Wet+Paint&family=Rubik+Dirt&family=Rubik+Burned&family=Rubik+Glitch&family=Nosifer&family=Butcherman&family=Eater&family=Creepster&family=Metal+Mania&family=New+Rocker&family=Black+Ops+One&family=Special+Elite&family=Bangers&family=Luckiest+Guy&family=Bowlby+One+SC&family=Titan+One&family=Frijole&family=Bungee+Shade&family=Press+Start+2P&family=Russo+One&display=swap">
+<style>
+  /* One visual world: the game's own dark menu. Painted explicitly so it holds on any host. */
+  :root {
+    --ground: #0b0b14;
+    --panel: #161625;
+    --line: #2a2a40;
+    --text: #e8e8ff;
+    --muted: #8d8da8;
+    --gold: #ffd23c;
+    --ember: #ff6a2b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { color-scheme: dark; }
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: "Fredoka", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  a { color: var(--gold); }
+  a:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--gold); outline-offset: 2px;
+  }
+
+  header {
+    padding: 28px 24px 18px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  header h1 {
+    font-family: "Bangers", "Fredoka", sans-serif;
+    font-size: clamp(34px, 6vw, 56px);
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-wrap: balance;
+    line-height: 1.05;
+  }
+  header p { color: var(--muted); max-width: 62ch; margin-top: 8px; }
+
+  /* Controls stick to the top so you can flip presets while scrolling */
+  .controls {
+    position: sticky; top: 0; z-index: 3;
+    background: rgba(11, 11, 20, 0.92);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .controls-inner {
+    max-width: 1100px; margin: 0 auto; padding: 10px 24px;
+    display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center;
+  }
+  .controls label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted);
+  }
+  .controls input[type="text"], .controls select {
+    font: inherit; font-size: 14px; letter-spacing: 0; text-transform: none;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px;
+  }
+  .controls input[type="text"] { width: 200px; }
+  .controls input[type="range"] { accent-color: var(--gold); width: 140px; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 8px 24px 60px; }
+  section { margin-top: 34px; }
+  section h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 2px;
+    color: var(--gold); border-bottom: 1px solid var(--line); padding-bottom: 6px;
+  }
+  section > p { color: var(--muted); margin-top: 6px; max-width: 70ch; }
+  .list { display: grid; gap: 14px; margin-top: 14px; }
+
+  /* One card per font. The sample is the hero; the meta line sits under it. */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px 20px 14px;
+    display: grid; gap: 10px;
+  }
+  .sample {
+    /* --size comes from the slider; each font sets its own family inline.
+       --fit shrinks the extra-wide fonts so the whole word stays on one line. */
+    font-size: calc(var(--size, 64px) * var(--fit, 1));
+    line-height: 1.15;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 6px 4px;
+    text-transform: uppercase;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline;
+    border-top: 1px solid var(--line); padding-top: 10px;
+  }
+  .meta .name { font-weight: 700; font-size: 16px; }
+  .meta .why { color: var(--muted); flex: 1 1 320px; }
+  .meta code {
+    font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px;
+    color: var(--muted); background: var(--ground); padding: 2px 6px; border-radius: 3px;
+  }
+  .meta a { white-space: nowrap; font-weight: 600; }
+  .current { color: var(--ember); font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; margin-left: 8px; }
+
+  /* Presets: how the word is painted. Changed by the select at the top. */
+  body[data-look="plain"] .sample { color: var(--text); }
+  body[data-look="gold"] .sample {
+    background: linear-gradient(180deg, #fff3b0 0%, var(--gold) 45%, var(--ember) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 10px rgba(255, 60, 120, 0.55)) drop-shadow(0 3px 0 #3a1010);
+  }
+  body[data-look="steel"] .sample {
+    background: linear-gradient(180deg, #e6e6ee 0%, #8a8a9a 40%, #4a4a58 55%, #b9b9c6 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 12px rgba(255, 106, 43, 0.6)) drop-shadow(0 4px 0 #1a0a0a);
+  }
+
+  /* How-to at the bottom */
+  .howto { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 14px; }
+  .howto div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; }
+  .howto h3 { font-size: 15px; color: var(--gold); margin-bottom: 6px; }
+  .howto ol { padding-left: 20px; }
+  .howto li { margin: 4px 0; }
+  .howto p { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .card { transition: border-color .15s; }
+    .card:hover { border-color: var(--gold); }
+  }
+</style>
+</head>
+<body data-look="gold">
+
+<header>
+  <h1>Trapocalypse Font Tryouts</h1>
+  <p>Twenty free fonts that could carry the logo, each shown as the title on the game's real menu colors. Every one is on Google Fonts, so download is one click and the same font works in the game's CSS, in Canva, Photopea, or Figma.</p>
+</header>
+
+<div class="controls">
+  <div class="controls-inner">
+    <label>Word <input type="text" id="word" value="TRAPOCALYPSE" maxlength="40"></label>
+    <label>Look
+      <select id="look">
+        <option value="gold" selected>Menu gold + pink glow</option>
+        <option value="steel">Steel + embers (grunge)</option>
+        <option value="plain">Plain</option>
+      </select>
+    </label>
+    <label>Size <input type="range" id="size" min="28" max="110" value="64"></label>
+  </div>
+</div>
+
+<main>
+
+  <section>
+    <h2>Grunge and horror</h2>
+    <p>The apocalyptic direction. Distressed, dripping, burned, or glitched letters. These do the heavy lifting on their own, so they need less effects work in an editor.</p>
+    <div class="list">
+      <div class="card"><div class="sample" style="font-family:'Rubik Wet Paint'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Rubik Wet Paint</span><span class="why">Paint dripping off thick letters. Reads as "something went wrong here" instantly.</span><code>'Rubik Wet Paint'</code><a href="https://fonts.google.com/specimen/Rubik+Wet+Paint">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Rubik Dirt'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Rubik Dirt</span><span class="why">Same bold shape with grit and scratches worn into it. Closest to cracked metal.</span><code>'Rubik Dirt'</code><a href="https://fonts.google.com/specimen/Rubik+Dirt">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Rubik Burned'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Rubik Burned</span><span class="why">Edges eaten away like scorched paper. Pairs naturally with embers.</span><code>'Rubik Burned'</code><a href="https://fonts.google.com/specimen/Rubik+Burned">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Rubik Glitch'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Rubik Glitch</span><span class="why">Digital tearing. Good if the apocalypse is more "systems failing" than zombies.</span><code>'Rubik Glitch'</code><a href="https://fonts.google.com/specimen/Rubik+Glitch">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Nosifer'; --fit:0.85">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Nosifer</span><span class="why">Classic horror-movie drip. Very loud. Wide letters, so it needs a wide logo.</span><code>'Nosifer'</code><a href="https://fonts.google.com/specimen/Nosifer">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Butcherman'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Butcherman</span><span class="why">Slashed and jagged, like the letters got caught in a trap. On-theme.</span><code>'Butcherman'</code><a href="https://fonts.google.com/specimen/Butcherman">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Eater'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Eater</span><span class="why">Letters being devoured from the edges. Creepier, more organic than Butcherman.</span><code>'Eater'</code><a href="https://fonts.google.com/specimen/Eater">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Creepster'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Creepster</span><span class="why">Spiky Halloween lettering. Fun-scary rather than serious-scary, so it still fits a party game.</span><code>'Creepster'</code><a href="https://fonts.google.com/specimen/Creepster">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Metal Mania'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Metal Mania</span><span class="why">Heavy-metal album lettering with sharp points. Very "epic", a bit hard to read small.</span><code>'Metal Mania'</code><a href="https://fonts.google.com/specimen/Metal+Mania">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'New Rocker'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">New Rocker</span><span class="why">Blackletter meets rock poster. Dark and dramatic but still legible.</span><code>'New Rocker'</code><a href="https://fonts.google.com/specimen/New+Rocker">Get it on Google Fonts</a></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Military and stencil</h2>
+    <p>Survival-game flavor. Cleaner than the grunge set, so you add the cracks and rust yourself in the editor.</p>
+    <div class="list">
+      <div class="card"><div class="sample" style="font-family:'Black Ops One'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Black Ops One</span><span class="why">Stencil letters like a crate marking. Strong and simple, takes a metal texture well.</span><code>'Black Ops One'</code><a href="https://fonts.google.com/specimen/Black+Ops+One">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Special Elite'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Special Elite</span><span class="why">Worn typewriter. More "classified document" than "logo", but great for a subtitle or tagline.</span><code>'Special Elite'</code><a href="https://fonts.google.com/specimen/Special+Elite">Get it on Google Fonts</a></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Loud and comic</h2>
+    <p>The energy the menu already has. Bangers is what the game uses now, so the others here are the same mood with a different shape.</p>
+    <div class="list">
+      <div class="card"><div class="sample" style="font-family:'Bangers'; letter-spacing:2px">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Bangers<span class="current">current game font</span></span><span class="why">Comic-book shout. Already loaded in the game, so this is the zero-effort baseline.</span><code>'Bangers'</code><a href="https://fonts.google.com/specimen/Bangers">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Luckiest Guy'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Luckiest Guy</span><span class="why">Fat, bouncy, slightly tilted. The most "cartoon game title" of the set.</span><code>'Luckiest Guy'</code><a href="https://fonts.google.com/specimen/Luckiest+Guy">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Bowlby One SC'; --fit:0.9">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Bowlby One SC</span><span class="why">Ultra-heavy poster caps. Feels huge even at small sizes.</span><code>'Bowlby One SC'</code><a href="https://fonts.google.com/specimen/Bowlby+One+SC">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Titan One'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Titan One</span><span class="why">Rounded and chunky, matches the bubble cursor. Add cracks and it turns grunge fast.</span><code>'Titan One'</code><a href="https://fonts.google.com/specimen/Titan+One">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Frijole'; --fit:0.85">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Frijole</span><span class="why">Rough, crusty comic letters. Sits halfway between the comic set and the grunge set.</span><code>'Frijole'</code><a href="https://fonts.google.com/specimen/Frijole">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Bungee Shade'; --fit:0.8">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Bungee Shade</span><span class="why">Built-in 3D shadow. Arcade-marquee energy, no effects needed.</span><code>'Bungee Shade'</code><a href="https://fonts.google.com/specimen/Bungee+Shade">Get it on Google Fonts</a></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tech and pixel</h2>
+    <p>If the apocalypse is a broken machine. Two very different takes.</p>
+    <div class="list">
+      <div class="card"><div class="sample" style="font-family:'Press Start 2P'; --fit:0.6">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Press Start 2P</span><span class="why">8-bit arcade. Instantly says "game". Very wide, so it wants a two-line logo.</span><code>'Press Start 2P'</code><a href="https://fonts.google.com/specimen/Press+Start+2P">Get it on Google Fonts</a></div></div>
+      <div class="card"><div class="sample" style="font-family:'Russo One'">TRAPOCALYPSE</div>
+        <div class="meta"><span class="name">Russo One</span><span class="why">Squared-off sci-fi block letters. Clean base for a metal-plate treatment.</span><code>'Russo One'</code><a href="https://fonts.google.com/specimen/Russo+One">Get it on Google Fonts</a></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Downloading and using a font</h2>
+    <div class="howto">
+      <div>
+        <h3>Install it on Windows</h3>
+        <ol>
+          <li>Click "Get it on Google Fonts" on the card you like.</li>
+          <li>On that page press <b>Get font</b>, then <b>Download all</b>. A zip file arrives.</li>
+          <li>Right-click the zip and choose <b>Extract All</b>.</li>
+          <li>Inside, right-click the <b>.ttf</b> file and choose <b>Install</b>.</li>
+        </ol>
+        <p>It now shows up in Canva, Photopea, GIMP, Figma desktop, Paint.NET, and anything else on your PC.</p>
+      </div>
+      <div>
+        <h3>Use it in the game's CSS</h3>
+        <ol>
+          <li>Open <b>index.html</b> and find the Google Fonts link near the top.</li>
+          <li>Add <b>&amp;family=Font+Name</b> to that link, with plus signs for spaces.</li>
+          <li>In <b>style.css</b>, set <b>font-family</b> to the name in quotes.</li>
+        </ol>
+        <p>Every code on this page is the exact name to paste into font-family.</p>
+      </div>
+      <div>
+        <h3>Making the logo yourself</h3>
+        <ol>
+          <li><b>Photopea</b> (photopea.com) is free Photoshop in the browser. Text tool, then layer styles for gradient, stroke, glow.</li>
+          <li><b>Canva</b> is easiest. Upload your font under Brand, or pick from theirs.</li>
+          <li><b>Figma</b> if you want vector you can resize forever.</li>
+        </ol>
+        <p>Export as PNG with a transparent background, name it <b>logo.png</b>, drop it in the project folder. The menu picks it up.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // Wire the three controls to the CSS. No library, no state to remember.
+  const word = document.getElementById('word');
+  const look = document.getElementById('look');
+  const size = document.getElementById('size');
+  const samples = document.querySelectorAll('.sample');
+
+  word.addEventListener('input', () => {
+    const text = word.value.trim() || 'TRAPOCALYPSE';
+    samples.forEach(s => { s.textContent = text; });
+  });
+  look.addEventListener('change', () => { document.body.dataset.look = look.value; });
+  size.addEventListener('input', () => { document.documentElement.style.setProperty('--size', size.value + 'px'); });
+</script>
+</body>
+</html>
