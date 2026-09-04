@@ -430,6 +430,53 @@ const LEVELS = [
     flag: tileRect(32, 2, 1, 2),
   },
   {
+    // BIG course (48 x 27 tiles) with an UNDERGROUND ROUTE. The surface is a slow slog of walls
+    // and spike patches, but three secret trap doors in the ground (stand on one and press S) drop
+    // you into a tunnel underneath: quicker, with its own thorns. A shaft near the end climbs back
+    // up to the surface, right before the flag.
+    name: "The Undercroft",
+    theme: THEMES.grotto,
+    cols: 48, rows: 27,
+    solids: [
+      tileRect(0, 19, 48, 8),                                   // bedrock under the tunnel
+      tileRect(0, 15, 40, 1), tileRect(42, 15, 6, 1),           // the surface crust (gap = the shaft up)
+      tileRect(41, 17, 1, 1),                                   // a foothold in the shaft
+      tileRect(12, 12, 1, 3), tileRect(9, 13, 1, 1),            // surface wall with a step
+      tileRect(34, 12, 1, 3), tileRect(31, 13, 1, 1),
+      tileRect(20, 16, 1, 1), tileRect(37, 16, 1, 1),           // stalactites in the tunnel roof
+    ],
+    hazards: [
+      tileRect(15, 14, 2, 1), tileRect(24, 14, 3, 1), tileRect(38, 14, 1, 1),   // surface thorns
+      tileRect(14, 18, 1, 1), tileRect(27, 18, 2, 1), tileRect(36, 18, 1, 1),   // tunnel thorns
+    ],
+    doors: [tileRect(6, 15, 1, 1), tileRect(18, 15, 1, 1), tileRect(30, 15, 1, 1)],
+    start: { x: 1 * TILE, y: 15 * TILE - 26 },
+    flag: tileRect(46, 13, 1, 2),
+  },
+  {
+    // BIG course (48 x 27 tiles) with an UNDERGROUND ROUTE. A meadow with a hill in the middle
+    // and a sliding ledge to cross the first wall; under it all, a mole tunnel entered through
+    // three secret trap doors (press S on one). Both routes meet at the shaft before the flag.
+    name: "Molehill Run",
+    theme: THEMES.meadow,
+    cols: 48, rows: 27,
+    solids: [
+      tileRect(0, 18, 48, 9),                                   // earth under the tunnel
+      tileRect(0, 14, 20, 1), tileRect(20, 12, 8, 3), tileRect(28, 14, 12, 1), tileRect(42, 14, 6, 1),   // surface with a hill; gap = the shaft
+      tileRect(41, 16, 1, 1),                                   // a foothold in the shaft
+      tileRect(9, 11, 1, 3), tileRect(6, 12, 1, 1),             // surface wall with a step
+      tileRect(14, 15, 1, 1), tileRect(26, 15, 1, 1),           // roots hanging into the tunnel
+    ],
+    hazards: [
+      tileRect(23, 11, 2, 1), tileRect(31, 13, 2, 1), tileRect(36, 13, 2, 1),                          // surface thorns
+      tileRect(10, 17, 1, 1), tileRect(21, 17, 2, 1), tileRect(29, 17, 1, 1), tileRect(38, 17, 1, 1),   // tunnel thorns
+    ],
+    movers: [{ ...tileRect(11, 11, 2, 1), dx: 90, dy: 0, period: 3 }],
+    doors: [tileRect(4, 14, 1, 1), tileRect(16, 14, 1, 1), tileRect(33, 14, 1, 1)],
+    start: { x: 1 * TILE, y: 14 * TILE - 26 },
+    flag: tileRect(46, 12, 1, 2),
+  },
+  {
     // BIG course (48 x 27 tiles). Floating islands over a bottomless spike pit, climbing to a
     // citadel in the top-right corner, with pillars to kick off on the way.
     name: "Sky Citadel",
@@ -481,6 +528,7 @@ const Level = {
     this.theme = typeof level.theme === "string" ? THEMES[level.theme] || THEMES.neon : level.theme;   // custom courses name their theme
     this.solids = level.solids.map((solid) => ({ ...solid }));
     this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
+    this.doors = (level.doors || []).map((door) => ({ ...door }));   // secret trap doors: solid ground until someone drops through
     this.starts = (level.starts || [level.start]).map((spot) => ({ ...spot }));
     this.start = { ...this.starts[this.spawnSlot() % this.starts.length] };
     this.flag = { ...level.flag };
@@ -542,6 +590,7 @@ const Level = {
     this.theme = THEMES[level.theme] || THEMES.neon;
     this.solids = level.solids.map((solid) => ({ ...solid }));
     this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
+    this.doors = (level.doors || []).map((door) => ({ ...door }));   // secret trap doors: solid ground until someone drops through
     this.starts = (level.starts || [level.start]).map((spot) => ({ ...spot }));
     this.start = { ...this.starts[this.spawnSlot() % this.starts.length] };
     this.flag = { ...level.flag };
@@ -575,6 +624,7 @@ const Level = {
     this.hazards = [];
     this.flag = { x: -1000, y: 0, w: TILE, h: TILE * 2 };   // parked off-screen: nothing to finish
     this.solids = [tileRect(0, 17, 32, 1)];
+    this.doors = [];
     let col = 1 + Math.floor(Math.random() * 3);
     while (col < 28) {
       const width = 2 + Math.floor(Math.random() * 3), row = 9 + Math.floor(Math.random() * 6);
@@ -704,6 +754,27 @@ const Level = {
     ctx.restore();
   },
 
+  // A trap door sits flush in the ground. Unfound, it is just a faint seam you have to look for;
+  // once used it is an open hatch, a dark hole with the lid flung up, settling ajar after a moment.
+  drawDoor(ctx, door, t) {
+    if (!door._found) {
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(door.x + 2.5, door.y + 3.5, door.w - 5, door.h - 6);
+      return;
+    }
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    ctx.fillStyle = "#07070d";
+    ctx.fillRect(door.x + 2, door.y + 2, door.w - 4, door.h - 2);
+    const swing = door._openUntil && now < door._openUntil ? 1 : 0.35;
+    ctx.strokeStyle = t.solidTop;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(door.x + 2, door.y + 2);
+    ctx.lineTo(door.x + 2 + (door.w - 4) * (1 - swing), door.y + 2 - (door.h - 4) * swing);
+    ctx.stroke();
+  },
+
   draw(ctx) {
     const t = this.theme;
 
@@ -729,6 +800,8 @@ const Level = {
       ctx.fillStyle = t.solidTop;
       ctx.fillRect(s.x, s.y, s.w, 3);
     }
+    // Trap doors: a secret until someone uses one.
+    for (const door of this.doors) this.drawDoor(ctx, door, t);
     // The course's moving platforms.
     for (const mover of this.movers) this.drawMover(ctx, mover, t);
 

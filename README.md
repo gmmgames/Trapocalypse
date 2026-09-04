@@ -13,6 +13,7 @@ machine reachable by the other devices and have everyone open that machine's URL
 | Action | Keyboard | Phone |
 |---|---|---|
 | Move | Arrow keys or A / D | Left and right buttons |
+| Drop through a trap door | S or Down | ▼ button |
 | Jump | Up, W, or Space | JUMP button |
 
 Enter your name and create a room, or press Join Room to pick from the list of open rooms

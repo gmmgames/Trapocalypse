@@ -173,6 +173,22 @@ const Player = {
       Dust.spawn(this.x + this.w / 2, this.y + this.h, 8, 20);
       Sfx.boots();
     }
+
+    // Trap doors: standing on one and pressing down (S) drops you through it into whatever is below.
+    if (Input.downPressed && this.onGround) {
+      const feet = { x: this.x + 3, y: this.y + this.h, w: this.w - 6, h: 2 };
+      const door = Level.doors.find((door) => Physics.overlaps(feet, door));
+      if (door) {
+        door._found = true;
+        door._openUntil = (typeof performance !== "undefined" ? performance.now() : Date.now()) + 800;
+        this.y = door.y + door.h + 1;
+        this.vy = 150;
+        this.onGround = false;
+        this._coyote = 0;
+        Dust.spawn(door.x + door.w / 2, door.y, 10, door.w);
+        Sfx.crumble();
+      }
+    }
     if (this.onGround && (this.weapon === "boots" || (typeof Game !== "undefined" && Game.boots))) this._boots = true;   // the extra jump comes back when you land
 
     // Let go of jump early = shorter hop. Feels much better than fixed jumps.
