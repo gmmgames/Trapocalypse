@@ -1144,7 +1144,7 @@ const Game = {
     ["/kick NAME", "throw a player out (they can rejoin)"],
     ["/ban NAME [5|30|120|1440|forever]", "throw a player out and keep them out (minutes; default 30)"],
     ["/changemap NAME", "in a Test Match: jump to that course now; otherwise: it becomes the next course"],
-    ["/item NAME [PLAYER]", "in a Test Match: take that item yourself, or hand it to a player"],
+    ["/item NAME [PLAYER]", "in a Test Match: take that item yourself, or name another player to hand it to them"],
     ["/lobby", "end the match and bring everyone back to the lobby"],
     ["/start", "start the match (or a solo Test Match)"],
     ["/maxplayers N", "set the room size (2-30, lobby only)"],
@@ -1155,14 +1155,18 @@ const Game = {
     const [word, ...rest] = line.trim().split(/\s+/);
     const command = (word || "").toLowerCase(), arg = rest.join(" ").trim();
     if (command === "help" || command === "") { for (const [usage, what] of this.COMMANDS) this.chatNote(`${usage}  —  ${what}`); return; }
+    // A name typed after a command always means somebody else. Two players sharing a name are
+    // told apart by their number, so "/kick Sam" from Sam means Sam (2), never Sam themselves.
     const findPlayer = (name) => {
       const others = this.players.filter((player) => player.id !== Network.id), low = name.toLowerCase();
       return others.find((player) => player.name.toLowerCase() === low) || others.find((player) => player.name.toLowerCase().startsWith(low));
     };
+    const isMyName = (name) => { const me = this.players.find((player) => player.id === Network.id); return Boolean(me && me.name.toLowerCase().startsWith(name.toLowerCase())); };
+    const noPlayer = (name, hint) => this.chatNote(isMyName(name) ? `"${name}" is you, and a name here always means somebody else. ${hint}` : `No player called "${name}" here.`);
     if (command === "mute" || command === "unmute") {
       if (!arg) { this.chatNote(`Who? Try /${command} NAME.`); return; }
       const target = findPlayer(arg);
-      if (!target) { this.chatNote(`No player called "${arg}" here.`); return; }
+      if (!target) { noPlayer(arg, "You cannot mute yourself."); return; }
       if (command === "mute") { this.muted.add(target.id); this.chatNote(`${target.name} is muted for you. /unmute ${target.name} to undo.`); }
       else { this.muted.delete(target.id); this.chatNote(`${target.name} is unmuted.`); }
       return;
@@ -1179,7 +1183,7 @@ const Game = {
       const minutes = command === "ban" && lengths.includes(parts[parts.length - 1].toLowerCase()) ? parts.pop().toLowerCase() : "30";
       const target = findPlayer(parts.join(" "));
       if (!parts.join("")) { this.chatNote(`Who? Try /${command} NAME.`); return; }
-      if (!target) { this.chatNote(`No player called "${parts.join(" ")}" here.`); return; }
+      if (!target) { noPlayer(parts.join(" "), "You cannot use this one on yourself."); return; }
       Network.send(command === "kick" ? { type: "kick", playerId: target.id } : { type: "ban", playerId: target.id, minutes });
       return;
     }
@@ -1200,9 +1204,8 @@ const Game = {
       if (!kind) { this.chatNote(`No item called "${arg}". Items: ${kinds.map((k) => TRAP_NAMES[k]).join(", ")}.`); return; }
       let targetId = null;
       if (rest) {
-        const low = rest.toLowerCase();
-        const target = this.players.find((item) => item.name.toLowerCase() === low) || this.players.find((item) => item.name.toLowerCase().startsWith(low));
-        if (!target) { this.chatNote(`No player called "${rest}" here.`); return; }
+        const target = findPlayer(rest);
+        if (!target) { noPlayer(rest, `Leave the name off to take it yourself: /item ${TRAP_NAMES[kind] || kind}.`); return; }
         targetId = target.id;
       }
       Network.send({ type: "give_item", item: kind, playerId: targetId });
