@@ -691,6 +691,12 @@ function startNextRound(room) {
 
 const BUILD_ID = Date.now().toString(36);   // changes every time the server starts (every deploy)
 
+// The only files a browser may fetch: the page, its stylesheet, pictures in the top folder, the
+// game's scripts, and the music. Everything else living in the same folder (this server's own
+// code, the package files, the notes, the design working files, .git, node_modules) is not part of
+// the game and is answered with a plain "not found", which does not even admit it exists.
+const SERVABLE = /^(?:index\.html|style\.css|[^/]+\.(?:png|jpg|jpeg|gif|svg|ico)|js\/[^/]+\.js|assets\/music\/[^/]+\.(?:mp3|ogg|wav))$/;
+
 const server = http.createServer((request, response) => {
   const requested = request.url === "/" ? "/index.html" : request.url;
   // Browsers send spaces as %20 ("Trapocalypse Bumper Icon.png"): decode before looking on disk.
@@ -700,6 +706,9 @@ const server = http.createServer((request, response) => {
   if (!filePath.startsWith(ROOT)) {
     response.writeHead(403); response.end("Forbidden"); return;
   }
+  // Checked against the tidied-up path, so "js/../server.js" cannot sneak past it.
+  const relative = path.relative(ROOT, filePath).split(path.sep).join("/");
+  if (!SERVABLE.test(relative)) { response.writeHead(404); response.end("Not found"); return; }
   fs.readFile(filePath, (error, data) => {
     if (error) { response.writeHead(404); response.end("Not found"); return; }
     // After a deploy every player must get the new scripts, not a stale copy: pages, scripts and
