@@ -708,7 +708,8 @@ const Game = {
   },
   // Returns true when the press started a stroke (so it is not a trap placement).
   beginStroke(clientX, clientY) {
-    if (this.mode !== "online" || this.phase !== "run" || this.pencil <= 0 || !Player.alive || Player.finished) return false;
+    if (this.mode !== "online" || this.phase !== "build" || this.pencil <= 0) return false;
+    if (!this.everyonePicked()) { this.say("Waiting for everyone to pick an item.", 1.5); return true; }
     this._stroke = { blocks: [] };
     this.extendStroke(clientX, clientY);
     return true;
@@ -794,7 +795,7 @@ const Game = {
   setPending(clientX, clientY) {
     if (this.phase !== "build" || this.mode !== "online") return;
     if (this.myColor === null) { this.say("Pick a color first.", 1.5); return; }
-    if (this.pick === "pencil") { this.say("You have the pencil: you sketch blocks during the run instead of placing now.", 2); return; }
+    if (this.pick === "pencil") { this.say("You have the pencil: hold and drag on the course to sketch blocks.", 2); return; }
     if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
     if (!this.pick) { this.say("Pick an item from the cards first.", 1.5); return; }
     if (!this.everyonePicked()) { this.say("Waiting for everyone to pick an item.", 1.5); return; }
@@ -1343,15 +1344,16 @@ const Game = {
       const who = this.players.find((player) => player.id === message.playerId);
       if (who) who.trapCount = this.trapsPerRound;
       if (message.playerId === Network.id) {
-        this.placements[0] = this.trapsPerRound; this.pencil = message.charges; this.pending = null;
+        this.pencil = message.charges; this.pending = null;
         Sfx.pickup();
-        this.say(`Pencil! During the run, hold the mouse (or a finger) to sketch blocks. ${message.charges} strokes.`, 4);
+        this.say(`Pencil! Once everyone has picked, hold the mouse (or a finger) on the course to sketch blocks. ${message.charges} strokes before the run.`, 4);
       }
       this.renderItems();
     }
     if (message.type === "drawn") {
       for (const block of message.blocks) Level.drawn.push({ ...block, until: Infinity, color: this.colorOf(message.by) });   // gone when the round ends
-      if (message.by === Network.id) { this.pencil = message.left; this._stroke = null; }
+      if (message.by === Network.id) { this.pencil = message.left; this._stroke = null; if (message.used) this.placements[0] = this.trapsPerRound; }
+      if (message.used) { const who = this.players.find((player) => player.id === message.by); if (who) who.trapCount = this.trapsPerRound; }
       Sfx.pickup();
     }
     if (message.type === "trap_placed") {
@@ -1398,7 +1400,7 @@ const Game = {
       this.voteOpen = false;
       this.renderVote();
       Player.spawn();
-      Level.drawn = []; this._stroke = null;   // last run's pencil sketches are gone
+      this._stroke = null; this.pencil = 0;    // the pencil is spent once the run starts; the sketches stay for this round
       this.rotation = 0;
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
       this.portal = false; this._balls = []; this._charge = 0;
@@ -1521,7 +1523,7 @@ const Game = {
       }
     }
     if (message.type === "round_over") {
-      Level.drawn = []; this._stroke = null;   // pencil sketches last exactly one round
+      Level.drawn = []; this._stroke = null;   // pencil sketches last exactly one round (cleared when the round ends)
       this.playRoundSounds(message);
       this.phase = "results";
       this.players = message.players;
@@ -2193,7 +2195,8 @@ const Game = {
       } else {
         buildInstructions.textContent = `Tap the course to set your ${TRAP_NAMES[this.pick]} down, move it if you like, then confirm.`;
       }
-      hudTail.textContent = `  •  ${buildInstructions.textContent}${this.message ? "  •  " + this.message : ""}`;
+      const strokes = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
+      hudTail.textContent = `  •  ${buildInstructions.textContent}${strokes}${this.message ? "  •  " + this.message : ""}`;
     }
   },
 

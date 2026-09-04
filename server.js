@@ -214,6 +214,7 @@ function startRun(room) {
   room.finishOrder = [];
   // In a Final Battle the statuses were already set: tied players run, the rest watch.
   if (!room.finalBattle) for (const player of room.players.values()) player.status = "running";
+  for (const player of room.players.values()) player.pencil = 0;   // no drawing once the run is on
   // The host's time limit: when it runs out, anyone still running is out.
   clearTimeout(room.runTimer);
   room.runTimer = null;
@@ -861,12 +862,11 @@ webSocketServer.on("connection", (socket) => {
       player.pick = room.offer[slot];
       player.pickSlot = slot;
       if (player.pick === "pencil") {
-        // The pencil is used during the run, not placed now, so picking it is your build turn.
-        player.trapCount = TRAPS_PER_ROUND;
+        // The pencil is drawn with during the build phase: three strokes. The first stroke counts
+        // as your placement; whatever is left is lost when the run starts.
         player.pencil = PENCIL_CHARGES;
         broadcast(room, { type: "picks", picks: itemPicks(room) });
         broadcast(room, { type: "pencil_taken", playerId: player.id, charges: PENCIL_CHARGES });
-        maybeStartRun(room);
         return;
       }
 
@@ -920,13 +920,16 @@ webSocketServer.on("connection", (socket) => {
     }
     // Pencil: sketch a few short-lived blocks to stand on, mid-run. The browser sends the
     // squares it drew; the server trims, bounds-checks, spends a charge and tells everyone.
-    if (message.type === "draw_block" && room.phase === "run" && player.status === "running" && player.pencil > 0) {
+    if (message.type === "draw_block" && room.phase === "build" && player.status !== "out" && player.pencil > 0 && everyonePicked()) {
       const blocks = (Array.isArray(message.blocks) ? message.blocks : []).slice(0, PENCIL_MAX_BLOCKS)
         .map((block) => ({ x: Math.round(Number(block.x) || 0), y: Math.round(Number(block.y) || 0), w: 15, h: 15 }))
         .filter((block) => { const { W, H } = courseSize(room); return block.x >= 0 && block.x + block.w <= W && block.y >= 0 && block.y + block.h <= H; });
       if (!blocks.length) return;
       player.pencil -= 1;
-      broadcast(room, { type: "drawn", by: player.id, blocks, left: player.pencil });   // blocks last until the round ends
+      const firstStroke = player.trapCount < TRAPS_PER_ROUND;
+      if (firstStroke) player.trapCount = TRAPS_PER_ROUND;   // the first stroke is your placement for the round
+      broadcast(room, { type: "drawn", by: player.id, blocks, left: player.pencil, used: firstStroke });   // blocks last until the round ends
+      if (firstStroke) maybeStartRun(room);
       return;
     }
     if (message.type === "player_update" && room.phase === "run") {
