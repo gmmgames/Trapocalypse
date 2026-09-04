@@ -685,12 +685,17 @@ const Game = {
       // A swinging bat in front of you knocks the ball away hard; a Shield bounces one that hits you.
       if (ball.by !== Network.id || ball.age > 0.3) {
         const reach = { x: Player.facing === 1 ? Player.x + Player.w : Player.x - BAT_REACH, y: Player.y - 12, w: BAT_REACH, h: Player.h + 24 };
+        // A batted ball still belongs to whoever threw it: they are the one who ends up wherever
+        // it now lands, so a good swing sends them somewhere they did not want to go. Everyone is
+        // told about the hit, so every screen sends the ball the same way.
         if (this._swing > 0 && inside(ball, reach)) {
-          ball.vx = Player.facing * Math.max(420, Math.abs(ball.vx) * 1.3); ball.vy = Math.min(ball.vy, -220); ball.by = Network.id; ball.age = 0;
-          Sfx.bump(); this.say("Batted!", 1); continue;
+          ball.vx = Player.facing * Math.max(420, Math.abs(ball.vx) * 1.3); ball.vy = Math.min(ball.vy, -220); ball.age = 0;
+          Network.send({ type: "ball_hit", ballBy: ball.by, x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy });
+          Sfx.bump(); this.say("Batted it away!", 1); continue;
         }
         if (this.buckler > 0 && Player.alive && inside(ball, { x: Player.x - 4, y: Player.y - 4, w: Player.w + 8, h: Player.h + 8 })) {
-          this.buckler -= 1; ball.vx = -ball.vx * 0.8; ball.vy = -Math.abs(ball.vy) * 0.5 - 100; ball.x = before.x; ball.by = Network.id; ball.age = 0;
+          this.buckler -= 1; ball.vx = -ball.vx * 0.8; ball.vy = -Math.abs(ball.vy) * 0.5 - 100; ball.x = before.x; ball.age = 0;
+          Network.send({ type: "ball_hit", ballBy: ball.by, x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy });
           Sfx.shieldPop(); this.say(this.buckler > 0 ? `Shield bounced it! ${this.buckler} left` : "Shield broke!", 1.5); continue;
         }
       }
@@ -1477,6 +1482,16 @@ const Game = {
       this._balls.push({ x: message.x, y: message.y, vx: message.vx, vy: message.vy, by: message.by, color: this.colorOf(message.by), trail: [] });
       if (message.by === Network.id) this.portal = false;
       Sfx.dash();
+    }
+    // Someone else batted or shielded a ball: send it the same way on this screen too.
+    if (message.type === "ball_hit" && message.by !== Network.id) {
+      const ball = this._balls.find((item) => item.by === message.ballBy);
+      if (ball) {
+        ball.x = message.x; ball.y = message.y; ball.vx = message.vx; ball.vy = message.vy;
+        ball.age = 0; ball.trail = [];
+        Sfx.bump();
+        if (message.ballBy === Network.id) this.say(`${this.nameOf(message.by)} knocked your ball away!`, 2);
+      }
     }
     if (message.type === "pencil_taken") {
       const who = this.players.find((player) => player.id === message.playerId);

@@ -1084,6 +1084,14 @@ webSocketServer.on("connection", (socket) => {
       broadcast(room, { type: "portal_ball", by: player.id, x: clamp(message.x, 0, W), y: clamp(message.y, 0, H), vx: clamp(message.vx, -600, 600), vy: clamp(message.vy, -700, 700) });
       return;
     }
+    // A bat or a shield knocked a ball out of the air. The ball still belongs to whoever threw it,
+    // so they are the one it carries off; everyone is told so every screen agrees where it goes.
+    if (message.type === "ball_hit" && room.phase === "run" && player.status === "running") {
+      const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number(value) || 0));
+      const { W, H } = courseSize(room);
+      broadcast(room, { type: "ball_hit", by: player.id, ballBy: String(message.ballBy || "").slice(0, 40), x: clamp(message.x, 0, W), y: clamp(message.y, 0, H), vx: clamp(message.vx, -900, 900), vy: clamp(message.vy, -900, 900) });
+      return;
+    }
     // Pencil: sketch a few short-lived blocks to stand on, mid-run. The browser sends the
     // squares it drew; the server trims, bounds-checks, spends a charge and tells everyone.
     if (message.type === "draw_block" && room.phase === "build" && player.status !== "out" && player.pencil > 0 && everyonePicked()) {
