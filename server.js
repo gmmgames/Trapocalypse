@@ -33,6 +33,7 @@ const CONDOLENCE_POINTS = 4;       // "Condolence": a win after trailing everyon
 const CONDOLENCE_GAP = 10;
 const AUTONOMOUS_BONUS = 1;        // "Autonomous": the only one to reach the flag when 2+ ran
 const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no decision, the tie is shared
+const NAME_MAX_LENGTH = 26;    // longest player name; the browser's box has the same limit
 const MAX_PLAYERS = 30;        // room size, one color each
 const PALETTE_SIZE = 30;       // colors in the picker (5 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
@@ -720,7 +721,7 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "create_room" || message.type === "join_room") {
       if (socket.room) { send(socket, { type: "error", message: "You're already in a room." }); return; }
-      const wantedName = String(message.name || "Runner").slice(0, 26).trim() || "Runner";
+      const wantedName = String(message.name || "Runner").slice(0, NAME_MAX_LENGTH).trim() || "Runner";
       if (!ChatFilter.isClean(wantedName)) { send(socket, { type: "error", message: "That name isn't allowed here. Pick another.", fatal: true }); return; }
       const code = message.type === "create_room" ? roomCode() : String(message.code || "").toUpperCase();
       let room = rooms.get(code);
@@ -744,12 +745,22 @@ webSocketServer.on("connection", (socket) => {
       // means watching it: "out" for this round, back in when the next round starts. That includes
       // joining while traps are being placed, so nobody drops into a round halfway through.
       const status = room.phase === "lobby" || room.phase === "vote" ? "waiting" : "out";
-      const player = { id: crypto.randomUUID(), name: wantedName, socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };
+      // Two players called Sam would be impossible to tell apart in the chat, on the scoreboard or
+      // in /kick, so later arrivals get a number in the order they joined: Sam, Sam (2), Sam (3).
+      // Whoever was here first keeps their name unchanged.
+      const taken = new Set([...room.players.values()].map((item) => item.name.toLowerCase()));
+      let name = wantedName;
+      for (let n = 2; taken.has(name.toLowerCase()); n++) {
+        const number = ` (${n})`;
+        name = wantedName.slice(0, NAME_MAX_LENGTH - number.length).trim() + number;
+      }
+      const player = { id: crypto.randomUUID(), name, socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };
       room.players.set(player.id, player);
       if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
       rooms.set(code, room);
       socket.player = player; socket.room = room;
       send(socket, { type: "joined", id: player.id, host: room.players.size === 1 });
+      if (name !== wantedName) send(socket, { type: "notice", message: `Someone here is already called ${wantedName}, so you are ${name}.` });
       broadcast(room, snapshot(room));
       return;
     }
