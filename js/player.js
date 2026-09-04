@@ -207,7 +207,8 @@ const Player = {
     for (const hazard of Level.hazards) {
       if (hazard.kind && hazard.kind !== "spike" && hazard.kind !== "longspike") continue;   // only spikes kill
       if (this._immune > 0) break;
-      const deadly = {
+      // Turned spikes (pointing sideways or down) use an even inset all round instead.
+      const deadly = hazard.rot ? { x: hazard.x + 4, y: hazard.y + 4, w: hazard.w - 8, h: hazard.h - 8 } : {
         x: hazard.x + this.SPIKE_INSET_SIDE,
         y: hazard.y + this.SPIKE_INSET_TOP,
         w: hazard.w - this.SPIKE_INSET_SIDE * 2,

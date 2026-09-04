@@ -256,6 +256,7 @@ const Game = {
   pencil: 0,            // pencil strokes you have left this run
   portal: false,        // holding a picked-up Teleport Ball
   _charge: 0,           // throw power building up while USE is held (0..1)
+  rotation: 0,          // quarter turns for the item you are placing (Q / R)
   _balls: [],           // teleport balls in flight: { x, y, vx, vy, by, color, trail }
   _stroke: null,        // the stroke you are drawing right now: { blocks: [{x, y}] }
 
@@ -624,11 +625,11 @@ const Game = {
 
   // Why can't a trap go here? null means it can.
   placementProblem(x, y) {
-    const trap = { x, y, w: this.pick === "plank" || this.pick === "longspike" ? TILE * PLANK_TILES : TILE, h: TILE, kind: this.pick };
+    const trap = { x, y, ...this.itemSize(), kind: this.pick };
     if (this.pick === "eraser") return Level.hazards.some((hazard) => hazard.x === x && hazard.y === y) ? null : "Put the eraser on a trap.";
     const onSomeone = Physics.overlaps(trap, Player) ||
       Object.values(this.remotePlayers).some((remote) => Physics.overlaps(trap, { x: remote.x, y: remote.y, w: Player.w, h: Player.h }));
-    if (x < 2 * TILE || x + trap.w > LEVEL_W - TILE || y < 0 || y + TILE > LEVEL_H) return "That's off the course.";
+    if (x < 2 * TILE || x + trap.w > LEVEL_W - TILE || y < 0 || y + trap.h > LEVEL_H) return "That's off the course.";
     if (Level.hazards.some((hazard) => Physics.overlaps(trap, hazard))) return "There's already a trap there.";
     const flagZone = { x: Level.flag.x - 2 * TILE, y: Level.flag.y - 2 * TILE, w: Level.flag.w + 4 * TILE, h: Level.flag.h + 3 * TILE };
     if (Physics.overlaps(trap, flagZone)) return "Too close to the flag.";
@@ -675,7 +676,17 @@ const Game = {
     const problem = this.placementProblem(x, y);
     if (problem) { this.say(problem, 1.5); return; }
     if (this.pick === "eraser") Network.send({ type: "erase_trap", x, y });
-    else Network.send({ type: "place_trap", x, y, kind: this.pick });
+    else Network.send({ type: "place_trap", x, y, kind: this.pick, rot: this.rotation });
+  },
+  // The footprint of the item being placed, given its rotation.
+  itemSize() {
+    const long = this.pick === "plank" || this.pick === "longspike";
+    return { w: long && this.rotation % 2 === 0 ? TILE * PLANK_TILES : TILE, h: long && this.rotation % 2 === 1 ? TILE * PLANK_TILES : TILE };
+  },
+  rotateItem(turns) {
+    if (this.phase !== "build" || !this.pick || this.pick === "eraser") return;
+    this.rotation = (this.rotation + turns + 4) % 4;
+    Sfx.pickup();
   },
 
   cancelPlacement() { this.pending = null; },
@@ -697,22 +708,28 @@ const Game = {
       ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 23, y + 23); ctx.moveTo(x + 23, y + 7); ctx.lineTo(x + 7, y + 23); ctx.stroke();
     } else {
-      if (this.pick === "plank") Level.drawPlank(ctx, { x, y, w: TILE * PLANK_TILES, h: TILE }, Level.theme);   // full size, not the card icon
-      else if (this.pick === "longspike") Level.drawSpikes(ctx, { x, y, w: TILE * PLANK_TILES, h: TILE }, Level.theme);
-      else { ctx.translate(x, y); Level.drawItemIcon(ctx, this.pick); ctx.translate(-x, -y); }
+      const size = this.itemSize();
+      if (this.pick === "plank") Level.drawPlank(ctx, { x, y, ...size }, Level.theme);   // full size, not the card icon
+      else if (this.pick === "longspike" || this.pick === "spike" || this.pick === "decoy") Level.drawSpikesRotated(ctx, { x, y, ...size, rot: this.rotation }, Level.theme);
+      else {
+        // Other icons turn with the rotation too (a mover's chevrons show which way it will slide).
+        ctx.translate(x + TILE / 2, y + TILE / 2); ctx.rotate((this.rotation * Math.PI) / 2); ctx.translate(-TILE / 2, -TILE / 2);
+        Level.drawItemIcon(ctx, this.pick);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
     }
-    const ghostW = this.pick === "plank" || this.pick === "longspike" ? TILE * PLANK_TILES : TILE;
+    const ghostW = this.itemSize().w, ghostH = this.itemSize().h;
     ctx.globalAlpha = 1;
     ctx.setLineDash([4, 3]);
     ctx.strokeStyle = problem ? "#ff5a3c" : "#5cf05a";
     ctx.lineWidth = 2;
-    ctx.strokeRect(x - 2, y - 2, ghostW + 4, TILE + 4);
+    ctx.strokeRect(x - 2, y - 2, ghostW + 4, ghostH + 4);
     ctx.restore();
     // Just to the right of the ghost (or to the left if it is near the right edge).
     const nearRightEdge = x > LEVEL_W - 6 * TILE;
     confirm.style.left = nearRightEdge ? "" : `${((x + ghostW + 6) / LEVEL_W) * 100}%`;
     confirm.style.right = nearRightEdge ? `${((LEVEL_W - x + 6) / LEVEL_W) * 100}%` : "";
-    confirm.style.top = `${((y + TILE / 2) / LEVEL_H) * 100}%`;
+    confirm.style.top = `${((y + ghostH / 2) / LEVEL_H) * 100}%`;
   },
 
   // --- Final Battle weapons ---
@@ -1204,6 +1221,7 @@ const Game = {
       this.renderVote();
       Player.spawn();
       Level.drawn = []; this._stroke = null;   // last run's pencil sketches are gone
+      this.rotation = 0;
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
       this.portal = false; this._balls = []; this._charge = 0;
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
@@ -2055,6 +2073,8 @@ chatInput.addEventListener("keydown", (event) => {
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); Game.hideInvite(); Game.hideRoomList(); Game.cancelPlacement(); }
   if ((event.key === "e" || event.key === "E") && Game.pending && !event.target.matches("input, textarea, select")) Game.confirmPlacement();
+  if ((event.key === "q" || event.key === "Q") && !event.target.matches("input, textarea, select")) Game.rotateItem(-1);   // turn left
+  if ((event.key === "r" || event.key === "R") && !event.target.matches("input, textarea, select")) Game.rotateItem(1);    // turn right
   // "/" or "T" opens the chat when you are in a room and not already typing somewhere.
   if ((event.key === "/" || event.key === "t" || event.key === "T") && Game.inRoom && !event.target.matches("input, textarea, select")) { chatInput.focus(); event.preventDefault(); }
 });
@@ -2078,6 +2098,8 @@ canvas.addEventListener("pointermove", (event) => {
 });
 window.addEventListener("pointerup", () => { pointerHeld = false; Game.endStroke(); });
 document.getElementById("place-ok").addEventListener("click", () => Game.confirmPlacement());
+document.getElementById("place-left").addEventListener("click", () => Game.rotateItem(-1));
+document.getElementById("place-right").addEventListener("click", () => Game.rotateItem(1));
 document.getElementById("place-cancel").addEventListener("click", () => Game.cancelPlacement());
 
 // The canvas only picks up a web font once the browser has loaded it, so ask for both now.

@@ -361,7 +361,10 @@ const Level = {
     for (const mover of this.movers) slide(mover);
     for (const hazard of this.hazards) {
       if (hazard.kind !== "mover") continue;
-      if (!hazard._box) hazard._box = { x: hazard.x, y: hazard.y, w: hazard.w, h: hazard.h, baseX: hazard.x, baseY: hazard.y, dx: MOVER_DX, dy: 0, period: MOVER_PERIOD, prevX: hazard.x, prevY: hazard.y };
+      if (!hazard._box) {
+        const dir = [[1, 0], [0, 1], [-1, 0], [0, -1]][hazard.rot || 0];   // the placer's turn picks the way it slides
+        hazard._box = { x: hazard.x, y: hazard.y, w: hazard.w, h: hazard.h, baseX: hazard.x, baseY: hazard.y, dx: MOVER_DX * dir[0], dy: MOVER_DX * dir[1], period: MOVER_PERIOD, prevX: hazard.x, prevY: hazard.y };
+      }
       slide(hazard._box);
     }
   },
@@ -532,18 +535,7 @@ const Level = {
         ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
         ctx.strokeRect(hazard.x + 1, hazard.y + 1, hazard.w - 2, hazard.h - 2); ctx.restore();
       }
-      ctx.fillStyle = t.spike;
-      const spikeWidth = 12;
-      for (let x = hazard.x; x < hazard.x + hazard.w; x += spikeWidth) {
-        ctx.beginPath();
-        ctx.moveTo(x, hazard.y + hazard.h);
-        ctx.lineTo(x + spikeWidth / 2, hazard.y);
-        ctx.lineTo(Math.min(x + spikeWidth, hazard.x + hazard.w), hazard.y + hazard.h);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.fillStyle = t.spikeBase;
-      ctx.fillRect(hazard.x, hazard.y + hazard.h - 3, hazard.w, 3);
+      this.drawSpikesRotated(ctx, hazard, t);
     }
 
     // Flag: a pole and a triangle
@@ -698,6 +690,18 @@ const Level = {
     ctx.fillRect(s.x + 3, s.y + 6, s.w - 6, 5);
     ctx.fillStyle = "#ffd23c";
     ctx.fillRect(s.x + 3, s.y + s.h - 4, s.w - 6, 4);
+    ctx.restore();
+  },
+
+  // Spikes pointing up (rot 0), right (1), down (2) or left (3): draw the usual row, turned about the tile's center.
+  drawSpikesRotated(ctx, hazard, t) {
+    const rot = hazard.rot || 0;
+    if (!rot) { this.drawSpikes(ctx, hazard, t); return; }
+    ctx.save();
+    ctx.translate(hazard.x + hazard.w / 2, hazard.y + hazard.h / 2);
+    ctx.rotate((rot * Math.PI) / 2);
+    const w = rot % 2 ? hazard.h : hazard.w, h = rot % 2 ? hazard.w : hazard.h;
+    this.drawSpikes(ctx, { x: -w / 2, y: -h / 2, w, h }, t);
     ctx.restore();
   },
 

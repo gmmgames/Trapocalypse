@@ -393,6 +393,7 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 #place-ok { background: #5cf05a; color: #0b0b14; }
 #place-cancel { background: #ff5a3c; color: #ffffff; }
+#place-left, #place-right { background: #ffd23c; color: #0b0b14; }
 #place-hint { font-size: 11px; color: #e8e8ff; text-shadow: 0 0 4px #000; }
 @media (pointer: coarse) { #place-hint { display: none; } }
 #start-run {

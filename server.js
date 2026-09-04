@@ -813,8 +813,11 @@ webSocketServer.on("connection", (socket) => {
       const x = Math.round((Number(message.x) || 0) / TILE) * TILE;
       const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
       const kind = player.pick;   // the item you picked this round; the browser's claim is ignored
-      const trap = { x, y, w: kind === "plank" || kind === "longspike" ? TILE * PLANK_TILES : TILE, h: TILE, owner: player.id, kind };
-      const inBounds = x >= 2 * TILE && x + trap.w <= LEVEL_W - TILE && y >= 0 && y + TILE <= LEVEL_H;
+      // Quarter turns from the placer: long items stand up on odd turns; spikes point up/right/down/left; movers slide along the turn.
+      const rot = [1, 2, 3].includes(Number(message.rot)) ? Number(message.rot) : 0;
+      const long = kind === "plank" || kind === "longspike";
+      const trap = { x, y, w: long && rot % 2 === 0 ? TILE * PLANK_TILES : TILE, h: long && rot % 2 === 1 ? TILE * PLANK_TILES : TILE, owner: player.id, kind, rot };
+      const inBounds = x >= 2 * TILE && x + trap.w <= LEVEL_W - TILE && y >= 0 && y + trap.h <= LEVEL_H;
       if (inBounds && !trapBlocked(room, trap)) {
         room.traps.push(trap); player.trapCount += 1;
         broadcast(room, { type: "trap_placed", trap, playerId: player.id, traps: room.traps });
