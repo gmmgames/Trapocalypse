@@ -1295,6 +1295,109 @@ const Game = {
     return { shown, labels };
   },
 
+  // The end of a whole match: 1st, 2nd and 3rd on podium blocks under a disco ball,
+  // everyone dancing in their own shape. Players tied on points share a step.
+  drawPodium(sorted) {
+    const now = performance.now() / 1000;
+    const floorY = 470, centerX = LEVEL_W / 2;
+    const steps = [                                 // 1st in the middle, 2nd left, 3rd right
+      { x: centerX, h: 130, face: "#ffd23c", edge: "#fff3b0", label: "1" },
+      { x: centerX - 150, h: 90, face: "#c9d1e0", edge: "#f0f4ff", label: "2" },
+      { x: centerX + 150, h: 60, face: "#d38a4a", edge: "#f2c39a", label: "3" },
+    ];
+    // Group by score so ties stand together.
+    const groups = [];
+    for (const player of sorted) {
+      const last = groups[groups.length - 1];
+      if (last && last[0].score === player.score) last.push(player); else groups.push([player]);
+    }
+
+    // Disco ball on a string, with slow-turning colored beams.
+    const ballX = centerX, ballY = 150, ballR = 26;
+    ctx.save();
+    ctx.strokeStyle = "#c0c0d8"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(ballX, 0); ctx.lineTo(ballX, ballY - ballR); ctx.stroke();
+    for (let i = 0; i < 6; i++) {
+      const angle = now * 0.6 + i * (Math.PI / 3);
+      ctx.fillStyle = `hsla(${(i * 60 + now * 40) % 360}, 100%, 60%, 0.13)`;
+      ctx.beginPath();
+      ctx.moveTo(ballX, ballY);
+      ctx.lineTo(ballX + Math.cos(angle) * 900, ballY + Math.sin(angle) * 900);
+      ctx.lineTo(ballX + Math.cos(angle + 0.25) * 900, ballY + Math.sin(angle + 0.25) * 900);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = "#e8e8ff";
+    ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 25;
+    ctx.beginPath(); ctx.arc(ballX, ballY, ballR, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Mirror tiles: a grid clipped to the ball, sparkling as it turns.
+    ctx.save();
+    ctx.beginPath(); ctx.arc(ballX, ballY, ballR, 0, Math.PI * 2); ctx.clip();
+    for (let gy = -ballR; gy < ballR; gy += 7) {
+      for (let gx = -ballR; gx < ballR; gx += 7) {
+        const sparkle = Math.sin(gx * 0.5 + now * 5) * Math.cos(gy * 0.4 + now * 3);
+        ctx.fillStyle = sparkle > 0.6 ? "#ffffff" : `hsl(${(gx * 4 + now * 120) % 360}, 60%, ${55 + sparkle * 15}%)`;
+        ctx.fillRect(ballX + gx, ballY + gy, 6, 6);
+      }
+    }
+    ctx.restore();
+
+    // The floor, then the three blocks with their numbers.
+    ctx.fillStyle = "#1c1c2e";
+    ctx.fillRect(centerX - 300, floorY, 600, 6);
+    steps.forEach((step, rank) => {
+      if (!groups[rank]) return;   // fewer than three score groups: leave the step out
+      ctx.fillStyle = step.face;
+      ctx.fillRect(step.x - 55, floorY - step.h, 110, step.h);
+      ctx.fillStyle = step.edge;
+      ctx.fillRect(step.x - 55, floorY - step.h, 110, 5);
+      ctx.fillStyle = "#0b0b14";
+      ctx.font = `bold 34px ${DISPLAY_FONT}`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(step.label, step.x, floorY - step.h / 2 + 4);
+      // Everyone on this step, dancing: bobbing, swaying, turning to face each beat.
+      const dancers = groups[rank];
+      const spacing = Math.min(36, 100 / dancers.length);
+      dancers.forEach((player, i) => {
+        const beat = now * 6 + rank + i * 1.3;
+        const bob = Math.abs(Math.sin(beat)) * 12;
+        const sway = Math.sin(beat / 2) * 5;
+        const squash = 1 - Math.max(0, Math.sin(beat + Math.PI)) * 0.12;   // a little squat on the landing
+        const x = step.x - ((dancers.length - 1) * spacing) / 2 + i * spacing - Player.w / 2 + sway;
+        const y = floorY - step.h - Player.h - bob;
+        const facing = Math.sin(beat / 3) > 0 ? 1 : -1;
+        ctx.save();
+        ctx.translate(0, floorY - step.h);
+        ctx.scale(1, squash);
+        ctx.translate(0, -(floorY - step.h));
+        drawAvatar(ctx, x, y, Player.w, Player.h, this.colorOf(player.id), facing, player.avatar || "cube");
+        ctx.restore();
+        ctx.font = `bold 13px ${FONT}`;
+        ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = this.colorOf(player.id);
+        ctx.fillText(player.name, x + Player.w / 2, y - 8 - (i % 2) * 14);
+      });
+      ctx.font = `bold 15px ${FONT}`;
+      ctx.fillStyle = "#e8e8ff";
+      ctx.fillText(`${groups[rank][0].score} pts`, step.x, floorY + 24);
+    });
+    // Everyone else, listed under the podium.
+    const rest = groups.slice(3).flat();
+    if (rest.length) {
+      ctx.font = `13px ${FONT}`;
+      ctx.fillStyle = "#c0c0d8";
+      ctx.textAlign = "center";
+      ctx.fillText(rest.map((player) => `${player.name} ${player.score}`).join("  •  "), centerX, floorY + 50);
+    }
+    ctx.restore();
+
+    // A pop of confetti from the ceiling every so often.
+    if (!this._lastPodiumConfetti || now - this._lastPodiumConfetti > 1.3) {
+      this._lastPodiumConfetti = now;
+      Confetti.burst(200 + Math.random() * 560, 40, `hsl(${Math.random() * 360}, 100%, 65%)`);
+    }
+  },
+
   // End-of-round scoreboard: one bar per player, tallest score on the left,
   // the player's color at the foot of each bar, their name across the top.
   drawScoreboard() {
@@ -1325,6 +1428,8 @@ const Game = {
       ctx.font = `bold 22px ${FONT}`;
       ctx.fillStyle = this.winnerIds.length ? this.colorOf(this.winnerIds[0]) : "#ffd23c";
       ctx.fillText(`${names.join(" & ")} win${names.length === 1 ? "s" : ""}!`, LEVEL_W / 2, 100);
+      this.drawPodium(sorted);
+      return;
     } else {
       const label = this._finalBattleNext ? "Final Battle in" : this._winnerPending ? "Final results in" : "Next round in";
       ctx.font = `16px ${FONT}`;

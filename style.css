@@ -669,9 +669,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 #winner-hud {
   position: absolute;
-  left: 50%;
-  bottom: 40px;
-  transform: translateX(-50%);
+  right: 16px;                   /* bottom-right corner, clear of the podium */
+  bottom: 16px;
   display: grid;
   gap: 8px;
   justify-items: center;
