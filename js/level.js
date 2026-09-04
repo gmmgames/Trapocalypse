@@ -46,6 +46,10 @@ const THEMES = {
   frost:  { bg: "#0e1a2e", grid: "rgba(200,230,255,0.05)", solid: "#24405f", solidTop: "#dff6ff", spike: "#bfe9ff", spikeBase: "#ffffff", pole: "#ffffff", dust: "rgba(230,245,255,0.7)" },
 };
 
+// A placed Mover block slides this far to the right and back, taking this long per round trip.
+const MOVER_DX = 60;
+const MOVER_PERIOD = 3;
+
 const LEVELS = [
   {
     name: "Neon Ascent",
@@ -115,9 +119,10 @@ const LEVELS = [
     flag: tileRect(28, 9, 1, 2),
   },
   {
-    // Islands over lava. Miss a jump and you are gone.
+    // Islands over lava. Miss a jump and you are gone. A drifting island bridges the middle.
     name: "Ashfall",
     theme: THEMES.ash,
+    movers: [{ ...tileRect(8, 11, 2, 1), dx: 150, dy: 0, period: 4 }],
     solids: [
       tileRect(0, 16, 4, 2), tileRect(6, 15, 3, 1),
       tileRect(11, 13, 3, 1), tileRect(16, 16, 4, 2),
@@ -150,9 +155,10 @@ const LEVELS = [
     flag: tileRect(30, 7, 1, 2),
   },
   {
-    // Icy steps over deep crevasses.
+    // Icy steps over deep crevasses. A ledge rises and sinks over the middle gap.
     name: "Frostbite Ridge",
     theme: THEMES.frost,
+    movers: [{ ...tileRect(10, 11, 2, 1), dx: 0, dy: 75, period: 3 }],
     solids: [
       tileRect(0, 16, 5, 2), tileRect(7, 14, 3, 1),
       tileRect(12, 16, 4, 2), tileRect(18, 14, 2, 1),
@@ -185,9 +191,10 @@ const LEVELS = [
   },
   {
     // Wall-jump course. Thin frozen towers over a bed of icicles: hop top to top, or slide
-    // down a face and kick off it to save yourself.
+    // down a face and kick off it to save yourself. A sliding slab helps between two towers.
     name: "Tower Hop",
     theme: THEMES.frost,
+    movers: [{ ...tileRect(11, 14, 2, 1), dx: 30, dy: 0, period: 2.5 }],
     solids: [
       tileRect(0, 16, 4, 2), tileRect(28, 16, 4, 2),
       tileRect(6, 10, 1, 6), tileRect(10, 8, 1, 8), tileRect(14, 11, 1, 5),
@@ -215,9 +222,11 @@ const LEVELS = [
     flag: tileRect(30, 1, 1, 2),
   },
   {
-    // Rooftops at night. Wide buildings with deadly alleys between them.
+    // Rooftops at night. Wide buildings with deadly alleys between them, and a window-cleaning
+    // cradle sliding across one alley.
     name: "Skyline",
     theme: THEMES.neon,
+    movers: [{ ...tileRect(9, 13, 2, 1), dx: 90, dy: 0, period: 3.5 }],
     solids: [
       tileRect(0, 14, 4, 4), tileRect(6, 12, 3, 6), tileRect(11, 15, 3, 3),
       tileRect(16, 12, 3, 6), tileRect(21, 13, 3, 5), tileRect(26, 10, 6, 8),
@@ -260,6 +269,8 @@ const Level = {
   scenery: [],          // title-screen decoration (stars, hills, trees...); empty on real courses
   sceneryId: 0,
   drawn: [],            // pencil blocks: { x, y, w, h, until (performance.now() ms), color }
+  movers: [],           // the course's moving platforms (current x,y plus baseX/baseY, dx, dy, period, prevX/prevY)
+  moverEpoch: 0,        // performance.now() the movers' clock started; everyone resets it when a run starts
 
   load(index) {
     this.index = index;
@@ -272,6 +283,31 @@ const Level = {
     this.flag = { ...level.flag };
     this.scenery = [];
     this.drawn = [];
+    this.movers = (level.movers || []).map((mover) => ({ ...mover, baseX: mover.x, baseY: mover.y, prevX: mover.x, prevY: mover.y }));
+    this.moverEpoch = typeof performance !== "undefined" ? performance.now() : Date.now();
+  },
+
+  // Move every platform to where it is right now. Called once per frame before the runner
+  // moves. Position is a smooth back-and-forth: 0 -> 1 -> 0 over one period.
+  updateMovers() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const t = (now - this.moverEpoch) / 1000;
+    const slide = (mover) => {
+      const k = 0.5 - 0.5 * Math.cos((Math.PI * 2 * t) / mover.period);
+      mover.prevX = mover.x; mover.prevY = mover.y;
+      mover.x = mover.baseX + mover.dx * k;
+      mover.y = mover.baseY + mover.dy * k;
+    };
+    for (const mover of this.movers) slide(mover);
+    for (const hazard of this.hazards) {
+      if (hazard.kind !== "mover") continue;
+      if (!hazard._box) hazard._box = { x: hazard.x, y: hazard.y, w: hazard.w, h: hazard.h, baseX: hazard.x, baseY: hazard.y, dx: MOVER_DX, dy: 0, period: MOVER_PERIOD, prevX: hazard.x, prevY: hazard.y };
+      slide(hazard._box);
+    }
+  },
+  // Every moving platform, course-built or player-placed, as a box the physics can use.
+  movingSolids() {
+    return this.movers.concat(this.hazards.filter((hazard) => hazard.kind === "mover" && hazard._box).map((hazard) => hazard._box));
   },
 
   // Pencil blocks that still exist right now. Expired ones are dropped here, so the
@@ -304,6 +340,7 @@ const Level = {
       this.solids.push(tileRect(c, 16, 1 + Math.floor(Math.random() * 2), 1));
     }
     this.start = { x: 5 * TILE, y: 17 * TILE - 26 };
+    this.movers = [];
     this.scenery = makeScenery(themeName);
     this.sceneryId = Math.random();
   },
@@ -393,6 +430,8 @@ const Level = {
       ctx.fillStyle = t.solidTop;
       ctx.fillRect(s.x, s.y, s.w, 3);
     }
+    // The course's moving platforms.
+    for (const mover of this.movers) this.drawMover(ctx, mover, t);
 
     // Traps. Each kind looks different so you know what you are running at:
     //   spike    kills on touch (the level's built-in hazards are spikes too)
@@ -421,6 +460,7 @@ const Level = {
       if (hazard.kind === "spring") { this.drawSpring(ctx, hazard); continue; }
       if (hazard.kind === "ice") { this.drawIce(ctx, hazard); continue; }
       if (hazard.kind === "portal") { if (!hazard.taken) this.drawPortal(ctx, hazard); continue; }
+      if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
       // spikes and decoys draw the same; the owner of a decoy gets a faint dashed outline
       if (hazard.kind === "decoy" && typeof Network !== "undefined" && hazard.owner === Network.id) {
         ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
@@ -470,6 +510,7 @@ const Level = {
       return;
     }
     if (item === "portal") { this.drawPortal(ctx, box); return; }
+    if (item === "mover") { this.drawMover(ctx, box, t, true); return; }
     if (item === "eraser") {
       ctx.fillStyle = "#ff3c78";
       ctx.fillRect(3, 8, 24, 16);
@@ -561,6 +602,25 @@ const Level = {
     ctx.fillRect(s.x + 3, s.y + 6, s.w - 6, 5);
     ctx.fillStyle = "#ffd23c";
     ctx.fillRect(s.x + 3, s.y + s.h - 4, s.w - 6, 4);
+    ctx.restore();
+  },
+
+  // A moving platform: a block in the course colors with sliding chevrons so you can tell it
+  // moves. Player-placed ones get a yellow edge.
+  drawMover(ctx, m, t, placed = false) {
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    ctx.fillStyle = t.solid;
+    ctx.fillRect(m.x, m.y, m.w, m.h);
+    ctx.fillStyle = placed ? "#ffd23c" : t.solidTop;
+    ctx.fillRect(m.x, m.y, m.w, 3);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(m.x, m.y + 4, m.w, m.h - 4); ctx.clip();
+    ctx.strokeStyle = placed ? "rgba(255, 210, 60, 0.7)" : "rgba(255, 255, 255, 0.35)";
+    ctx.lineWidth = 2;
+    const shift = (now * 20) % 12;
+    for (let x = m.x - 12 + shift; x < m.x + m.w + 12; x += 12) {
+      ctx.beginPath(); ctx.moveTo(x, m.y + 5); ctx.lineTo(x + 5, m.y + m.h / 2 + 1); ctx.lineTo(x, m.y + m.h - 3); ctx.stroke();
+    }
     ctx.restore();
   },
 

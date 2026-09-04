@@ -105,7 +105,7 @@ const Player = {
     if (this.frozen > 0) {
       this.frozen -= dt;
       this.vx = 0;
-      Physics.moveAndCollide(this, Level.solids.concat(Level.drawnSolids()), dt);   // pencil blocks count as ground
+      Physics.moveAndCollide(this, Level.solids.concat(Level.drawnSolids(), Level.movingSolids()), dt);   // pencil blocks and movers count as ground
       return;
     }
     this._immune = Math.max(0, this._immune - dt);
@@ -173,7 +173,13 @@ const Player = {
 
     // 3. Move and bump into things. Crumblers count as solid until they give way.
     const wasOnGround = this.onGround;   // remembered so we can tell a landing from standing still
-    const solids = Level.solids.concat(Level.drawnSolids(), Level.hazards.filter((h) => h.kind === "crumble" && !h._gone));
+    // Standing on a moving platform? It carries you along before anything else moves.
+    for (const mover of Level.movingSolids()) {
+      const dx = mover.x - mover.prevX, dy = mover.y - mover.prevY;
+      const onIt = this.onGround && Math.abs(this.y + this.h - mover.prevY) < 3 && this.x + this.w > mover.prevX && this.x < mover.prevX + mover.w;
+      if (onIt && (dx || dy)) { this.x += dx; this.y += dy; }
+    }
+    const solids = Level.solids.concat(Level.drawnSolids(), Level.movingSolids(), Level.hazards.filter((h) => h.kind === "crumble" && !h._gone));
     if (this._dash > 0) this.gravityScale = 0;   // a dash flies level
     Physics.moveAndCollide(this, solids, dt);
     if (this._dash <= 0) this.gravityScale = this.weapon === "feather" ? 0.55 : 1;

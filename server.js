@@ -149,11 +149,14 @@ function trapBlocked(room, trap) {
   const level = LEVELS[room.levelIndex];
   const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
-  const inWall = (trap.kind === "crumble" || trap.kind === "portal") && level.solids.some((solid) => overlaps(solid, trap));
+  const inWall = (trap.kind === "crumble" || trap.kind === "portal" || trap.kind === "mover" || trap.kind === "glue") && level.solids.some((solid) => overlaps(solid, trap));
+  // Glue must touch a block on some side (top, bottom, left or right).
+  const sides = [{ x: trap.x + 2, y: trap.y - 2, w: TILE - 4, h: 2 }, { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 }, { x: trap.x - 2, y: trap.y + 2, w: 2, h: TILE - 4 }, { x: trap.x + TILE, y: trap.y + 2, w: 2, h: TILE - 4 }];
+  const looseGlue = trap.kind === "glue" && !sides.some((probe) => level.solids.some((solid) => overlaps(solid, probe)));
   // Ice sits on top of a block: never inside one, and there must be a block right under it.
   const below = { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 };
   const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !level.solids.some((solid) => overlaps(solid, below)));
-  return inWall || badIce || overlaps(trap, level.flag) || overlaps(trap, startBox) ||
+  return inWall || looseGlue || badIce || overlaps(trap, level.flag) || overlaps(trap, startBox) ||
     room.traps.some((item) => overlaps(item, trap));
 }
 
@@ -434,7 +437,7 @@ function removePlayer(socket) {
 // picks one; while any offered item is still free, two players cannot pick the same one.
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
-const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08 };
+const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6 };
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
 function drawItem() {

@@ -113,7 +113,7 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover" };
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
@@ -563,6 +563,14 @@ const Game = {
     if (Physics.overlaps(trap, Level.flag) || onSomeone) return "Not on a runner or the flag.";
     if (this.pick === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A crumbler needs open air, not a wall.";
     if (this.pick === "portal" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The ball has to hang in open air.";
+    if (this.pick === "mover" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mover needs open air to slide in.";
+    if (this.pick === "glue") {
+      // Glue sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
+      if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Glue goes on a block, not inside it.";
+      // Four thin probes, one per side; corners alone do not count.
+      const sides = [{ x: x + 2, y: y - 2, w: TILE - 4, h: 2 }, { x: x + 2, y: y + TILE, w: TILE - 4, h: 2 }, { x: x - 2, y: y + 2, w: 2, h: TILE - 4 }, { x: x + TILE, y: y + 2, w: 2, h: TILE - 4 }];
+      if (!sides.some((probe) => Level.solids.some((solid) => Physics.overlaps(probe, solid)))) return "Glue has to stick to something: put it against a block.";
+    }
     if (this.pick === "ice") {
       // Ice is a coating: it sits on top of a block, never inside one, beside one or under one.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Ice goes on top of a block, not inside it.";
@@ -1120,6 +1128,7 @@ const Game = {
       this.renderVote();
       Player.spawn();
       Level.drawn = []; this._stroke = null;   // last run's pencil sketches are gone
+      Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
       this.portal = false; this._balls = [];
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
@@ -1355,6 +1364,7 @@ const Game = {
   update(dt) {
     Input.update();
     Dust.update(dt);
+    Level.updateMovers();   // platforms slide before the runners move, so riders are carried
     if (this.phase === "run" && !this.complete) {
       Player.update(dt);
       if (this.mode === "online") {
