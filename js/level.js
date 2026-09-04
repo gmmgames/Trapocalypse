@@ -42,6 +42,20 @@ function makeScenery(themeName) {
     items.push({ kind: "volcano", x: 200 + Math.random() * (LEVEL_W - 400), w: 260 + Math.random() * 120, h: 160 + Math.random() * 80 });
     for (let i = 0; i < 26; i++) items.push({ kind: "ember", x: Math.random() * LEVEL_W, speed: 18 + Math.random() * 30, phase: Math.random() * 100, r: 1 + Math.random() * 1.6 });
     items.push({ kind: "hills", layer: 1, seed: Math.random() * 100 });
+  } else if (themeName === "graveyard") {
+    // Leaning headstones and bare trees under a low mist. Three of the graves are not resting:
+    // something climbs out, stands a while, then sinks back. Ghosts and bats cross overhead.
+    items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
+    for (let i = 0; i < 2; i++) items.push({ kind: "deadtree", x: 70 + Math.random() * (LEVEL_W - 140), h: 90 + Math.random() * 70 });
+    const stones = [];
+    for (let i = 0; i < 9; i++) {
+      const stone = { kind: "gravestone", x: 20 + Math.random() * (LEVEL_W - 40), h: 26 + Math.random() * 26, cross: Math.random() < 0.35, lean: (Math.random() - 0.5) * 0.24 };
+      stones.push(stone); items.push(stone);
+    }
+    for (const stone of stones.slice(0, 3)) items.push({ kind: "riser", x: stone.x + 17, who: Math.random() < 0.5 ? "zombie" : "skeleton", h: 44 + Math.random() * 14, period: 7 + Math.random() * 5, offset: Math.random() * 10 });
+    for (let i = 0; i < 3; i++) items.push({ kind: "mist", y: 380 + i * 45, speed: 4 + Math.random() * 7, seed: Math.random() * 400 });
+    for (let i = 0; i < 3; i++) items.push({ kind: "ghost", x: Math.random() * LEVEL_W, y: 150 + Math.random() * 200, speed: 14 + Math.random() * 16, phase: Math.random() * 6, size: 16 + Math.random() * 10 });
+    for (let i = 0; i < 5; i++) items.push({ kind: "bat", x: Math.random() * LEVEL_W, y: 60 + Math.random() * 180, speed: 26 + Math.random() * 30, phase: Math.random() * 6, size: 5 + Math.random() * 4 });
   } else if (themeName === "storm") {
     // Rain falling through a dark sky, with the whole thing lighting up now and then.
     for (let i = 0; i < 4; i++) items.push({ kind: "cloud", x: Math.random() * LEVEL_W, y: 30 + Math.random() * 90, w: 90 + Math.random() * 70, speed: 14 + Math.random() * 12, dark: true });
@@ -85,6 +99,7 @@ const THEMES = {
   midnight: { bg: "#070b1a", grid: "rgba(120,140,255,0.05)", solid: "#1a2040", solidTop: "#ffd23c", spike: "#ff8fb0", spikeBase: "#ffd6e6", pole: "#ffffff", dust: "rgba(200,200,255,0.6)" },
   ocean:  { bg: "#8fd3ff", grid: "rgba(0,60,120,0.05)",     solid: "#c9a56a", solidTop: "#ffe9b8", spike: "#2f4fa0", spikeBase: "#a8c8ff", pole: "#2f4fa0", dust: "rgba(255,240,200,0.7)" },
   lava:   { bg: "#1a0606", grid: "rgba(255,90,60,0.06)",    solid: "#3d1a14", solidTop: "#ff8c1a", spike: "#ffd23c", spikeBase: "#fff0b0", pole: "#ffe9b8", dust: "rgba(255,150,80,0.6)" },
+  graveyard: { bg: "#0a0e12", grid: "rgba(200,220,210,0.04)", solid: "#1e262b", solidTop: "#b8c6c0", spike: "#9be89b", spikeBase: "#d8ffd8", pole: "#e8f0ea", dust: "rgba(180,200,190,0.5)" },
   storm:  { bg: "#0d1220", grid: "rgba(180,200,255,0.05)", solid: "#232c42", solidTop: "#9fd8ff", spike: "#ffe066", spikeBase: "#fff3b0", pole: "#ffffff", dust: "rgba(190,210,255,0.6)" },
   swamp:  { bg: "#0d1a12", grid: "rgba(120,255,170,0.05)", solid: "#22402c", solidTop: "#7ee08a", spike: "#c9f24a", spikeBase: "#e8ffb0", pole: "#dfffe8", dust: "rgba(150,220,170,0.5)" },
   dune:   { bg: "#f0c27a", grid: "rgba(120,60,0,0.05)",    solid: "#8a5a2b", solidTop: "#ffd9a0", spike: "#4a2c10", spikeBase: "#8a5a2b", pole: "#4a2c10", dust: "rgba(255,220,170,0.8)" },
@@ -488,6 +503,24 @@ const LEVELS = [
     start: { x: 2 * TILE, y: 34 * TILE - 26 },
     starts: [2, 12, 22, 32, 42, 52, 60].map((col) => ({ x: col * TILE, y: 34 * TILE - 26 })),
     flag: tileRect(32, 2, 1, 2),
+  },
+  {
+    // A graveyard: headstone ledges to climb, thorns in the grass between them, and two grave slabs
+    // that give way a moment after you stand on them.
+    name: "Graveyard",
+    theme: THEMES.graveyard,
+    solids: [
+      tileRect(0, 16, 32, 2),
+      tileRect(5, 14, 2, 1), tileRect(9, 12, 2, 1), tileRect(14, 13, 3, 1),
+      tileRect(20, 11, 2, 1), tileRect(24, 13, 3, 1), tileRect(29, 14, 3, 1),
+    ],
+    hazards: [
+      tileRect(7, 15, 2, 1), tileRect(17, 15, 2, 1), tileRect(26, 15, 2, 1),
+      tileRect(15, 12, 1, 1), tileRect(25, 12, 1, 1),
+      { ...tileRect(11, 13, 1, 1), kind: "crumble" }, { ...tileRect(22, 12, 1, 1), kind: "crumble" },
+    ],
+    start: { x: 1 * TILE, y: 16 * TILE - 26 },
+    flag: tileRect(30, 12, 1, 2),
   },
   {
     // HARD, BIG (48 x 27). A storm-lashed run: three holes in the floor with nothing under them,
@@ -948,6 +981,88 @@ const Level = {
         ctx.fillStyle = "#ffffff"; ctx.fillRect(item.x - 2, groundY - item.h, 4, item.h);
         ctx.fillStyle = `hsl(${item.hue}, 90%, 70%)`; ctx.beginPath(); ctx.arc(item.x, groundY - item.h, 16, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(item.x, groundY - item.h, 9, 0.4, 3.6); ctx.stroke();
+      } else if (item.kind === "gravestone") {
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        ctx.translate(item.x, groundY); ctx.rotate(item.lean);
+        ctx.fillStyle = t.solid;
+        if (item.cross) {
+          ctx.fillRect(-3, -item.h, 6, item.h);
+          ctx.fillRect(-11, -item.h * 0.78, 22, 6);
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(-10, 0); ctx.lineTo(-10, -item.h + 10);
+          ctx.arc(0, -item.h + 10, 10, Math.PI, 0);
+          ctx.lineTo(10, 0); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = t.solidTop; ctx.globalAlpha = 0.2;   // a worn inscription
+          ctx.fillRect(-5, -item.h + 14, 10, 2); ctx.fillRect(-5, -item.h + 20, 10, 2);
+        }
+        ctx.restore();
+      } else if (item.kind === "deadtree") {
+        ctx.globalAlpha = 0.7; ctx.strokeStyle = t.solid; ctx.lineCap = "round";
+        const { x, h } = item;
+        ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(x, groundY); ctx.lineTo(x, groundY - h); ctx.stroke();
+        ctx.lineWidth = 3;
+        for (const [dx, from, to] of [[-18, 0.45, 0.62], [16, 0.55, 0.72], [-12, 0.72, 0.86], [13, 0.8, 0.94]]) {
+          ctx.beginPath(); ctx.moveTo(x, groundY - h * from); ctx.lineTo(x + dx, groundY - h * to); ctx.stroke();
+        }
+      } else if (item.kind === "riser") {
+        // Up out of the grave, a while standing, then back down. Whatever is still below the
+        // ground is hidden behind the floor, which is drawn after the scenery.
+        const cycle = ((time + item.offset) % item.period) / item.period;
+        const out = cycle < 0.22 ? cycle / 0.22 : cycle < 0.6 ? 1 : cycle < 0.78 ? 1 - (cycle - 0.6) / 0.18 : 0;
+        if (out > 0.02) {
+          const h = item.h, top = groundY - out * h, x = item.x + Math.sin(time * 2 + item.offset) * 2;
+          ctx.globalAlpha = 0.9;
+          if (item.who === "zombie") {
+            ctx.fillStyle = "#4e7a42";
+            ctx.fillRect(x - 6, top + h * 0.32, 12, h * 0.7);                       // body
+            ctx.fillRect(x - 13, top + h * 0.3, 5, h * 0.3);                        // arms reaching up
+            ctx.fillRect(x + 8, top + h * 0.3, 5, h * 0.3);
+            ctx.fillStyle = "#79ad63";
+            ctx.beginPath(); ctx.arc(x, top + h * 0.2, h * 0.17, 0, Math.PI * 2); ctx.fill();
+          } else {
+            ctx.fillStyle = "#dbe6e0";
+            ctx.fillRect(x - 2, top + h * 0.34, 4, h * 0.66);                       // spine
+            for (let r = 0; r < 3; r++) ctx.fillRect(x - 7, top + h * (0.42 + r * 0.1), 14, 2);   // ribs
+            ctx.fillRect(x - 12, top + h * 0.32, 4, h * 0.28);                      // arms
+            ctx.fillRect(x + 8, top + h * 0.32, 4, h * 0.28);
+            ctx.beginPath(); ctx.arc(x, top + h * 0.2, h * 0.16, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = t.bg;                                                    // eye sockets
+            ctx.fillRect(x - 5, top + h * 0.16, 3, 3); ctx.fillRect(x + 2, top + h * 0.16, 3, 3);
+          }
+        }
+      } else if (item.kind === "ghost") {
+        const x = ((item.x + time * item.speed) % (LEVEL_W + 120)) - 60;
+        const y = item.y + Math.sin(time * 1.1 + item.phase) * 22;
+        const s = item.size;
+        ctx.globalAlpha = 0.3 + 0.1 * Math.sin(time * 2 + item.phase);
+        ctx.fillStyle = "#e8f4ef";
+        ctx.beginPath();
+        ctx.arc(x, y, s * 0.55, Math.PI, 0);                    // a rounded head
+        ctx.lineTo(x + s * 0.55, y + s * 0.5);
+        for (let k = 0; k < 3; k++) {                           // and a wavy tail
+          const step = s * 0.37;
+          ctx.quadraticCurveTo(x + s * 0.55 - step * (k + 0.5), y + s * 0.5 + (k % 2 ? -6 : 6), x + s * 0.55 - step * (k + 1), y + s * 0.5);
+        }
+        ctx.lineTo(x - s * 0.55, y);
+        ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.7; ctx.fillStyle = t.bg;            // two dark eyes
+        ctx.beginPath(); ctx.arc(x - s * 0.2, y - s * 0.05, s * 0.1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + s * 0.2, y - s * 0.05, s * 0.1, 0, Math.PI * 2); ctx.fill();
+      } else if (item.kind === "bat") {
+        const x = ((item.x + time * item.speed) % (LEVEL_W + 80)) - 40;
+        const y = item.y + Math.sin(time * 1.7 + item.phase) * 18;
+        const flap = Math.sin(time * 9 + item.phase), s = item.size;
+        ctx.globalAlpha = 0.8; ctx.fillStyle = t.dust;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x - s, y - s * flap, x - s * 2, y + s * 0.3);
+        ctx.lineTo(x, y + s * 0.5);
+        ctx.lineTo(x + s * 2, y + s * 0.3);
+        ctx.quadraticCurveTo(x + s, y - s * flap, x, y);
+        ctx.closePath(); ctx.fill();
       } else if (item.kind === "rain") {
         const y = ((item.y + time * item.speed) % (LEVEL_H + 40)) - 20;
         ctx.globalAlpha = 0.35; ctx.strokeStyle = "#bcd8ff"; ctx.lineWidth = 1.2;
