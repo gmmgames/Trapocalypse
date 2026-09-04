@@ -18,6 +18,11 @@ const hudTail = document.getElementById("hud-tail");
 // A random name for players who leave the box empty (or roll the dice). Two words, always clean.
 const NAME_ADJECTIVES = ["Sneaky", "Bouncy", "Zesty", "Turbo", "Wobbly", "Spicy", "Crispy", "Jolly", "Mighty", "Fuzzy", "Rapid", "Sleepy", "Cosmic", "Loopy", "Frosty", "Peppy", "Dizzy", "Chunky", "Slippy", "Golden", "Rowdy", "Sunny", "Grumpy", "Nimble"];
 const NAME_NOUNS = ["Mango", "Pickle", "Waffle", "Noodle", "Badger", "Comet", "Pebble", "Gecko", "Muffin", "Rocket", "Walrus", "Taco", "Panda", "Cactus", "Yeti", "Donut", "Falcon", "Marble", "Otter", "Pretzel", "Robot", "Turnip", "Llama", "Biscuit"];
+// The title screen only ever shows one of the three plain shapes, picked at random each visit.
+// Your saved shape is for rooms.
+const TITLE_AVATARS = ["cube", "wedge", "ball"];
+function titleAvatar() { return TITLE_AVATARS[Math.floor(Math.random() * TITLE_AVATARS.length)]; }
+
 // The shape you picked last time (kept in this browser), the cube until you pick one.
 function savedAvatar() {
   try { const saved = localStorage.getItem("trapocalypse.avatar"); return AVATARS.includes(saved) ? saved : "cube"; } catch (error) { return "cube"; }
@@ -252,7 +257,7 @@ const Game = {
 
   start() {
     Level.loadTitle();
-    Player.avatar = savedAvatar();
+    Player.avatar = titleAvatar();
     Player.spawn();
     requestAnimationFrame(this.loop.bind(this));
   },
@@ -307,7 +312,7 @@ const Game = {
     this.winnerIds = [];
     this.finalBattleIds = [];
     Player.color = "#ff3c78";
-    Player.avatar = savedAvatar();
+    Player.avatar = titleAvatar();
     Level.loadTitle();   // a fresh random title world each time you come back
     Player.spawn();
     lobby.classList.add("hidden");
