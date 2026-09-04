@@ -1389,3 +1389,23 @@ body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto
 .help-list { margin: 6px 0 10px; padding-left: 18px; list-style: disc; }
 .help-list li { margin: 3px 0; line-height: 1.4; text-align: left; }
 .help-list li b { color: #ffd23c; }
+
+/* A red circle on the Chat button counting messages that arrived while it was shut. */
+#chat-toggle { position: relative; }
+#chat-unread {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #ff3c78;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}

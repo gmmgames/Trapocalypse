@@ -186,7 +186,7 @@
   <!-- Chat, bottom left, while you are in a room. / or T to start typing, Enter to send.
        The log is see-through and clicks pass through it to the course; only the box and the minimize button catch clicks. -->
   <div id="chat" class="hidden">
-    <button id="chat-toggle" type="button" aria-label="Minimize chat">Chat −</button>
+    <button id="chat-toggle" type="button" aria-label="Minimize chat"><span id="chat-toggle-label">Chat −</span><span id="chat-unread" class="hidden" aria-label="Unread messages"></span></button>
     <div id="chat-log-wrap">
       <div id="chat-log" aria-live="polite"></div>
       <!-- A grabbable scroll strip; the log itself stays click-through -->

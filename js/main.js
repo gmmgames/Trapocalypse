@@ -351,6 +351,7 @@ const Game = {
     this.finalBattleIds = [];
     this.customLevels = []; Level.list = null; this.buildMapButtons();
     this.muted = new Set();
+    this.unread = 0; this.renderUnread();
     Player.color = "#ff3c78";
     Player.avatar = titleAvatar();
     Music.play();        // back on the menu: tune back on (the click that got us here counts as the gesture)
@@ -1097,8 +1098,20 @@ const Game = {
   },
 
   muted: new Set(),   // player ids whose chat I have hidden with /mute (my screen only)
+  unread: 0,          // messages that arrived while the chat was shut
+  // The little red circle on the Chat button. Past nine it just says "9+".
+  renderUnread() {
+    const badge = document.getElementById("chat-unread");
+    badge.textContent = this.unread > 9 ? "9+" : String(this.unread);
+    badge.classList.toggle("hidden", this.unread === 0);
+  },
   addChatLine(message) {
     if (message.playerId && this.muted.has(message.playerId)) return;
+    // Someone spoke while your chat was shut: count it on the button so you know to look.
+    if (chatBox.classList.contains("minimized") && message.playerId && message.playerId !== Network.id) {
+      this.unread += 1;
+      this.renderUnread();
+    }
     const line = document.createElement("div");
     line.className = "chat-line";
     const name = document.createElement("span");
@@ -2564,13 +2577,14 @@ for (const type of ["pointerdown", "keydown"]) window.addEventListener(type, () 
 // Minimize or open the chat box (the choice is remembered for next time).
 Game.setChatMinimized = (minimized) => {
   chatBox.classList.toggle("minimized", minimized);
-  document.getElementById("chat-toggle").textContent = minimized ? "Chat +" : "Chat −";
+  document.getElementById("chat-toggle-label").textContent = minimized ? "Chat +" : "Chat −";
+  if (!minimized) { Game.unread = 0; Game.renderUnread(); }   // you have seen them now
   try { localStorage.setItem("trapocalypse.chatMin", minimized ? "1" : "0"); } catch (error) { /* ignore */ }
 };
 document.getElementById("chat-toggle").addEventListener("click", () => {
   Game.setChatMinimized(!chatBox.classList.contains("minimized"));
 });
-try { if (localStorage.getItem("trapocalypse.chatMin") === "1") { chatBox.classList.add("minimized"); document.getElementById("chat-toggle").textContent = "Chat +"; } } catch (error) { /* ignore */ }
+try { if (localStorage.getItem("trapocalypse.chatMin") === "1") { chatBox.classList.add("minimized"); document.getElementById("chat-toggle-label").textContent = "Chat +"; } } catch (error) { /* ignore */ }
 helpPanel.addEventListener("click", (event) => { if (event.target === helpPanel) Game.hideHelp(); });   // click outside the box
 document.getElementById("settings-button").addEventListener("click", () => Game.showSettings());
 document.getElementById("settings-close").addEventListener("click", () => Game.hideSettings());
