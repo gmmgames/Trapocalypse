@@ -12,7 +12,8 @@
   <!-- Browser-tab icon: the bumper from the logo. -->
   <link rel="icon" type="image/png" href="Trapocalypse%20Bumper%20Icon.png">
 </head>
-<body>
+<!-- "intro" hides the menu until the logo has popped in and started sliding to its corner (see the end of main.js) -->
+<body class="intro">
 
   <!-- The game draws everything onto this canvas, like a painting we redraw 60 times a second. -->
   <div id="game-wrap">
@@ -216,8 +217,7 @@
   </div>
 
   <section id="online-panel" aria-label="Main menu">
-    <!-- Drop a file named logo.png into the project folder and it shows here; until then the text title does. -->
-    <img id="menu-logo" src="logo.png" alt="Trapocalypse" onerror="this.classList.add('hidden'); document.getElementById('menu-title').classList.remove('hidden');">
+    <!-- The text title only shows if logo.png is missing (see the img below the panel). -->
     <strong id="menu-title" class="hidden">TRAPOCALYPSE</strong>
     <div class="row">
       <input id="player-name" maxlength="26" placeholder="Your name (or roll one)" aria-label="Your name">
@@ -232,6 +232,9 @@
     <button id="menu-editor" type="button">Level Editor</button>
     <span id="online-status">Create a room or join a friend.</span>
   </section>
+  <!-- The logo lives outside the panel so it can move on its own: it pops in big at the centre when the
+       page opens, then slides to the top-left. It sits right after the panel so CSS can hide it with it. -->
+  <img id="menu-logo" src="logo.png" alt="Trapocalypse" onerror="this.classList.add('hidden'); document.getElementById('menu-title').classList.remove('hidden');">
 
   <!-- Match settings. Lives in the lobby, host only; the host can change them until the match starts. -->
   <fieldset id="match-settings" class="hidden">

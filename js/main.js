@@ -2508,3 +2508,15 @@ for (const delay of [50, 300, 1000, 2500]) setTimeout(fitCourseToScreen, delay);
 Game.buildSwatches();
 Game.buildMapButtons();
 Game.start();
+
+// ---- Page-open intro ----
+// <body> starts with the "intro" class (see index.html): the logo pops in big at the centre and the
+// menu is held invisible. Removing the class lets the logo slide to the top-left (a CSS transition)
+// and the menu fade in. People who asked their device for less motion skip straight to the
+// finished layout.
+(function runMenuIntro() {
+  const skip = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const finish = () => document.body.classList.remove("intro");
+  if (skip) finish();
+  else setTimeout(finish, 1300);   // 0.6s pop + a short hold, then the slide begins
+})();
