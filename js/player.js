@@ -181,10 +181,17 @@ const Player = {
     // 3. Move and bump into things. Crumblers count as solid until they give way.
     const wasOnGround = this.onGround;   // remembered so we can tell a landing from standing still
     // Standing on a moving platform? It carries you along before anything else moves.
-    for (const mover of Level.movingSolids()) {
+    const movers = Level.movingSolids();
+    const walls = Level.solids.concat(Level.drawnSolids(), Level.solidHazards());
+    for (const mover of movers) {
       const dx = mover.x - mover.prevX, dy = mover.y - mover.prevY;
       const onIt = this.onGround && Math.abs(this.y + this.h - mover.prevY) < 3 && this.x + this.w > mover.prevX && this.x < mover.prevX + mover.w;
-      if (onIt && (dx || dy)) { this.x += dx; this.y += dy; }
+      if (!onIt || !(dx || dy)) continue;
+      // Carried into a wall? Then the platform slides out from under you instead of shoving you
+      // through (or on top of) the wall: you stay put and drop off its edge.
+      const moved = { x: this.x + dx, y: this.y + dy, w: this.w, h: this.h };
+      const blocked = walls.some((wall) => Physics.overlaps(moved, wall)) || movers.some((other) => other !== mover && Physics.overlaps(moved, other));
+      if (!blocked) { this.x += dx; this.y += dy; }
     }
     const solids = Level.solids.concat(Level.drawnSolids(), Level.movingSolids(), Level.solidHazards(), Level.hazards.filter((h) => h.kind === "crumble" && !h._gone));
     if (this._dash > 0) this.gravityScale = 0;   // a dash flies level

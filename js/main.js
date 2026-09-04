@@ -1088,9 +1088,65 @@ const Game = {
 
   sendChat() {
     const text = chatInput.value.trim();
-    if (text) Network.send({ type: "chat", text });
     chatInput.value = "";
     chatInput.blur();   // hand the keyboard back to the runner
+    if (!text) return;
+    if (text.startsWith("/")) { this.runCommand(text.slice(1)); return; }
+    Network.send({ type: "chat", text });
+  },
+
+  // Slash commands typed in the chat. /help is for everyone; the rest are the host's.
+  COMMANDS: [
+    ["/kick NAME", "throw a player out (they can rejoin)"],
+    ["/ban NAME [5|30|120|1440|forever]", "throw a player out and keep them out (minutes; default 30)"],
+    ["/changemap NAME", "in a Test Match: jump to that course now; otherwise: it becomes the next course"],
+    ["/lobby", "end the match and bring everyone back to the lobby"],
+    ["/start", "start the match (or a solo Test Match)"],
+    ["/maxplayers N", "set the room size (2-30, lobby only)"],
+    ["/help", "this list"],
+  ],
+  chatNote(text) { this.addChatLine({ name: "Game", color: null, text }); if (chatBox.classList.contains("hidden")) this.say(text, 3); },
+  runCommand(line) {
+    const [word, ...rest] = line.trim().split(/\s+/);
+    const command = (word || "").toLowerCase(), arg = rest.join(" ").trim();
+    if (command === "help" || command === "") { for (const [usage, what] of this.COMMANDS) this.chatNote(`${usage}  —  ${what}`); return; }
+    if (Network.id !== this.hostId) { this.chatNote("Only the host can use / commands."); return; }
+    const findPlayer = (name) => {
+      const others = this.players.filter((player) => player.id !== Network.id), low = name.toLowerCase();
+      return others.find((player) => player.name.toLowerCase() === low) || others.find((player) => player.name.toLowerCase().startsWith(low));
+    };
+    const findCourse = (name) => {
+      const list = Level.list || LEVELS, low = name.toLowerCase();
+      let index = list.findIndex((level) => level.name.toLowerCase() === low);
+      if (index < 0) index = list.findIndex((level) => level.name.toLowerCase().startsWith(low));
+      return index;
+    };
+    if (command === "kick" || command === "ban") {
+      const parts = arg.split(/\s+/), lengths = ["5", "30", "120", "1440", "forever"];
+      const minutes = command === "ban" && lengths.includes(parts[parts.length - 1].toLowerCase()) ? parts.pop().toLowerCase() : "30";
+      const target = findPlayer(parts.join(" "));
+      if (!parts.join("")) { this.chatNote(`Who? Try /${command} NAME.`); return; }
+      if (!target) { this.chatNote(`No player called "${parts.join(" ")}" here.`); return; }
+      Network.send(command === "kick" ? { type: "kick", playerId: target.id } : { type: "ban", playerId: target.id, minutes });
+      return;
+    }
+    if (command === "changemap" || command === "map" || command === "course") {
+      if (!arg) { this.chatNote("Which course? Try /changemap NAME."); return; }
+      const index = findCourse(arg);
+      if (index < 0) { this.chatNote(`No course called "${arg}". Courses: ${(Level.list || LEVELS).map((level) => level.name).join(", ")}.`); return; }
+      if (this.testMatch && this.phase !== "lobby") Network.send({ type: "test_course", level: index });
+      else Network.send({ type: "set_next_course", level: index });   // in the lobby: the first course; mid-match: the next one
+      return;
+    }
+    if (command === "lobby") { Network.send({ type: "back_to_lobby" }); return; }
+    if (command === "start") { Network.send({ type: "start_match", test: this.players.length === 1 }); return; }
+    if (command === "maxplayers") {
+      const n = Number(arg);
+      if (!Number.isInteger(n) || n < 2 || n > 30) { this.chatNote("Room size must be a whole number from 2 to 30."); return; }
+      document.getElementById("set-max-players").value = String(n); sendSettings();
+      return;
+    }
+    this.chatNote(`Unknown command "/${command}". Type /help for the list.`);
   },
 
   // --- course vote ---

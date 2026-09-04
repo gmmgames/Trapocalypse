@@ -545,7 +545,8 @@ function beginMatch(room) {
   room.timer = null;
   if (room.phase !== "vote" || room.players.size === 0) return;
   room.round = 1; room.roundsPlayed = 0; room.traps = []; room.finishOrder = [];
-  room.levelIndex = pickVotedLevel(room, 0);
+  room.levelIndex = Number.isInteger(room.nextLevel) ? room.nextLevel : pickVotedLevel(room, 0);   // /changemap in the lobby picks the first course
+  room.nextLevel = null;
   room.votes = {}; room.voteOpen = false;
   room.finalBattle = null; room.winnerIds = [];
   for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
@@ -561,9 +562,11 @@ function startNextRound(room) {
   // ROUNDS_PER_LEVEL rounds the course rotates and its traps are cleared,
   // so rounds 4, 7, 10, ... start fresh on the next level.
   room.round += 1;
+  room.traps = room.traps.filter((trap) => !trap.taken);   // a pickup someone grabbed is gone for good
   if ((room.round - 1) % ROUNDS_PER_LEVEL === 0) {
-    // The voted course, or simply the next one in the list if nobody voted.
-    room.levelIndex = pickVotedLevel(room, (room.levelIndex + 1) % levelsOf(room).length);
+    // The host's /changemap choice, else the voted course, else simply the next one in the list.
+    room.levelIndex = Number.isInteger(room.nextLevel) ? room.nextLevel : pickVotedLevel(room, (room.levelIndex + 1) % levelsOf(room).length);
+    room.nextLevel = null;
     room.traps = [];
     for (const player of room.players.values()) player.erasers = ERASERS_PER_COURSE;   // fresh course, fresh eraser
   }
@@ -678,6 +681,15 @@ webSocketServer.on("connection", (socket) => {
       room.customLevels = levels;
       broadcast(room, snapshot(room));
       broadcast(room, { type: "notice", message: levels.length ? `${levels.length} custom course${levels.length === 1 ? "" : "s"} added to the vote.` : "No valid custom courses to add." });
+      return;
+    }
+    // /changemap in a normal match: the host picks which course comes next when the course changes.
+    if (message.type === "set_next_course") {
+      const level = Number(message.level);
+      if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can change the course." }); return; }
+      if (!Number.isInteger(level) || level < 0 || level >= levelsOf(room).length) return;
+      room.nextLevel = level;
+      broadcast(room, { type: "notice", message: `The host picked ${levelsOf(room)[level].name} as the next course.` });
       return;
     }
     // Test Match only: the host jumps straight to another course, fresh round, no traps.
