@@ -116,6 +116,8 @@ const BURST_STYLE = {
 };
 const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart", boots: "Rocket Boots", feather: "Feather", speedshoes: "Speed Shoes", bigblock: "Big Block", belt: "Conveyor Belt", fan: "Fan", generator: "Generator" };
 const PICKUPS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // collected by touch during the run
+const COARSE_POINTER = matchMedia("(pointer: coarse)");   // a finger, not a mouse
+const PHONE_VIEW_TILES = 20;   // how much of a course a phone shows while you are running
 const BAT_REACH = 46;   // how far in front of you a swing reaches
 // Random round events: a title for the warning and one line on what changes.
 const EVENT_INFO = {
@@ -2226,12 +2228,29 @@ const Game = {
     ctx.restore();
   },
 
+  // What the canvas shows. Normally the whole course at once, shrunk to fit. On a phone during a
+  // run it zooms in and follows your runner instead, so the course is big enough to see and the
+  // controls have room; the view stops at the edges of the course rather than showing empty space.
+  camera() {
+    const fit = LEVEL_W / Level.w;
+    if (!(COARSE_POINTER.matches && this.mode === "online" && this.phase === "run")) return { scale: fit, x: 0, y: 0 };
+    const scale = Math.max(fit, LEVEL_W / (PHONE_VIEW_TILES * TILE));
+    const viewW = LEVEL_W / scale, viewH = LEVEL_H / scale;
+    return {
+      scale,
+      x: Math.max(0, Math.min(Level.w - viewW, Player.x + Player.w / 2 - viewW / 2)),
+      y: Math.max(0, Math.min(Level.h - viewH, Player.y + Player.h / 2 - viewH / 2)),
+    };
+  },
+
   draw() {
     // Wipe the whole canvas, then redraw the scene from scratch.
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     if (this.event === "quake" && this.phase === "run") ctx.translate((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);   // the earthquake
-    ctx.scale(LEVEL_W / Level.w, LEVEL_H / Level.h);   // a big course is shown smaller so all of it fits
+    const cam = this.camera();   // the whole course, or a phone's close-up of your runner
+    ctx.scale(cam.scale, cam.scale);
+    ctx.translate(-cam.x, -cam.y);
     Level.draw(ctx);
     Dust.draw(ctx);   // under the runners, over the ground
 

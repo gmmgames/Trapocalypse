@@ -782,6 +782,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   display: grid;
   gap: 12px;
   width: min(92vw, 380px);
+  max-height: 88vh;              /* a sideways phone is short: keep the box on screen... */
+  overflow-y: auto;              /* ...and let it scroll inside itself instead of being cut off */
   padding: 18px 22px;
   border: 1px solid rgba(255, 210, 60, 0.7);
   border-radius: 8px;
@@ -1020,7 +1022,7 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
    and the settings gear sits just above the JUMP button in the bottom-right corner */
 @media (pointer: coarse) {
   #user-badge { left: 50%; transform: translateX(-50%); bottom: 12px; }
-  #settings-button { bottom: 100px; right: 12px; }
+  #settings-button { bottom: 116px; right: 12px; }   /* above the taller touch buttons */
 }
 /* In a room (lobby, build, run, results) the gear sits top-left, clear of the course action and the touch buttons. */
 body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto; }
@@ -1316,7 +1318,11 @@ body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto
     width: min(100svw, calc(100svh * 16 / 9));
     height: min(100svh, calc(100svw * 9 / 16));
   }
-  #chat { bottom: 120px; }       /* above the touch buttons */
+  #chat { bottom: 136px; }       /* above the touch buttons */
+  /* Fingers are not mouse pointers: the run controls are bigger on a touch screen. */
+  .touch-btn { width: 88px; height: 88px; font-size: 32px; }
+  .touch-btn.jump { width: 132px; font-size: 22px; }
+  .touch-btn.use { width: 96px; font-size: 20px; }
   /* Outside a run the touch buttons are hidden (main.js adds .hidden), so the chat drops down
      to sit just above the ID badge, and the lobby panel is pinned to the top with room below it. */
   body:not(.in-run) #chat { bottom: 64px; }
@@ -1336,7 +1342,7 @@ body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto
 #rotate-hint {
   display: none;
   position: fixed;
-  bottom: 104px;
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
