@@ -44,7 +44,7 @@ the Trailblazer (2 more by default) and a burst slams onto everyone's screen. Yo
 kills are worth 1 each by default, but only paid if you reach the flag yourself that
 round. A bar chart shows the standings for ten seconds, tallest on the left, each bar
 growing one point source at a time so you can see where every point came from. Then the
-next round starts on its own with the old traps still in place. After three rounds the
+next round starts on its own with the old traps still in place. After five rounds the
 room moves to a new course, chosen by a vote on the results screen (ties are random, no
 votes means the next one in the list), with a clean slate. Traps can't be placed on a
 runner or on the flag. There are seven courses, each with its own look.

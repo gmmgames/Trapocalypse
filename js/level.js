@@ -255,6 +255,65 @@ const LEVELS = [
     start: { x: 1 * TILE, y: 16 * TILE - 26 },
     flag: tileRect(30, 14, 1, 2),
   },
+  {
+    // Start high on a ledge and work your way DOWN to a flag on the floor. Falling is fine;
+    // where you land is the problem.
+    name: "Deep Drop",
+    theme: THEMES.ash,
+    solids: [
+      tileRect(0, 16, 32, 2), tileRect(0, 3, 4, 1),
+      tileRect(6, 6, 3, 1), tileRect(11, 8, 3, 1), tileRect(7, 11, 2, 1),
+      tileRect(13, 13, 3, 1), tileRect(19, 10, 3, 1), tileRect(24, 13, 3, 1),
+    ],
+    hazards: [
+      tileRect(4, 15, 3, 1), tileRect(10, 15, 3, 1), tileRect(17, 15, 3, 1),
+      tileRect(22, 15, 2, 1), tileRect(27, 15, 2, 1), tileRect(12, 7, 1, 1),
+    ],
+    start: { x: 1 * TILE, y: 3 * TILE - 26 },
+    flag: tileRect(30, 14, 1, 2),
+  },
+  {
+    // Two cliffs and nothing between them but a pit of spikes and one tiny stump. No jump
+    // reaches across: the room has to build a way over with movers, springs, pencils...
+    name: "The Chasm",
+    theme: THEMES.rust,
+    solids: [
+      tileRect(0, 12, 6, 6), tileRect(26, 12, 6, 6), tileRect(15, 15, 2, 1),
+    ],
+    hazards: [tileRect(6, 17, 20, 1)],
+    start: { x: 1 * TILE, y: 12 * TILE - 26 },
+    flag: tileRect(30, 10, 1, 2),
+  },
+  {
+    // Spawn bottom-RIGHT and climb leftwards to a flag in the top-left corner.
+    name: "Leftward Peak",
+    theme: THEMES.dusk,
+    solids: [
+      tileRect(0, 16, 32, 2),
+      tileRect(24, 13, 3, 1), tileRect(19, 11, 2, 1), tileRect(14, 9, 3, 1),
+      tileRect(9, 7, 2, 1), tileRect(4, 5, 3, 1), tileRect(0, 3, 3, 1),
+    ],
+    hazards: [
+      tileRect(20, 15, 2, 1), tileRect(12, 15, 2, 1), tileRect(6, 15, 2, 1), tileRect(15, 8, 1, 1),
+    ],
+    start: { x: 29 * TILE, y: 16 * TILE - 26 },
+    flag: tileRect(1, 1, 1, 2),
+  },
+  {
+    // Spawn top-RIGHT on a cave shelf and drop leftwards, step by step, to a flag on the floor.
+    name: "Undertow",
+    theme: THEMES.grotto,
+    solids: [
+      tileRect(0, 16, 32, 2), tileRect(26, 2, 6, 1),
+      tileRect(21, 5, 3, 1), tileRect(16, 8, 2, 1), tileRect(11, 10, 3, 1), tileRect(6, 13, 2, 1),
+    ],
+    hazards: [
+      tileRect(4, 15, 2, 1), tileRect(9, 15, 3, 1), tileRect(14, 15, 2, 1),
+      tileRect(19, 15, 2, 1), tileRect(24, 15, 3, 1),
+    ],
+    start: { x: 29 * TILE, y: 2 * TILE - 26 },
+    flag: tileRect(1, 14, 1, 2),
+  },
 ];
 
 const Level = {

@@ -20,7 +20,7 @@ const MIME = {
 
 // --- round rules (the knobs) ---
 const TRAPS_PER_ROUND = 1;     // traps each player places before a run
-const ROUNDS_PER_LEVEL = 3;    // rounds on one course before rotating to the next
+const ROUNDS_PER_LEVEL = 5;    // rounds on one course before rotating to the next
 const RESULTS_WAIT = 5;        // seconds the scoreboard stays AFTER all points have landed (10 when a course vote is up)
 const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
