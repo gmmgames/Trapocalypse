@@ -328,6 +328,11 @@ const Game = {
     chatLog.replaceChildren();
     weaponPick.classList.add("hidden");
     touchUseButton.classList.add("hidden");
+    // Nothing from the old round may linger behind the menu: cards, ghost, bursts, balls, dialogs.
+    buildHud.classList.add("hidden");
+    this.offer = []; this.picks = {}; this.pick = null; this.pending = null; this.renderItems();
+    this._bursts = []; this._balls = []; this.pencil = 0; this.portal = false; this.testMatch = false; this._stroke = null;
+    this.hideSettings();
     this.weaponOffer = []; this.myWeapon = null; this.weapons = {};
     Player.setWeapon(null);
     onlinePanel.classList.remove("hidden");
