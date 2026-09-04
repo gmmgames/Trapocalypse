@@ -114,7 +114,8 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror" };
+const THROW_CHARGE_SECONDS = 0.9;   // holding USE this long gives a full-power throw
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
@@ -254,6 +255,7 @@ const Game = {
   _voteEndsAt: 0,       // wall-clock time the course vote closes
   pencil: 0,            // pencil strokes you have left this run
   portal: false,        // holding a picked-up Teleport Ball
+  _charge: 0,           // throw power building up while USE is held (0..1)
   _balls: [],           // teleport balls in flight: { x, y, vx, vy, by, color, trail }
   _stroke: null,        // the stroke you are drawing right now: { blocks: [{x, y}] }
 
@@ -469,20 +471,74 @@ const Game = {
   },
 
   // --- Teleport Ball: grab the orb by touching it, throw it, appear where it lands ---
-  throwPortal() {
+  // The throw's speed for a given power (0..1): a lob at a tap, a long arc at full charge.
+  throwVelocity(power) {
+    return { vx: Player.facing * (200 + 320 * power), vy: -(240 + 220 * power) };
+  },
+  chargeThrow(dt) {
+    if (!this.portal || this.phase !== "run" || !Player.alive || Player.finished) return;
+    this._charge = Math.min(1, this._charge + dt / THROW_CHARGE_SECONDS);
+  },
+  releaseThrow() {
+    const power = Math.max(0.15, this._charge);
+    this._charge = 0;
     if (!this.portal || this.phase !== "run" || !Player.alive || Player.finished) return;
     this.portal = false;   // the server confirms with a portal_ball for everyone
-    Network.send({ type: "portal_throw", x: Player.x + Player.w / 2, y: Player.y + 6, vx: Player.facing * 520, vy: -420 });
+    const { vx, vy } = this.throwVelocity(power);
+    Network.send({ type: "portal_throw", x: Player.x + Player.w / 2, y: Player.y + 6, vx, vy });
+  },
+  // Where the ball would go from here at the current power: dots along the arc until it hits something.
+  aimDots(power) {
+    const { vx, vy } = this.throwVelocity(power);
+    const solids = Level.solids.concat(Level.drawnSolids(), Level.movingSolids(), Level.solidHazards());
+    const dots = [];
+    let x = Player.x + Player.w / 2, y = Player.y + 6, dx = vx, dy = vy;
+    const step = 1 / 60;
+    for (let i = 0; i < 90; i++) {
+      dy += Physics.GRAVITY * step; x += dx * step; y += dy * step;
+      if (x < 0 || x > LEVEL_W || y > LEVEL_H) break;
+      if (solids.some((solid) => x >= solid.x && x <= solid.x + solid.w && y >= solid.y && y <= solid.y + solid.h)) { dots.push({ x, y, end: true }); break; }
+      if (i % 3 === 0) dots.push({ x, y });
+    }
+    return dots;
+  },
+  drawAimer() {
+    if (!this.portal || this._charge <= 0 || this.phase !== "run") return;
+    const dots = this.aimDots(Math.max(0.15, this._charge));
+    ctx.save();
+    dots.forEach((dot, i) => {
+      ctx.globalAlpha = dot.end ? 0.95 : 0.75 - i * 0.02;
+      ctx.fillStyle = dot.end ? "#ffd23c" : "#e6d5ff";
+      ctx.beginPath(); ctx.arc(dot.x, dot.y, dot.end ? 5 : 2.5, 0, Math.PI * 2); ctx.fill();
+    });
+    // Power meter over the runner's head.
+    ctx.globalAlpha = 1;
+    const mx = Player.x + Player.w / 2 - 20, my = Player.y - 34;
+    ctx.fillStyle = "rgba(11, 11, 20, 0.8)"; ctx.fillRect(mx, my, 40, 7);
+    ctx.fillStyle = this._charge >= 1 ? "#ff5a3c" : "#ffd23c"; ctx.fillRect(mx + 1, my + 1, 38 * this._charge, 5);
+    ctx.restore();
   },
   updateBalls(dt) {
-    const solids = Level.solids.concat(Level.drawnSolids());
+    const solids = Level.solids.concat(Level.drawnSolids(), Level.movingSolids(), Level.hazards.filter((h) => h.kind === "plank"));
+    const inside = (b, r) => b.x >= r.x && b.x <= r.x + r.w && b.y >= r.y && b.y <= r.y + r.h;
     for (const ball of this._balls) {
       const before = { x: ball.x, y: ball.y };
       ball.vy += Physics.GRAVITY * dt;
       ball.x += ball.vx * dt; ball.y += ball.vy * dt;
       ball.trail.push(before); if (ball.trail.length > 8) ball.trail.shift();
+      // Springs fling the ball back up; mirrors bounce it off whichever face it hit.
+      const spring = Level.hazards.find((h) => h.kind === "spring" && inside(ball, h));
+      if (spring && ball.vy > 0) { ball.vy = -Math.abs(ball.vy) * 0.9 - 250; ball.y = spring.y - 1; spring.bouncedAt = performance.now(); Sfx.bump(); continue; }
+      const mirror = Level.hazards.find((h) => h.kind === "mirror" && inside(ball, h));
+      if (mirror) {
+        const fromSide = before.x < mirror.x || before.x > mirror.x + mirror.w;
+        if (fromSide) { ball.vx = -ball.vx * 0.95; ball.x = before.x; } else { ball.vy = -ball.vy * 0.95; ball.y = before.y; }
+        mirror.flashAt = performance.now();
+        Sfx.bump();
+        continue;
+      }
       let landing = null;
-      const hit = solids.find((solid) => ball.x >= solid.x && ball.x <= solid.x + solid.w && ball.y >= solid.y && ball.y <= solid.y + solid.h);
+      const hit = solids.find((solid) => inside(ball, solid));
       if (hit) {
         // Came down onto its top: stand there. Anything else: appear where the ball last was.
         landing = ball.vy > 0 && before.y <= hit.y ? { x: ball.x - Player.w / 2, y: hit.y - Player.h } : { x: before.x - Player.w / 2, y: before.y - Player.h / 2 };
@@ -581,6 +637,7 @@ const Game = {
     if (this.pick === "portal" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The ball has to hang in open air.";
     if (this.pick === "mover" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mover needs open air to slide in.";
     if (this.pick === "plank" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A plank needs open air.";
+    if (this.pick === "mirror" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mirror needs open air.";
     if (this.pick === "glue") {
       // Gum sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Gum goes on a block, not inside it.";
@@ -1088,7 +1145,7 @@ const Game = {
     if (message.type === "picked_up") {
       const orb = Level.hazards.find((hazard) => hazard.kind === "portal" && hazard.x === message.x && hazard.y === message.y);
       if (orb) orb.taken = true;
-      if (message.by === Network.id) { this.portal = true; this.say("Teleport Ball! Press X / Shift (or USE) to throw it and appear where it lands.", 4); }
+      if (message.by === Network.id) { this.portal = true; this.say("Teleport Ball! Hold X / Shift (or USE) to aim and charge, let go to throw. You appear where it lands.", 4); }
       else this.say(`${this.nameOf(message.by)} grabbed the Teleport Ball!`, 2);
       Sfx.pickup();
     }
@@ -1148,7 +1205,7 @@ const Game = {
       Player.spawn();
       Level.drawn = []; this._stroke = null;   // last run's pencil sketches are gone
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
-      this.portal = false; this._balls = [];
+      this.portal = false; this._balls = []; this._charge = 0;
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
       this.finalBattleIds = message.finalBattleIds || [];
@@ -1819,6 +1876,7 @@ const Game = {
     this.drawPending();
     this.drawStroke();
     this.drawBalls();
+    this.drawAimer();
     if (this.mode === "online" && Player.alive) {
       const me = this.players.find((player) => player.id === Network.id);
       this.drawNametag(Player.x, Player.y, me ? me.name : "You", "#ffffff");
@@ -1849,7 +1907,7 @@ const Game = {
       const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
       const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
-      const portal = this.portal ? "  •  🔮 Teleport Ball: X / Shift to throw" : "";
+      const portal = this.portal ? "  •  🔮 Teleport Ball: hold X / Shift to aim, let go to throw" : "";
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";

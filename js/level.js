@@ -367,7 +367,7 @@ const Level = {
   },
   // Player-placed blocks that are simply solid (planks).
   solidHazards() {
-    return this.hazards.filter((hazard) => hazard.kind === "plank");
+    return this.hazards.filter((hazard) => hazard.kind === "plank" || hazard.kind === "mirror");
   },
   // Every moving platform, course-built or player-placed, as a box the physics can use.
   movingSolids() {
@@ -526,6 +526,7 @@ const Level = {
       if (hazard.kind === "portal") { if (!hazard.taken) this.drawPortal(ctx, hazard); continue; }
       if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
       if (hazard.kind === "plank") { this.drawPlank(ctx, hazard, t); continue; }
+      if (hazard.kind === "mirror") { this.drawMirror(ctx, hazard); continue; }
       // spikes and decoys draw the same; the owner of a decoy gets a faint dashed outline
       if (hazard.kind === "decoy" && typeof Network !== "undefined" && hazard.owner === Network.id) {
         ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
@@ -578,6 +579,7 @@ const Level = {
     if (item === "mover") { this.drawMover(ctx, box, t, true); return; }
     if (item === "plank") { this.drawPlank(ctx, { x: 2, y: 11, w: 26, h: 8 }, t); return; }
     if (item === "longspike") { this.drawSpikes(ctx, { x: 1, y: 14, w: 28, h: 16 }, t, 7); return; }
+    if (item === "mirror") { this.drawMirror(ctx, box); return; }
     if (item === "eraser") {
       ctx.fillStyle = "#ff3c78";
       ctx.fillRect(3, 8, 24, 16);
@@ -712,6 +714,20 @@ const Level = {
     }
     ctx.fillStyle = t.spikeBase;
     ctx.fillRect(s.x, s.y + s.h - 3, s.w, 3);
+  },
+
+  // A Mirror: a solid glassy tile in a silver frame. Thrown things bounce off it; it flashes when hit.
+  drawMirror(ctx, m) {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const flash = m.flashAt ? Math.max(0, 1 - (now - m.flashAt) / 250) : 0;
+    ctx.fillStyle = "#c9d1e0";
+    ctx.fillRect(m.x, m.y, m.w, m.h);
+    ctx.fillStyle = flash ? `rgba(255, 255, 255, ${0.6 + 0.4 * flash})` : "#a8e8ff";
+    ctx.fillRect(m.x + 3, m.y + 3, m.w - 6, m.h - 6);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(m.x + 6, m.y + m.h - 6); ctx.lineTo(m.x + m.w - 6, m.y + 6); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(m.x + 6, m.y + m.h - 12); ctx.lineTo(m.x + m.w - 12, m.y + 6); ctx.stroke();
   },
 
   // A Plank: a long solid block in the course colors with a yellow top edge and wood-grain lines.
