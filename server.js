@@ -248,7 +248,7 @@ function startRun(room) {
   const timeLimit = room.settings.timeLimit;
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
   // Some rounds get a twist. Never in a Final Battle. FORCE_EVENT=<name> is a test hook.
-  room.event = process.env.FORCE_EVENT || (!room.finalBattle && Math.random() < EVENT_CHANCE ? EVENTS[Math.floor(Math.random() * EVENTS.length)] : null);
+  room.event = process.env.FORCE_EVENT || (!room.finalBattle && Math.random() < EVENT_CHANCE ? pickEvent() : null);
   // runningIds says exactly who is in this run, so watchers are not swept along with everyone else.
   const runningIds = [...room.players.values()].filter((item) => item.status === "running").map((item) => item.id);
   broadcast(room, { type: "phase", phase: "run", timeLimit, event: room.event, runningIds, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [], weapons: room.finalBattle ? room.finalBattle.weapons || {} : {} });
@@ -562,8 +562,16 @@ const ITEM_WEIGHTS = {
 };
 const PICKUP_KINDS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // placed in the build phase, collected by touch during the run
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
-const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
-const EVENT_CHANCE = 0.12;         // chance a normal round gets one (about one round in eight)
+// Random round events (the effects themselves live in the browser). Each has a weight, so the
+// blackout, which is by far the most disruptive, turns up only rarely next to the others.
+const EVENT_WEIGHTS = { lowgravity: 1, iceage: 1, haste: 1, quake: 1, blackout: 0.12 };
+const EVENTS = Object.keys(EVENT_WEIGHTS);
+const EVENT_CHANCE = 0.05;         // chance a normal round gets one (about one round in twenty)
+function pickEvent() {
+  let roll = Math.random() * Object.values(EVENT_WEIGHTS).reduce((sum, weight) => sum + weight, 0);
+  for (const [event, weight] of Object.entries(EVENT_WEIGHTS)) { roll -= weight; if (roll < 0) return event; }
+  return EVENTS[0];
+}
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
@@ -1168,4 +1176,6 @@ webSocketServer.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));
+// Started directly, it plays host. Loaded by a test, it just hands over the pieces worth checking.
+if (require.main === module) server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));
+module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE };
