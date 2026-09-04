@@ -17,6 +17,9 @@ const ChatFilter = {
     // sexual
     "pussy", "whore", "slut", "hoe", "porn", "porno", "penis", "vagina", "boob", "boobs", "tits", "titties", "cum", "jizz",
     "dildo", "blowjob", "handjob", "rape", "rapist", "molest", "pedo", "pedophile", "paedophile",
+    "pube", "pubes", "pubic", "smegma", "queef", "ballsack", "nutsack", "cumshot", "gangbang", "milf", "hentai", "boner",
+    "orgasm", "wank", "fap", "clit", "anal", "horny", "rimjob", "bukkake", "cameltoe", "skank", "thot", "hooker", "sperm",
+    "semen", "schlong", "coochie", "nudes", "sexting", "shag", "bimbo",
     // slurs and hate
     "nigger", "nigga", "niga", "negro", "chink", "gook", "spic", "spick", "wetback", "beaner", "kike", "kyke", "raghead",
     "towelhead", "sandnigger", "coon", "jap", "paki", "gypsy", "gyppo", "redskin", "injun", "tranny", "trannie", "shemale",
@@ -33,6 +36,13 @@ const ChatFilter = {
   // Turn "Sh!!!t" into "shiiit" (same length, so positions still line up with the original).
   // Words from the list that must stand alone to count (see _pattern).
   wholeWords: ["spic", "spick"],
+  // Words caught even when glued onto other letters ("bitchboy", "shithead", "fuckface"). Only
+  // words that never appear inside an innocent word belong here: "ass" (grass) and "cock"
+  // (cockpit) stay whole-word only.
+  glueWords: ["fuck", "fuk", "fck", "shit", "bitch", "biatch", "cunt", "whore", "slut", "penis", "vagina", "porn", "pussy",
+    "nigger", "nigga", "faggot", "nazi", "hitler", "blowjob", "handjob", "dildo", "jizz", "asshole", "arsehole", "dickhead",
+    "wanker", "twat", "retard", "pubes", "pubic", "smegma", "queef", "ballsack", "nutsack", "cumshot", "gangbang", "hentai",
+    "bukkake", "rimjob", "motherfucker", "bullshit", "pedophile", "paedophile", "rapist", "kys"],
 
   _normalize(text) {
     let out = "";
@@ -44,12 +54,14 @@ const ChatFilter = {
   // Each letter may repeat (fuuuck), and common endings are allowed.
   _pattern() {
     if (!this._regex) {
-      const parts = this.words.map((word) => {
-        const body = [...word].map((ch) => (ch === " " ? "\\s*" : `${ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}+`)).join("");
+      const bodyOf = (word) => [...word].map((ch) => (ch === " " ? "\\s*" : `${ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}+`)).join("");
+      const whole = this.words.map((word) => {
         // Short slurs that also start everyday words ("spicy") only count on their own.
-        return this.wholeWords.includes(word) ? `(?<![a-z])${body}(?![a-z])` : body;
+        return this.wholeWords.includes(word) ? `(?<![a-z])${bodyOf(word)}(?![a-z])` : bodyOf(word);
       });
-      this._regex = new RegExp(`(?<![a-z])(?:${parts.join("|")})(?:s|es|ed|ing|er|ers|y|ies)?(?![a-z])`, "gi");
+      // Whole words (with common endings) as before, or a glue word anywhere inside a longer word.
+      const glued = this.glueWords.map(bodyOf);
+      this._regex = new RegExp(`(?<![a-z])(?:${whole.join("|")})(?:s|es|ed|ing|er|ers|y|ies)?(?![a-z])|(?:${glued.join("|")})`, "gi");
     }
     return this._regex;
   },

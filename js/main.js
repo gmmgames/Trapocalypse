@@ -1787,6 +1787,10 @@ const Game = {
     // The round and course line only shows once a match is under way. On the menu (solo
     // mode) the HUD stays hidden; in the lobby and the vote it shows no course name.
     hud.classList.toggle("hidden", this.mode === "solo");
+    // Touch buttons only while there is something to run: the title world, or an online run.
+    const running = this.mode === "solo" || this.phase === "run";
+    document.body.classList.toggle("in-run", running);
+    document.getElementById("touch-controls").classList.toggle("hidden", !running);
     hudClock.textContent = ""; hudClock.classList.remove("urgent"); hudTail.textContent = "";   // only the run branch fills these
     if (this.mode === "online" && this.phase === "lobby") {
       hudText.textContent = `ROOM ${roomCodeInput.value}  •  ${this.message}`;
