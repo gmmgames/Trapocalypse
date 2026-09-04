@@ -153,6 +153,35 @@ const Sfx = {
   },
 };
 
+// Menu music: loops assets/music/menu.mp3 on the title screen. If the file is missing nothing
+// plays and nothing breaks. Follows the Sounds switch.
+const Music = {
+  el: null,
+  wanted: false,    // should it be playing right now (title screen)?
+  missing: false,   // the file failed to load
+  ensure() {
+    if (this.el) return;
+    this.el = new Audio("assets/music/menu.mp3");
+    this.el.loop = true;
+    this.el.volume = 0.35;
+    this.el.addEventListener("error", () => { this.missing = true; });
+  },
+  play() {
+    this.wanted = true;
+    this.ensure();
+    if (Sfx.muted || this.missing || !this.el.paused) return;
+    this.el.play().catch(() => { /* autoplay refused until a real gesture; the next press retries */ });
+  },
+  stop() {
+    this.wanted = false;
+    if (this.el) { this.el.pause(); this.el.currentTime = 0; }
+  },
+  refresh() {   // the Sounds switch changed
+    if (this.wanted && !Sfx.muted) this.play();
+    else if (this.el) this.el.pause();
+  },
+};
+
 // Any press anywhere wakes the audio up. Browsers need this.
 window.addEventListener("pointerdown", () => Sfx.unlock());
 window.addEventListener("keydown", () => Sfx.unlock());

@@ -114,7 +114,7 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank" };
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
@@ -280,6 +280,7 @@ const Game = {
   },
 
   startOnline() {
+    Music.stop();   // the menu tune stays on the menu
     this.mode = "online";
     this.phase = "lobby";
     this.inRoom = false;
@@ -315,6 +316,7 @@ const Game = {
     this.finalBattleIds = [];
     Player.color = "#ff3c78";
     Player.avatar = titleAvatar();
+    Music.play();        // back on the menu: tune back on (the click that got us here counts as the gesture)
     Level.loadTitle();   // a fresh random title world each time you come back
     Player.spawn();
     lobby.classList.add("hidden");
@@ -556,16 +558,17 @@ const Game = {
 
   // Why can't a trap go here? null means it can.
   placementProblem(x, y) {
-    const trap = { x, y, w: TILE, h: TILE, kind: this.pick };
+    const trap = { x, y, w: this.pick === "plank" ? TILE * PLANK_TILES : TILE, h: TILE, kind: this.pick };
     if (this.pick === "eraser") return Level.hazards.some((hazard) => hazard.x === x && hazard.y === y) ? null : "Put the eraser on a trap.";
     const onSomeone = Physics.overlaps(trap, Player) ||
       Object.values(this.remotePlayers).some((remote) => Physics.overlaps(trap, { x: remote.x, y: remote.y, w: Player.w, h: Player.h }));
-    if (x < 2 * TILE || x + TILE > LEVEL_W - TILE || y < 0 || y + TILE > LEVEL_H) return "That's off the course.";
+    if (x < 2 * TILE || x + trap.w > LEVEL_W - TILE || y < 0 || y + TILE > LEVEL_H) return "That's off the course.";
     if (Level.hazards.some((hazard) => Physics.overlaps(trap, hazard))) return "There's already a trap there.";
     if (Physics.overlaps(trap, Level.flag) || onSomeone) return "Not on a runner or the flag.";
     if (this.pick === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A crumbler needs open air, not a wall.";
     if (this.pick === "portal" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The ball has to hang in open air.";
     if (this.pick === "mover" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mover needs open air to slide in.";
+    if (this.pick === "plank" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A plank needs open air.";
     if (this.pick === "glue") {
       // Gum sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Gum goes on a block, not inside it.";
@@ -625,19 +628,19 @@ const Game = {
       ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 23, y + 23); ctx.moveTo(x + 23, y + 7); ctx.lineTo(x + 7, y + 23); ctx.stroke();
     } else {
-      ctx.translate(x, y);
-      Level.drawItemIcon(ctx, this.pick);
-      ctx.translate(-x, -y);
+      if (this.pick === "plank") Level.drawPlank(ctx, { x, y, w: TILE * PLANK_TILES, h: TILE }, Level.theme);   // full size, not the card icon
+      else { ctx.translate(x, y); Level.drawItemIcon(ctx, this.pick); ctx.translate(-x, -y); }
     }
+    const ghostW = this.pick === "plank" ? TILE * PLANK_TILES : TILE;
     ctx.globalAlpha = 1;
     ctx.setLineDash([4, 3]);
     ctx.strokeStyle = problem ? "#ff5a3c" : "#5cf05a";
     ctx.lineWidth = 2;
-    ctx.strokeRect(x - 2, y - 2, TILE + 4, TILE + 4);
+    ctx.strokeRect(x - 2, y - 2, ghostW + 4, TILE + 4);
     ctx.restore();
     // Just to the right of the ghost (or to the left if it is near the right edge).
     const nearRightEdge = x > LEVEL_W - 6 * TILE;
-    confirm.style.left = nearRightEdge ? "" : `${((x + TILE + 6) / LEVEL_W) * 100}%`;
+    confirm.style.left = nearRightEdge ? "" : `${((x + ghostW + 6) / LEVEL_W) * 100}%`;
     confirm.style.right = nearRightEdge ? `${((LEVEL_W - x + 6) / LEVEL_W) * 100}%` : "";
     confirm.style.top = `${((y + TILE / 2) / LEVEL_H) * 100}%`;
   },
@@ -764,6 +767,7 @@ const Game = {
   },
   setSounds(on) {
     Sfx.muted = !on;
+    Music.refresh();
     try { localStorage.setItem("trapocalypse.sounds", on ? "on" : "off"); } catch (error) { /* ignore */ }
     if (on) Sfx.pickup();   // a little confirmation blip
   },
@@ -1925,6 +1929,9 @@ document.getElementById("ban-button").addEventListener("click", () => Network.se
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
 document.getElementById("settings-help").addEventListener("click", () => { Game.hideSettings(); Game.showHelp(); });
 document.getElementById("help-close").addEventListener("click", () => Game.hideHelp());
+// Browsers only allow sound after the first tap or key. On the menu that first press also starts the music.
+for (const type of ["pointerdown", "keydown"]) window.addEventListener(type, () => { if (Game.mode === "solo") Music.play(); });
+
 // Chat scroll strip: drag the thumb, or wheel anywhere over the log.
 (() => {
   const strip = document.getElementById("chat-scroll");

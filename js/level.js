@@ -49,6 +49,7 @@ const THEMES = {
 // A placed Mover block slides this far to the right and back, taking this long per round trip.
 const MOVER_DX = 60;
 const MOVER_PERIOD = 3;
+const PLANK_TILES = 3;   // a placed Plank is three tiles wide
 
 const LEVELS = [
   {
@@ -364,6 +365,10 @@ const Level = {
       slide(hazard._box);
     }
   },
+  // Player-placed blocks that are simply solid (planks).
+  solidHazards() {
+    return this.hazards.filter((hazard) => hazard.kind === "plank");
+  },
   // Every moving platform, course-built or player-placed, as a box the physics can use.
   movingSolids() {
     return this.movers.concat(this.hazards.filter((hazard) => hazard.kind === "mover" && hazard._box).map((hazard) => hazard._box));
@@ -520,6 +525,7 @@ const Level = {
       if (hazard.kind === "ice") { this.drawIce(ctx, hazard); continue; }
       if (hazard.kind === "portal") { if (!hazard.taken) this.drawPortal(ctx, hazard); continue; }
       if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
+      if (hazard.kind === "plank") { this.drawPlank(ctx, hazard, t); continue; }
       // spikes and decoys draw the same; the owner of a decoy gets a faint dashed outline
       if (hazard.kind === "decoy" && typeof Network !== "undefined" && hazard.owner === Network.id) {
         ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
@@ -570,6 +576,7 @@ const Level = {
     }
     if (item === "portal") { this.drawPortal(ctx, box); return; }
     if (item === "mover") { this.drawMover(ctx, box, t, true); return; }
+    if (item === "plank") { this.drawPlank(ctx, { x: 2, y: 11, w: 26, h: 8 }, t); return; }
     if (item === "eraser") {
       ctx.fillStyle = "#ff3c78";
       ctx.fillRect(3, 8, 24, 16);
@@ -689,6 +696,17 @@ const Level = {
     ctx.fillStyle = "#ffd23c";
     ctx.fillRect(s.x + 3, s.y + s.h - 4, s.w - 6, 4);
     ctx.restore();
+  },
+
+  // A Plank: a long solid block in the course colors with a yellow top edge and wood-grain lines.
+  drawPlank(ctx, p, t) {
+    ctx.fillStyle = t.solid;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.fillStyle = "#ffd23c";
+    ctx.fillRect(p.x, p.y, p.w, 3);
+    ctx.strokeStyle = "rgba(255, 210, 60, 0.3)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 3; i++) { const y = p.y + (p.h * i) / 3 + 1; ctx.beginPath(); ctx.moveTo(p.x + 3, y); ctx.lineTo(p.x + p.w - 3, y + (i % 2 ? 1 : -1)); ctx.stroke(); }
   },
 
   // A moving platform: a block in the course colors with sliding chevrons so you can tell it

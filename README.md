@@ -92,7 +92,7 @@ Coming up: polish and the parked bug list.
 | `js/physics.js` | Gravity and rectangle collision, moves a body and pushes it out of walls |
 | `js/level.js` | Twelve tile-grid courses with their color themes, the random title world, trap and item drawing |
 | `js/dust.js` | The puffs under runners' feet, visual only |
-| `js/audio.js` | Sound effects synthesized in the browser, no sound files |
+| `js/audio.js` | Sound effects synthesized in the browser, plus the menu music player (`assets/music/menu.mp3`, optional) |
 | `js/chatfilter.js` | The word list and the bleeping for the chat filter |
 | `js/player.js` | The runner: speed, jump height, wall slide and wall jump, dying, finishing, and `drawAvatar` for every shape |
 | `js/main.js` | The game loop, online room UI, synchronization, and rendering |
