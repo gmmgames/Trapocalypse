@@ -1203,5 +1203,5 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
      to sit just above the ID badge, and the lobby panel is pinned to the top with room below it. */
   body:not(.in-run) #chat { bottom: 64px; }
   /* Transform-free centering (the pop-in keyframes own the transform, so a static one would be ignored). */
-  #lobby { top: 10px; left: 0; right: 0; margin: 0 auto; width: fit-content; max-width: 96vw; transform: none; animation-name: pop-in-plain; max-height: calc(100vh - 170px); }
+  #lobby { top: 62px; left: 0; right: 0; margin: 0 auto; width: fit-content; max-width: 96vw; transform: none; animation-name: pop-in-plain; max-height: calc(100vh - 222px); }   /* below the gear and Leave Room buttons */
 }
