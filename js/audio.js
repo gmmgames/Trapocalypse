@@ -192,6 +192,12 @@ const Music = {
   },
 };
 
+// Switching tabs or minimizing pauses the music; coming back picks it up again (if it was wanted).
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { if (Music.el && !Music.el.paused) Music.el.pause(); }
+  else Music.refresh();
+});
+
 // Any press anywhere wakes the audio up. Browsers need this.
 window.addEventListener("pointerdown", () => Sfx.unlock());
 window.addEventListener("keydown", () => Sfx.unlock());
