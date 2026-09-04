@@ -2482,6 +2482,29 @@ document.getElementById("place-cancel").addEventListener("click", () => Game.can
 
 // The canvas only picks up a web font once the browser has loaded it, so ask for both now.
 if (document.fonts) { document.fonts.load("16px Fredoka"); document.fonts.load("16px 'Baloo 2'"); }
+// Phones sometimes report the screen size wrong on first load (it only comes right after the phone
+// is rotated), so on touch screens the course box is measured and sized here instead of trusting
+// CSS units alone. The course keeps its 16:9 shape and is as big as fits. The shortest height seen
+// for each screen width is remembered, so the browser bar sliding away on a touch never resizes it.
+const fitCourseToScreen = () => {
+  if (!matchMedia("(pointer: coarse)").matches) return;
+  const view = window.visualViewport;
+  const sw = Math.round(view ? view.width : innerWidth), sh = Math.round(view ? view.height : innerHeight);
+  if (!sw || !sh) return;
+  Game._screenHeights = Game._screenHeights || {};
+  const shortest = Game._screenHeights[sw] = Math.min(Game._screenHeights[sw] || Infinity, sh);
+  const w = Math.min(sw, Math.round(shortest * 16 / 9)), h = Math.min(shortest, Math.round(sw * 9 / 16));
+  gameWrap.style.width = w + "px";
+  gameWrap.style.height = h + "px";
+  document.documentElement.style.height = sh + "px";
+  document.body.style.height = sh + "px";
+};
+window.addEventListener("resize", fitCourseToScreen);
+window.addEventListener("orientationchange", fitCourseToScreen);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", fitCourseToScreen);
+fitCourseToScreen();
+for (const delay of [50, 300, 1000, 2500]) setTimeout(fitCourseToScreen, delay);   // late-reporting phones
+
 Game.buildSwatches();
 Game.buildMapButtons();
 Game.start();

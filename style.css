@@ -1278,7 +1278,19 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   #touch-controls {
     display: flex;
   }
-  #game-wrap { width: 100%; height: 100%; }   /* the course fills the screen; the touch buttons float over it */
+  /* The course keeps its 16:9 shape on phones (a phone screen is far from 16:9, so filling it
+     would stretch everything), centered, with the course colour around it. It is sized from the
+     "small viewport" (svh/svw: the screen with the browser bar showing), so the bar sliding away
+     on a touch never changes its size. The vh/vw lines are a fallback for older phones. */
+  #game-wrap {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: min(100vw, calc(100vh * 16 / 9));
+    height: min(100vh, calc(100vw * 9 / 16));
+    width: min(100svw, calc(100svh * 16 / 9));
+    height: min(100svh, calc(100svw * 9 / 16));
+  }
   #chat { bottom: 120px; }       /* above the touch buttons */
   /* Outside a run the touch buttons are hidden (main.js adds .hidden), so the chat drops down
      to sit just above the ID badge, and the lobby panel is pinned to the top with room below it. */
@@ -1294,19 +1306,6 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
    viewport setting for this). Keep every typing box at 16px on touch screens. */
 @media (pointer: coarse) {
   input, select, textarea { font-size: 16px !important; }
-}
-
-/* Portrait phones: keep the course's 16:9 shape instead of stretching it tall. It sits in the
-   middle of the screen and the course's own background colour fills the rest (set by main.js). */
-@media (orientation: portrait) {
-  #game-wrap {
-    position: absolute;
-    left: 0;
-    width: 100%;
-    height: calc(100vw * 9 / 16);
-    top: 50%;
-    margin-top: calc(-100vw * 9 / 32);
-  }
 }
 
 #rotate-hint {
@@ -1336,4 +1335,15 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   button:hover:not(:disabled), button:active:not(:disabled), .swatch:hover:not(:disabled), .map-btn:hover, .weapon-card:hover { transform: none; filter: none; }
   .swatch.mine, .swatch.mine:hover { transform: scale(1.1); }
   .item-card:hover:not(:disabled) { transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--tilt, 0deg)); }
+}
+
+/* Sideways phones are short. The main menu drops the floating logo and tightens up so it fits on
+   the screen, and it can scroll inside itself if it still does not. */
+@media (pointer: coarse) and (max-height: 520px) {
+  #menu-logo { display: none; }
+  #menu-title { font-size: 26px; }
+  #online-panel { inset: 6px 0 54px; max-height: calc(100% - 60px); overflow-y: auto; touch-action: pan-y; gap: 6px; padding: 10px 14px; }   /* the bottom gap keeps it clear of the ID badge */
+  #online-panel input { padding: 5px 7px; }
+  #menu-buttons button { padding: 8px 10px; font-size: 16px; }
+  #menu-help, #menu-editor { padding: 6px 10px; }
 }
