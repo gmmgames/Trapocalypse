@@ -596,6 +596,8 @@ function startNextRound(room) {
   broadcast(room, { ...snapshot(room), type: "round_start" });
 }
 
+const BUILD_ID = Date.now().toString(36);   // changes every time the server starts (every deploy)
+
 const server = http.createServer((request, response) => {
   const requested = request.url === "/" ? "/index.html" : request.url;
   // Browsers send spaces as %20 ("Trapocalypse Bumper Icon.png"): decode before looking on disk.
@@ -607,9 +609,15 @@ const server = http.createServer((request, response) => {
   }
   fs.readFile(filePath, (error, data) => {
     if (error) { response.writeHead(404); response.end("Not found"); return; }
-    // No caching: after a deploy every player must get the new scripts, not a stale copy.
-    response.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream", "Cache-Control": "no-cache" });
-    response.end(data);
+    // After a deploy every player must get the new scripts, not a stale copy: pages, scripts and
+    // styles are never stored, and the page links its scripts with this server start's version tag,
+    // so even a browser holding an old copy asks for a fresh one.
+    const ext = path.extname(filePath);
+    const fresh = [".html", ".js", ".css"].includes(ext);
+    let body = data;
+    if (ext === ".html") body = data.toString("utf8").replace(/(src|href)="([^"]+.(?:js|css))"/g, `$1="$2?v=${BUILD_ID}"`);
+    response.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream", "Cache-Control": fresh ? "no-store" : "no-cache" });
+    response.end(body);
   });
 });
 
