@@ -596,22 +596,40 @@ const Game = {
     this._swing = 0.22;
     Sfx.dash();
   },
-  // What you carry: the bat in hand (swinging when used), the shield ring with its health, the heart over your head.
+  // What you carry, drawn on you: the ball in hand, the bat (swinging when used), the shield
+  // on your arm with its health pips, the heart over your head. Everyone sees everyone's.
   drawCarry() {
     if (this.phase !== "run" || !Player.alive) return;
-    if (this.bat) {
-      const swing = this._swing > 0 ? (0.22 - this._swing) / 0.22 : 0;
-      const angle = Player.facing === 1 ? -Math.PI / 3 + swing * Math.PI * 0.9 : -Math.PI * 2 / 3 - swing * Math.PI * 0.9;
-      Level.drawBat(ctx, Player.x + (Player.facing === 1 ? Player.w - 2 : 2), Player.y + 14, angle, 24);
+    this.drawCarryFor(Player.x, Player.y, Player.facing, { portal: this.portal, bat: this.bat, buckler: this.buckler, revive: this.revive }, this._swing);
+  },
+  drawCarryFor(x, y, facing, carry, swingLeft = 0) {
+    const handX = x + (facing === 1 ? Player.w - 2 : 2), handY = y + 14;
+    if (carry.bat) {
+      const swing = swingLeft > 0 ? (0.22 - swingLeft) / 0.22 : 0;
+      const angle = facing === 1 ? -Math.PI / 3 + swing * Math.PI * 0.9 : -Math.PI * 2 / 3 - swing * Math.PI * 0.9;
+      Level.drawBat(ctx, handX, handY, angle, 24);
     }
-    if (this.buckler > 0) {
+    if (carry.portal) {
+      // The teleport ball, held out in front.
       ctx.save();
-      ctx.strokeStyle = "rgba(60, 180, 255, 0.8)"; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(Player.x + Player.w / 2, Player.y + Player.h / 2, 22, 0, Math.PI * 2); ctx.stroke();
-      for (let i = 0; i < BUCKLER_HEALTH; i++) { ctx.fillStyle = i < this.buckler ? "#3cb4ff" : "rgba(60,180,255,0.25)"; ctx.fillRect(Player.x + 2 + i * 10, Player.y - 30, 8, 4); }
+      ctx.shadowColor = "#c98bff"; ctx.shadowBlur = 12;
+      ctx.fillStyle = "#7b3fe4";
+      ctx.beginPath(); ctx.arc(handX + facing * 6, handY + 2, 5.5, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#e6d5ff";
+      ctx.beginPath(); ctx.arc(handX + facing * 6 - 2, handY, 1.8, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    if (this.revive) Level.drawHeart(ctx, { x: Player.x + Player.w / 2 - 15, y: Player.y - 44, w: 30, h: 30 });
+    if (carry.buckler > 0) {
+      // A round shield on the arm facing forward, plus a faint ring and the health pips.
+      Level.drawBuckler(ctx, x + (facing === 1 ? Player.w + 4 : -4), y + 13, 8);
+      ctx.save();
+      ctx.strokeStyle = "rgba(60, 180, 255, 0.45)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x + Player.w / 2, y + Player.h / 2, 22, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < BUCKLER_HEALTH; i++) { ctx.fillStyle = i < carry.buckler ? "#3cb4ff" : "rgba(60,180,255,0.25)"; ctx.fillRect(x + 2 + i * 10, y - 30, 8, 4); }
+      ctx.restore();
+    }
+    if (carry.revive) Level.drawHeart(ctx, { x: x + Player.w / 2 - 15, y: y - 44, w: 30, h: 30 });
   },
   drawAimer() {
     if (!this.portal || this._charge <= 0 || this.phase !== "run") return;
@@ -1664,7 +1682,7 @@ const Game = {
         this._networkTimer -= dt;
         if (this._networkTimer <= 0) {
           this._networkTimer = 0.05;
-          Network.send({ type: "player_update", x: Player.x, y: Player.y, alive: Player.alive, finished: Player.finished });
+          Network.send({ type: "player_update", x: Player.x, y: Player.y, alive: Player.alive, finished: Player.finished, carry: { portal: this.portal, bat: this.bat, buckler: this.buckler, revive: this.revive, swing: this._swing > 0 } });
         }
       }
     }
@@ -2112,8 +2130,11 @@ const Game = {
         if (this.mode === "online") this.drawNametag(remote.x, remote.y, `✓ ${remote.name}`, color);
         continue;
       }
-      drawAvatar(ctx, remote.x, remote.y, Player.w, Player.h, color, remote.x >= (remote._lastX ?? remote.x) ? 1 : -1, who ? who.avatar : "cube");
+      const remoteFacing = remote.x > (remote._lastX ?? remote.x) ? 1 : remote.x < (remote._lastX ?? remote.x) ? -1 : (remote._facing || 1);
+      remote._facing = remoteFacing;
+      drawAvatar(ctx, remote.x, remote.y, Player.w, Player.h, color, remoteFacing, who ? who.avatar : "cube");
       remote._lastX = remote.x;
+      if (remote.carry) this.drawCarryFor(remote.x, remote.y, remoteFacing, remote.carry, remote.carry.swing ? 0.11 : 0);
       if (remote.frozenUntil && remote.frozenUntil > performance.now()) {   // hit by a Freeze Ray
         ctx.fillStyle = "rgba(160, 230, 255, 0.55)";
         ctx.fillRect(remote.x - 3, remote.y - 3, Player.w + 6, Player.h + 6);

@@ -933,7 +933,10 @@ webSocketServer.on("connection", (socket) => {
       return;
     }
     if (message.type === "player_update" && room.phase === "run") {
-      broadcast(room, { type: "player_update", playerId: player.id, x: Number(message.x) || 0, y: Number(message.y) || 0, alive: Boolean(message.alive), finished: Boolean(message.finished) });
+      // What they carry rides along so everyone can see it in their hands.
+      const c = message.carry && typeof message.carry === "object" ? message.carry : {};
+      const carry = { portal: Boolean(c.portal), bat: Boolean(c.bat), buckler: Math.max(0, Math.min(9, Number(c.buckler) || 0)), revive: Boolean(c.revive), swing: Boolean(c.swing) };
+      broadcast(room, { type: "player_update", playerId: player.id, x: Number(message.x) || 0, y: Number(message.y) || 0, alive: Boolean(message.alive), finished: Boolean(message.finished), carry });
     }
     if (message.type === "died" && room.phase === "run" && player.status === "running") {
       player.status = "dead";
