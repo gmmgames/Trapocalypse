@@ -168,7 +168,7 @@ body {
 /* Trap picker inside the build box */
 #trap-kinds {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   pointer-events: auto;
 }
@@ -186,6 +186,8 @@ body {
 
 .trap-kind:hover { border-color: #ffd23c; }
 .trap-kind.selected { border-color: #ffffff; background: #1c1c2e; }
+.trap-kind[data-kind=eraser] { color: #ffd23c; }
+#eraser-count { font-weight: 800; }
 
 #start-run {
   margin-top: 6px;

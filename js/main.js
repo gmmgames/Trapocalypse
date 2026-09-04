@@ -289,6 +289,11 @@ const Game = {
     document.querySelectorAll(".trap-kind").forEach((button) => button.classList.toggle("selected", button.dataset.kind === kind));
   },
 
+  renderEraserCount() {
+    const me = this.players.find((player) => player.id === Network.id);
+    document.getElementById("eraser-count").textContent = me && me.erasers !== undefined ? `(${me.erasers})` : "";
+  },
+
   // --- settings and chat ---
   // The chat filter is a per-player choice, remembered in this browser.
   chatFilterOn: true,
@@ -457,6 +462,8 @@ const Game = {
     if (this.phase === "lobby") this._chartX = {};   // a fresh match gets a fresh chart
     this.showScores();
     this.renderRoom();
+    this.renderEraserCount();
+    if (this.trapKind === "eraser") this.setTrapKind("spike");   // start each build with a real trap selected
     startRunButton.classList.add("hidden");
     // The picker only shows until you have a color. After that it stays away for good.
     if (this.myColor === null) this.showColorPicker();
@@ -518,6 +525,19 @@ const Game = {
       if (who) who.trapCount += 1;
     }
     if (message.type === "trap_rejected") this.say(message.message, 1.5);
+    if (message.type === "trap_erased") {
+      // The trap crumbles: a big puff of dust in its color, then it is gone.
+      const index = Level.hazards.findIndex((hazard) => hazard.x === message.trap.x && hazard.y === message.trap.y);
+      if (index >= 0) Level.hazards.splice(index, 1);
+      Dust.spawn(message.trap.x + TILE / 2, message.trap.y + TILE, 22, TILE);
+      Sfx.crumble();
+      this.players = message.players;
+      const owner = this.nameOf(message.trap.owner);
+      if (message.by === Network.id) this.say(`You erased ${owner}'s trap!`, 2);
+      else if (message.trap.owner === Network.id) this.say(`${this.nameOf(message.by)} erased your trap!`, 2);
+      else this.say(`${this.nameOf(message.by)} erased ${owner}'s trap.`, 1.5);
+      this.renderEraserCount();
+    }
     if (message.type === "phase" && message.phase === "run") {
       this.phase = "run";
       buildHud.classList.add("hidden");
@@ -654,6 +674,15 @@ const Game = {
     const x = Math.floor(((clientX - bounds.left) / bounds.width) * LEVEL_W / TILE) * TILE;
     const y = Math.floor(((clientY - bounds.top) / bounds.height) * LEVEL_H / TILE) * TILE;
     const trap = { x, y, w: TILE, h: TILE, kind: this.trapKind };
+
+    // The eraser is not a trap: click one of someone else's traps to remove it.
+    if (this.trapKind === "eraser") {
+      if (this.mode !== "online") return;
+      const target = Level.hazards.find((hazard) => hazard.x === x && hazard.y === y);
+      if (!target) { this.say("Click a trap to erase it.", 1.5); return; }
+      Network.send({ type: "erase_trap", x, y });
+      return;
+    }
 
     // No traps on the flag, on any player, on another trap, or off the edges.
     const onSomeone = Physics.overlaps(trap, Player) ||
@@ -1066,7 +1095,7 @@ chatInput.addEventListener("keydown", (event) => {
   event.stopPropagation();   // typing never reaches the game's key handlers
 });
 document.querySelectorAll(".trap-kind").forEach((button) => button.addEventListener("click", () => Game.setTrapKind(button.dataset.kind)));
-const TRAP_KEYS = { "1": "spike", "2": "crumble", "3": "glue", "4": "bumper" };
+const TRAP_KEYS = { "1": "spike", "2": "crumble", "3": "glue", "4": "bumper", "5": "eraser" };
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); }
   if (TRAP_KEYS[event.key] && Game.phase === "build" && !event.target.matches("input, textarea, select")) Game.setTrapKind(TRAP_KEYS[event.key]);

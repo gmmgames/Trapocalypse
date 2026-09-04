@@ -28,6 +28,7 @@ const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
 const TRAP_KINDS = ["spike", "crumble", "glue", "bumper"];   // what a player may place (see js/level.js for what each does)
+const ERASERS_PER_COURSE = 1;  // erasers each player gets on every new course, to remove someone else's trap
 const CHAT_MAX_LENGTH = 140;   // characters per chat message
 const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 
@@ -77,7 +78,7 @@ function overlaps(a, b) {
 
 function playerList(room) {
   return [...room.players.values()].map((player) => ({
-    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color,
+    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers,
   }));
 }
 
@@ -343,6 +344,7 @@ function startNextRound(room) {
     // The voted course, or simply the next one in the list if nobody voted.
     room.levelIndex = pickVotedLevel(room, (room.levelIndex + 1) % LEVELS.length);
     room.traps = [];
+    for (const player of room.players.values()) player.erasers = ERASERS_PER_COURSE;   // fresh course, fresh eraser
   }
   room.votes = {}; room.voteOpen = false;
   room.phase = "build";
@@ -384,7 +386,7 @@ webSocketServer.on("connection", (socket) => {
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
       // In the lobby you wait for the host. Joining mid-run means sitting this round out.
       const status = room.phase === "lobby" ? "waiting" : room.phase === "build" ? "building" : "out";
-      const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null };
+      const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };
       room.players.set(player.id, player);
       if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
       rooms.set(code, room);
@@ -414,9 +416,23 @@ webSocketServer.on("connection", (socket) => {
       room.levelIndex = pickVotedLevel(room, 0);   // the lobby vote picks the first course
       room.votes = {}; room.voteOpen = false;
       room.finalBattle = null; room.winnerIds = [];
-      for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; }
+      for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
       room.phase = "build";
       broadcast(room, { ...snapshot(room), type: "round_start" });
+      return;
+    }
+    // Erase someone else's trap during the build phase. Costs one eraser.
+    if (message.type === "erase_trap" && room.phase === "build") {
+      const x = Number(message.x), y = Number(message.y);
+      const index = room.traps.findIndex((item) => item.x === x && item.y === y);
+      let problem = null;
+      if (player.erasers <= 0) problem = "No erasers left on this course.";
+      else if (index < 0) problem = "Only placed traps can be erased.";
+      else if (room.traps[index].owner === player.id) problem = "You can't erase your own trap.";
+      if (problem) { send(socket, { type: "trap_rejected", message: problem }); return; }
+      const [trap] = room.traps.splice(index, 1);
+      player.erasers -= 1;
+      broadcast(room, { type: "trap_erased", trap, by: player.id, traps: room.traps, players: playerList(room) });
       return;
     }
     // Vote for a course: in the lobby, or on the results screen when the course is about to change.
