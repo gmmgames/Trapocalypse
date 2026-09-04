@@ -1025,6 +1025,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 /* Custom courses in the vote: purple with a C badge */
 .map-btn.custom { border-color: #c98bff; background: rgba(155, 92, 255, 0.22); color: #e6d5ff; }
 .map-btn.custom:hover { background: rgba(155, 92, 255, 0.35); }
+.map-btn.event { border-color: #ff5a1f; background: rgba(255, 90, 31, 0.2); }
+.map-btn .badge.ee { background: #ff5a1f; }
 .map-btn .badge { margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #9b5cff; color: #ffffff; font-size: 10px; font-weight: 800; }
 
 /* ---------------- Level editor ---------------- */

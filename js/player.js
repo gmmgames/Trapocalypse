@@ -266,6 +266,15 @@ const Player = {
       }
     }
 
+    // Rising lava: touching it is the end (a Revive Heart still brings you back).
+    if (Level.lava && this._immune <= 0 && this.y + this.h - 3 > Level.lavaY()) {
+      if (typeof Game !== "undefined" && Game.revive) {
+        Game.revive = false;
+        this.x = Level.start.x; this.y = Level.start.y; this.vx = 0; this.vy = 0; this._immune = 1.0;
+        Sfx.boots(); Game.say("Second chance! The heart pulled you out of the lava.", 2.5);
+      } else { this.die(null); return; }
+    }
+
     // Bumpers: touch one and it throws you straight away from its center, so the
     // angle you hit it at decides where you go. Land on top: launched up. Clip the
     // side: flung sideways. Catch the underside: slammed down.

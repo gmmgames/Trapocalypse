@@ -360,6 +360,35 @@ const LEVELS = [
     flag: tileRect(45, 23, 1, 2),
   },
   {
+    // EVENT-EXCLUSIVE course (64 x 36 tiles, drawn at half size). Only reached through the
+    // "Rising Lava" course event. Lava climbs from the floor during every run: keep going up.
+    // Ten rounds instead of five.
+    name: "Rising Lava",
+    theme: THEMES.lava,
+    cols: 64, rows: 36, ee: true, rounds: 10,
+    lava: { top: 3 * TILE, seconds: 55 },
+    solids: [
+      tileRect(0, 34, 64, 2), tileRect(0, 8, 1, 26), tileRect(63, 8, 1, 26),
+      tileRect(6, 31, 6, 1), tileRect(24, 31, 6, 1), tileRect(42, 31, 6, 1),
+      tileRect(15, 28, 6, 1), tileRect(33, 28, 6, 1), tileRect(51, 28, 6, 1),
+      tileRect(6, 25, 6, 1), tileRect(24, 25, 6, 1), tileRect(42, 25, 6, 1),
+      tileRect(15, 22, 6, 1), tileRect(33, 22, 6, 1), tileRect(51, 22, 6, 1),
+      tileRect(6, 19, 6, 1), tileRect(24, 19, 6, 1), tileRect(42, 19, 6, 1),
+      tileRect(15, 16, 6, 1), tileRect(33, 16, 6, 1), tileRect(51, 16, 6, 1),
+      tileRect(6, 13, 6, 1), tileRect(24, 13, 6, 1), tileRect(42, 13, 6, 1),
+      tileRect(15, 10, 6, 1), tileRect(33, 10, 6, 1), tileRect(51, 10, 6, 1),
+      tileRect(6, 7, 6, 1), tileRect(42, 7, 6, 1), tileRect(24, 7, 6, 1),
+      tileRect(30, 4, 4, 1),
+    ],
+    hazards: [
+      tileRect(9, 30, 1, 1), tileRect(35, 27, 1, 1), tileRect(44, 24, 1, 1), tileRect(17, 21, 1, 1),
+      tileRect(27, 18, 1, 1), tileRect(53, 15, 1, 1), tileRect(8, 12, 1, 1), tileRect(36, 9, 1, 1),
+    ],
+    movers: [{ ...tileRect(12, 29, 3, 1), dx: 0, dy: -60, period: 3 }, { ...tileRect(21, 17, 3, 1), dx: 90, dy: 0, period: 4 }],
+    start: { x: 2 * TILE, y: 34 * TILE - 26 },
+    flag: tileRect(32, 2, 1, 2),
+  },
+  {
     // BIG course (48 x 27 tiles). Floating islands over a bottomless spike pit, climbing to a
     // citadel in the top-right corner, with pillars to kick off on the way.
     name: "Sky Citadel",
@@ -405,6 +434,9 @@ const Level = {
     this.w = (level.cols || 32) * TILE;
     this.h = (level.rows || 18) * TILE;
     this.name = level.name;
+    this.ee = Boolean(level.ee);                         // event-exclusive course
+    this.lava = level.lava ? { ...level.lava } : null;   // rising lava: { top, seconds }
+    this.lavaRising = false;
     this.theme = typeof level.theme === "string" ? THEMES[level.theme] || THEMES.neon : level.theme;   // custom courses name their theme
     this.solids = level.solids.map((solid) => ({ ...solid }));
     this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
@@ -465,8 +497,19 @@ const Level = {
     this.start = { ...level.start };
     this.flag = { ...level.flag };
     this.scenery = []; this.drawn = [];
+    this.ee = false; this.lava = null; this.lavaRising = false;
     this.movers = (level.movers || []).map((mover) => ({ ...mover, baseX: mover.x, baseY: mover.y, prevX: mover.x, prevY: mover.y }));
     this.moverEpoch = typeof performance !== "undefined" ? performance.now() : Date.now();
+  },
+
+  // Where the lava surface is right now (world y). Infinity when this course has none. It sits on
+  // the floor until the run starts (lavaRising), then climbs to lava.top over lava.seconds.
+  lavaY() {
+    if (!this.lava) return Infinity;
+    if (!this.lavaRising) return this.h;
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const progress = Math.min(1, (now - this.moverEpoch) / 1000 / this.lava.seconds);
+    return this.h - progress * (this.h - this.lava.top);
   },
 
   // The title screen: a random little world to hop around in behind the menu.
@@ -475,6 +518,7 @@ const Level = {
     this.index = -1;
     this.w = LEVEL_W; this.h = LEVEL_H;
     this.name = "Title";
+    this.ee = false; this.lava = null; this.lavaRising = false;
     const themeNames = Object.keys(THEMES);
     const themeName = THEMES[wantedTheme] ? wantedTheme : themeNames[Math.floor(Math.random() * themeNames.length)];
     this.titleTheme = themeName;
@@ -680,6 +724,22 @@ const Level = {
         ctx.strokeRect(hazard.x + 1, hazard.y + 1, hazard.w - 2, hazard.h - 2); ctx.restore();
       }
       this.drawSpikesRotated(ctx, hazard, t);
+    }
+
+    // Rising lava: a glowing pool with a wavy surface, over everything it has swallowed.
+    if (this.lava) {
+      const surface = this.lavaY();
+      const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+      ctx.save();
+      ctx.shadowColor = "#ff8c1a"; ctx.shadowBlur = 24;
+      ctx.fillStyle = "#ff5a1f";
+      ctx.beginPath(); ctx.moveTo(0, this.h);
+      for (let x = 0; x <= this.w; x += 16) ctx.lineTo(x, surface + Math.sin(x * 0.05 + now * 3) * 4);
+      ctx.lineTo(this.w, this.h); ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#ffd23c"; ctx.globalAlpha = 0.6;
+      for (let x = 8; x < this.w; x += 40) { const r = 2 + (Math.sin(x + now * 2) + 1) * 2; ctx.beginPath(); ctx.arc(x, surface + 10 + Math.sin(x * 0.3 + now) * 4, r, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
     }
 
     // Flag: a pole and a triangle

@@ -1043,7 +1043,7 @@ const Game = {
     const courseRow = document.getElementById("test-course-row"), courseSelect = document.getElementById("test-course");
     courseRow.classList.toggle("hidden", !(hostInMatch && this.testMatch));
     if (hostInMatch && this.testMatch) {
-      courseSelect.replaceChildren(...(Level.list || LEVELS).map((level, index) => { const option = document.createElement("option"); option.value = index; option.textContent = level.name; return option; }));
+      courseSelect.replaceChildren(...(Level.list || LEVELS).map((level, index) => { const option = document.createElement("option"); option.value = index; option.textContent = level.ee ? `${level.name} (EE)` : level.name; return option; }));
       courseSelect.value = String(this.levelIndex);
     }
     settingsNote.textContent = hostInMatch ? "Ends the match for everyone and clears the scores." : this.inRoom ? "Only the host can end a match early." : "";
@@ -1184,6 +1184,11 @@ const Game = {
       const count = document.createElement("span");
       count.className = "count";
       button.append(chip, level.name, count);
+      if (level.ee) {   // event-exclusive: never in a vote, but labelled where it does show
+        button.classList.add("event");
+        const badge = document.createElement("span"); badge.className = "badge ee"; badge.textContent = "EE"; badge.title = "Event exclusive";
+        button.append(badge);
+      }
       if (index >= LEVELS.length) {   // a custom course: purple, with a C badge
         button.classList.add("custom");
         const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = "C"; badge.title = "Custom course";
@@ -1296,6 +1301,8 @@ const Game = {
     this.votes = message.votes || {};
     this.voteOpen = Boolean(message.voteOpen);
     this.voteOptions = message.voteOptions || null;
+    this.courseEvent = message.courseEvent || null;
+    this.courseRound = message.courseRound || 1; this.courseRounds = message.courseRounds || this.roundsPerLevel;
     this.testMatch = Boolean(message.testMatch);
     this.levelIndex = message.levelIndex;
     this.players = message.players;
@@ -1503,6 +1510,7 @@ const Game = {
       this._stroke = null; this.pencil = 0;    // the pencil is spent once the run starts; the sketches stay for this round
       this.rotation = 0;
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
+      Level.lavaRising = true;                 // on the Rising Lava course the flood begins now
       this.portal = false; this._balls = []; this._charge = 0;
       this.bat = false; this._swing = 0; this.buckler = 0; this.revive = false; this.boots = false; this.feather = false; this.speedshoes = false;
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
@@ -1623,6 +1631,8 @@ const Game = {
       }
     }
     if (message.type === "round_over") {
+      Level.lavaRising = false;
+      this.courseEvent = message.courseEvent || null;
       Level.drawn = []; this._stroke = null;   // pencil sketches last exactly one round (cleared when the round ends)
       this.playRoundSounds(message);
       this.phase = "results";
@@ -1646,6 +1656,8 @@ const Game = {
       this.votes = {};
       this.voteOpen = Boolean(message.voteOpen);
     this.voteOptions = message.voteOptions || null;
+    this.courseEvent = message.courseEvent || null;
+    this.courseRound = message.courseRound || 1; this.courseRounds = message.courseRounds || this.roundsPerLevel;
       this.renderVote();
       this.renderWeaponPick();
       const iFinished = message.finishers.includes(Network.id);
@@ -2051,6 +2063,12 @@ const Game = {
       ctx.fillStyle = "#c0c0d8";
       const stillCounting = this._resultsElapsed < (this._revealIn || 0);
       ctx.fillText(stillCounting ? "Adding up the points…" : `${label} ${Math.max(0, Math.ceil(this._nextRoundIn))}`, LEVEL_W / 2, 96);
+      if (this.courseEvent) {
+        ctx.font = `bold 20px ${DISPLAY_FONT}`;
+        ctx.fillStyle = "#ff5a1f"; ctx.shadowColor = "#ff8c1a"; ctx.shadowBlur = 14;
+        ctx.fillText(`⚠ EVENT COURSE NEXT: ${this.courseEvent} (EE) — ten rounds, and the lava rises!`, LEVEL_W / 2, 164);
+        ctx.shadowBlur = 0;
+      }
       // As each of YOUR points lands, its name and a little line about it.
       const me = this.players.find((player) => player.id === Network.id);
       const mine = me ? this.animatedScore(me).labels : [];
@@ -2262,7 +2280,8 @@ const Game = {
       hudText.textContent = `MATCH OVER  •  ${this.message}`;
     } else if (this.mode === "online") {
       const cap = this.settings ? this.settings.roundCap : "?";
-      const roundLabel = `${this.testMatch ? "TEST MATCH  •  " : ""}ROUND ${this.round} of ${cap}  ${Level.name}`;
+      const courseTag = Level.ee ? `EE · ${Level.name} (${this.courseRound}/${this.courseRounds})` : Level.name;
+      const roundLabel = `${this.testMatch ? "TEST MATCH  •  " : ""}ROUND ${this.round} of ${cap}  ${courseTag}`;
       const showClock = this.phase === "run" && this._runTimeLeft !== null;
       const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";

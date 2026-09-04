@@ -20,7 +20,10 @@ const MIME = {
 
 // --- round rules (the knobs) ---
 const TRAPS_PER_ROUND = 1;     // traps each player places before a run
-const ROUNDS_PER_LEVEL = 5;    // rounds on one course before rotating to the next
+const ROUNDS_PER_LEVEL = Number(process.env.ROUNDS_PER_LEVEL) || 5;    // rounds on one course before rotating to the next (a course can say otherwise)
+const LAVA_EVENT_CHANCE = 0.15;   // at a course change, the chance the room is sent to the Rising Lava course instead
+// How many rounds the current course runs for.
+function roundsFor(room) { const level = levelsOf(room)[room.levelIndex]; return (level && level.rounds) || ROUNDS_PER_LEVEL; }
 const RESULTS_WAIT = 5;        // seconds the scoreboard stays AFTER all points have landed (10 when a course vote is up)
 const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
@@ -119,6 +122,9 @@ function snapshot(room) {
     votes: room.votes,
     voteOpen: room.voteOpen,
     voteOptions: room.voteOptions || null,
+    courseEvent: Number.isInteger(room.courseEvent) ? levelsOf(room)[room.courseEvent].name : null,
+    courseRound: room.courseRound || 1,
+    courseRounds: roundsFor(room),
     offer: room.offer || [],
     testMatch: Boolean(room.testMatch),
     customLevels: room.customLevels || [],
@@ -401,7 +407,12 @@ function checkRoundOver(room) {
   const weaponOffers = decision.kind === "final" ? dealWeapons(room, decision.ids) : {};
   // If the next round starts a new course, everyone votes on which one during the results.
   room.votes = {};
-  room.voteOpen = decision.kind === "next" && room.round % ROUNDS_PER_LEVEL === 0;
+  const lastOnCourse = decision.kind === "next" && (room.courseRound || 1) >= roundsFor(room);
+  // Course event: now and then a course change goes to the Rising Lava course instead of a vote.
+  const eeIndex = levelsOf(room).findIndex((level) => level.ee);
+  const eventNow = lastOnCourse && eeIndex >= 0 && room.levelIndex !== eeIndex && !room.testMatch && (process.env.FORCE_COURSE_EVENT === "lava" || Math.random() < LAVA_EVENT_CHANCE);
+  room.courseEvent = eventNow ? eeIndex : null;
+  room.voteOpen = lastOnCourse && !eventNow;
   room.voteOptions = room.voteOpen ? pickVoteOptions(room) : null;
   const timing = resultsDelay(room, gains);
 
@@ -421,6 +432,9 @@ function checkRoundOver(room) {
     winnerPending: decision.kind === "winner" ? decision.ids : null,
     voteOpen: room.voteOpen,
     voteOptions: room.voteOptions || null,
+    courseEvent: Number.isInteger(room.courseEvent) ? levelsOf(room)[room.courseEvent].name : null,
+    courseRound: room.courseRound || 1,
+    courseRounds: roundsFor(room),
     weaponOffers,
   });
   const delay = timing.total * 1000;
@@ -434,7 +448,7 @@ function checkRoundOver(room) {
 // enough others, so the same few are not picked round after round.
 const VOTE_CHOICES = 3;
 function pickVoteOptions(room) {
-  const all = levelsOf(room).map((level, index) => index);
+  const all = levelsOf(room).map((level, index) => index).filter((index) => !levelsOf(room)[index].ee);   // event courses are never voted for
   let pool = all.filter((index) => index !== room.levelIndex || room.phase === "lobby");
   if (pool.length < VOTE_CHOICES) pool = all;
   const options = [];
@@ -522,7 +536,7 @@ const PICKUP_KINDS = ["portal", "heart", "bat", "buckler", "boots", "feather", "
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
 const BUILD_SECONDS = Number(process.env.BUILD_SECONDS) || 45;   // time to pick and place; anyone slower loses their turn
 const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
-const EVENT_CHANCE = 0.3;          // chance a normal round gets one   // picked in the build phase, used during the run (like the pencil)
+const EVENT_CHANCE = 0.12;         // chance a normal round gets one (about one round in eight)
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
@@ -586,7 +600,7 @@ function maybeStartRun(room) {
 function beginMatch(room) {
   room.timer = null;
   if (room.phase !== "vote" || room.players.size === 0) return;
-  room.round = 1; room.roundsPlayed = 0; room.traps = []; room.finishOrder = [];
+  room.round = 1; room.roundsPlayed = 0; room.traps = []; room.finishOrder = []; room.courseRound = 1; room.courseEvent = null;
   room.levelIndex = Number.isInteger(room.nextLevel) ? room.nextLevel : pickVotedLevel(room, 0);   // /changemap in the lobby picks the first course
   room.nextLevel = null;
   room.votes = {}; room.voteOpen = false;
@@ -605,13 +619,16 @@ function startNextRound(room) {
   // so rounds 4, 7, 10, ... start fresh on the next level.
   room.round += 1;
   room.traps = room.traps.filter((trap) => !trap.taken);   // a pickup someone grabbed is gone for good
-  if ((room.round - 1) % ROUNDS_PER_LEVEL === 0) {
-    // The host's /changemap choice, else the voted course, else simply the next one in the list.
-    room.levelIndex = Number.isInteger(room.nextLevel) ? room.nextLevel : pickVotedLevel(room, (room.levelIndex + 1) % levelsOf(room).length);
+  if ((room.courseRound || 1) >= roundsFor(room)) {
+    // A course event, else the host's /changemap choice, else the voted course, else simply the next in the list.
+    room.levelIndex = Number.isInteger(room.courseEvent) ? room.courseEvent : Number.isInteger(room.nextLevel) ? room.nextLevel : pickVotedLevel(room, (room.levelIndex + 1) % levelsOf(room).length);
+    room.courseEvent = null;
     room.nextLevel = null;
+    room.courseRound = 1;
     room.traps = [];
     for (const player of room.players.values()) player.erasers = ERASERS_PER_COURSE;   // fresh course, fresh eraser
   }
+  else room.courseRound = (room.courseRound || 1) + 1;
   room.votes = {}; room.voteOpen = false;
   room.phase = "build";
   // Colors are picked once when you join and kept for the whole game.
@@ -748,7 +765,7 @@ webSocketServer.on("connection", (socket) => {
       if (player.id !== room.hostId || !room.testMatch || room.phase === "lobby" || room.phase === "winner") return;
       if (!Number.isInteger(level) || level < 0 || level >= levelsOf(room).length) return;
       clearTimeout(room.timer); clearTimeout(room.runTimer); room.timer = null; room.runTimer = null;
-      room.levelIndex = level; room.traps = []; room.finishOrder = []; room.round += 1;
+      room.levelIndex = level; room.traps = []; room.finishOrder = []; room.round += 1; room.courseRound = 1;
       room.votes = {}; room.voteOpen = false; room.finalBattle = null;
       for (const item of room.players.values()) { item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
       dealItems(room);
