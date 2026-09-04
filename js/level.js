@@ -457,6 +457,70 @@ const LEVELS = [
     flag: tileRect(32, 2, 1, 2),
   },
   {
+    // HARD. Bands of thorns across the floor, and the only way over each is a ledge or a crumbling
+    // stone. Land badly and you land on the needles.
+    name: "Needle Alley",
+    theme: THEMES.ash,
+    hard: true,
+    solids: [
+      tileRect(0, 16, 32, 2),
+      tileRect(8, 13, 3, 1), tileRect(15, 11, 3, 1), tileRect(22, 13, 3, 1), tileRect(28, 14, 4, 1),
+    ],
+    hazards: [
+      tileRect(4, 15, 3, 1), tileRect(11, 15, 3, 1), tileRect(18, 15, 3, 1), tileRect(25, 15, 2, 1),
+      tileRect(9, 12, 1, 1), tileRect(23, 12, 1, 1),
+      { ...tileRect(5, 13, 2, 1), kind: "crumble" }, { ...tileRect(12, 13, 2, 1), kind: "crumble" },
+      { ...tileRect(19, 12, 2, 1), kind: "crumble" }, { ...tileRect(26, 13, 1, 1), kind: "crumble" },
+    ],
+    start: { x: 1 * TILE, y: 16 * TILE - 26 },
+    flag: tileRect(30, 12, 1, 2),
+  },
+  {
+    // HARD, BIG (48 x 27 tiles). The floor has three holes with nothing under them. Ride a sliding
+    // platform across, or trust a crumbling stone and be quick about it.
+    name: "The Grinder",
+    theme: THEMES.rust,
+    cols: 48, rows: 27,
+    hard: true,
+    solids: [
+      tileRect(0, 25, 10, 2), tileRect(15, 25, 7, 2), tileRect(27, 25, 7, 2), tileRect(39, 25, 9, 2),
+      tileRect(6, 22, 3, 1), tileRect(17, 22, 3, 1), tileRect(29, 22, 3, 1), tileRect(41, 22, 3, 1),
+      tileRect(11, 19, 3, 1), tileRect(23, 19, 3, 1), tileRect(35, 19, 3, 1),
+      tileRect(17, 16, 3, 1), tileRect(29, 16, 3, 1),
+    ],
+    hazards: [
+      tileRect(4, 24, 2, 1), tileRect(18, 24, 2, 1), tileRect(30, 24, 2, 1), tileRect(43, 24, 2, 1),
+      tileRect(7, 21, 1, 1), tileRect(30, 21, 1, 1), tileRect(42, 21, 1, 1),
+      { ...tileRect(12, 22, 2, 1), kind: "crumble" }, { ...tileRect(24, 22, 2, 1), kind: "crumble" },
+      { ...tileRect(36, 22, 2, 1), kind: "crumble" },
+    ],
+    movers: [
+      { ...tileRect(11, 23, 3, 1), dx: 90, dy: 0, period: 3 },
+      { ...tileRect(23, 23, 3, 1), dx: 90, dy: 0, period: 3.5 },
+      { ...tileRect(35, 23, 3, 1), dx: 90, dy: 0, period: 4 },
+    ],
+    start: { x: 1 * TILE, y: 25 * TILE - 26 },
+    flag: tileRect(45, 23, 1, 2),
+  },
+  {
+    // HARD, NO FLOOR. Every ledge is a four-tile jump from the last one, with thorns on the far end
+    // of two of them. Crumbling stones sit in the gaps as an easier hop, if you keep moving.
+    name: "Collapse",
+    theme: THEMES.frost,
+    hard: true,
+    solids: [
+      tileRect(0, 14, 3, 1), tileRect(7, 13, 3, 1), tileRect(13, 12, 3, 1),
+      tileRect(19, 12, 3, 1), tileRect(25, 11, 3, 1), tileRect(29, 10, 3, 1),
+    ],
+    hazards: [
+      tileRect(9, 12, 1, 1), tileRect(21, 11, 1, 1),
+      { ...tileRect(4, 13, 1, 1), kind: "crumble" }, { ...tileRect(11, 12, 1, 1), kind: "crumble" },
+      { ...tileRect(17, 11, 1, 1), kind: "crumble" }, { ...tileRect(23, 11, 1, 1), kind: "crumble" },
+    ],
+    start: { x: 0, y: 14 * TILE - 26 },
+    flag: tileRect(30, 8, 1, 2),
+  },
+  {
     // BIG course (48 x 27 tiles) with an UNDERGROUND ROUTE. The surface is a slow slog of walls
     // and spike patches, but three secret trap doors in the ground (stand on one and press S) drop
     // you into a tunnel underneath: quicker, with its own thorns. A shaft near the end climbs back

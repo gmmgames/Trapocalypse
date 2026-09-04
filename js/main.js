@@ -1214,6 +1214,11 @@ const Game = {
         const badge = document.createElement("span"); badge.className = "badge ee"; badge.textContent = "EE"; badge.title = "Event exclusive";
         button.append(badge);
       }
+      if (level.hard) {   // a harder course: red, with an H badge
+        button.classList.add("hard");
+        const badge = document.createElement("span"); badge.className = "badge hard"; badge.textContent = "H"; badge.title = "Harder course";
+        button.append(badge);
+      }
       if (index >= LEVELS.length) {   // a custom course: purple, with a C badge
         button.classList.add("custom");
         const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = "C"; badge.title = "Custom course";

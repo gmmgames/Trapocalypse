@@ -1059,6 +1059,9 @@ body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto
 .map-btn.custom:hover { background: rgba(155, 92, 255, 0.35); }
 .map-btn.event { border-color: #ff5a1f; background: rgba(255, 90, 31, 0.2); }
 .map-btn .badge.ee { background: #ff5a1f; }
+.map-btn.hard { border-color: #ff3c78; background: rgba(255, 60, 120, 0.18); }
+.map-btn.hard:hover { background: rgba(255, 60, 120, 0.3); }
+.map-btn .badge.hard { background: #ff3c78; }
 .map-btn .badge { margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #9b5cff; color: #ffffff; font-size: 10px; font-weight: 800; }
 
 /* ---------------- Level editor ---------------- */
