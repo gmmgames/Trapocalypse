@@ -205,10 +205,20 @@ const Level = {
     //   crumble  a fake platform that gives way just after you land on it
     //   glue     slows you to a crawl, and you cannot jump while in it
     //   bumper   flings you sideways, away from it
+    //   spring   a launch pad: land on it and fly upward
+    //   ice      slippery: you keep sliding after you stop pushing
+    //   decoy    looks exactly like spikes to everyone but its owner, and does nothing
     for (const hazard of this.hazards) {
       if (hazard.kind === "crumble") { this.drawCrumbler(ctx, hazard, t); continue; }
       if (hazard.kind === "glue") { this.drawGlue(ctx, hazard); continue; }
       if (hazard.kind === "bumper") { this.drawBumper(ctx, hazard); continue; }
+      if (hazard.kind === "spring") { this.drawSpring(ctx, hazard); continue; }
+      if (hazard.kind === "ice") { this.drawIce(ctx, hazard); continue; }
+      // spikes and decoys draw the same; the owner of a decoy gets a faint dashed outline
+      if (hazard.kind === "decoy" && typeof Network !== "undefined" && hazard.owner === Network.id) {
+        ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
+        ctx.strokeRect(hazard.x + 1, hazard.y + 1, hazard.w - 2, hazard.h - 2); ctx.restore();
+      }
       ctx.fillStyle = t.spike;
       const spikeWidth = 12;
       for (let x = hazard.x; x < hazard.x + hazard.w; x += spikeWidth) {
@@ -252,6 +262,12 @@ const Level = {
     if (item === "crumble") { this.drawCrumbler(ctx, { ...box, kind: "crumble" }, t); return; }
     if (item === "glue") { this.drawGlue(ctx, box); return; }
     if (item === "bumper") { this.drawBumper(ctx, box); return; }
+    if (item === "spring") { this.drawSpring(ctx, box); return; }
+    if (item === "ice") { this.drawIce(ctx, box); return; }
+    if (item === "decoy") {
+      // spikes with a question mark: they only LOOK deadly
+      ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.strokeRect(1, 1, TILE - 2, TILE - 2); ctx.restore();
+    }
     // spikes
     ctx.fillStyle = t.spike;
     for (let x = 0; x < TILE; x += 12) {
@@ -293,6 +309,34 @@ const Level = {
     ctx.fillStyle = "rgba(60, 160, 20, 0.9)";
     ctx.fillRect(g.x + 8, g.y + 18, 3, 8);
     ctx.fillRect(g.x + 19, g.y + 20, 3, 6);
+  },
+
+  // A yellow launch pad: a coil with a plate on top.
+  drawSpring(ctx, s) {
+    ctx.strokeStyle = "#ffd23c";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const y = s.y + s.h - 4 - i * 5;
+      ctx.moveTo(s.x + 7, y); ctx.lineTo(s.x + s.w - 7, y - 2.5);
+    }
+    ctx.stroke();
+    ctx.fillStyle = "#ffe680";
+    ctx.fillRect(s.x + 3, s.y + 6, s.w - 6, 5);
+    ctx.fillStyle = "#ffd23c";
+    ctx.fillRect(s.x + 3, s.y + s.h - 4, s.w - 6, 4);
+  },
+
+  // A pale blue ice patch with a glint.
+  drawIce(ctx, i) {
+    ctx.fillStyle = "rgba(190, 235, 255, 0.85)";
+    ctx.fillRect(i.x, i.y + i.h - 10, i.w, 10);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillRect(i.x + 4, i.y + i.h - 8, 8, 2);
+    ctx.fillRect(i.x + 16, i.y + i.h - 6, 5, 2);
+    ctx.strokeStyle = "rgba(120, 200, 255, 0.9)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(i.x + 0.5, i.y + i.h - 9.5, i.w - 1, 9);
   },
 
   // A round pink bumper with arrows pointing the way it will throw you.

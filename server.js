@@ -30,7 +30,7 @@ const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no deci
 const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
-const TRAP_KINDS = ["spike", "crumble", "glue", "bumper"];   // what a player may place (see js/level.js for what each does)
+const TRAP_KINDS = ["spike", "crumble", "glue", "bumper", "spring", "ice", "decoy"];   // what a player may place (see js/level.js for what each does)
 const ERASERS_PER_COURSE = 1;  // erasers each player gets on every new course, to remove someone else's trap
 const WEAPONS = ["boots", "dash", "shield", "freeze", "bomb", "feather"];   // Final Battle weapons (what they do: js/player.js)
 const WEAPON_OFFER = 3;        // how many each fighter gets to choose from

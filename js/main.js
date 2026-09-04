@@ -90,7 +90,7 @@ const PALETTE = [
 const FONT = "'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const DISPLAY_FONT = "'Baloo 2', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", eraser: "Eraser" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser" };
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
 const GAIN_TEXT = {

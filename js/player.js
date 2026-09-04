@@ -16,6 +16,8 @@ const Player = {
   KNOCK_SPEED: 650,    // pixels per second a bumper throws you
   KNOCK_TIME: 0.3,     // seconds a bumper overrides your controls
   CRUMBLE_DELAY: 0.35, // seconds a crumbler holds after you land on it
+  SPRING_SPEED: 1050,  // how hard a Spring launches you (a normal jump is 720)
+  ICE_GRIP: 4,         // how quickly your speed catches up with your input on Ice (lower = slipperier)
   WALL_SLIDE_SPEED: 110, // top falling speed while pressed against a wall
   WALL_JUMP_VX: 340,   // sideways speed a wall jump throws you away from the wall
   WALL_JUMP_LOCK: 0.18, // seconds a wall jump overrides your left/right
@@ -40,6 +42,7 @@ const Player = {
   _wallLock: 0,        // seconds a wall jump still steers us
   _wallLockVx: 0,
   sliding: false,      // pressed against a wall and easing down it
+  _iceVx: 0,           // your actual sideways speed on ice, which lags behind what you press
   _knock: 0,           // seconds left of bumper knockback
   _knockVx: 0,         // and which way it throws us
 
@@ -115,6 +118,11 @@ const Player = {
     // Glue: wading through it is slow, and you cannot jump out of it.
     const inGlue = Level.hazards.some((h) => h.kind === "glue" && Physics.overlaps(this, h));
     if (inGlue) this.vx *= this.GLUE_FACTOR;
+
+    // Ice: your speed only drifts toward what you press, so you slide on after letting go.
+    const onIce = this.onGround && Level.hazards.some((h) => h.kind === "ice" && Physics.overlaps(this, h));
+    if (onIce) { this._iceVx += (this.vx - this._iceVx) * Math.min(1, dt * this.ICE_GRIP); this.vx = this._iceVx; }
+    else this._iceVx = this.vx;
 
     // A bumper's throw, or a wall jump, overrides your controls for a moment.
     if (this._knock > 0) { this._knock -= dt; this.vx = this._knockVx; }
@@ -222,6 +230,19 @@ const Player = {
         this._knockVx = dx * this.KNOCK_SPEED;
         this.vy = dy * this.KNOCK_SPEED - 120;   // a touch of lift so ground bumpers still pop you up a bit
         this._shortHop = false;                  // a throw is not a jump: letting go must not cut it short
+        Sfx.bump();
+      }
+    }
+
+    // Springs: step or land on one and it launches you skyward. It only fires while you are
+    // moving down or standing, so the launch itself does not re-trigger it.
+    if (this.vy >= 0) {
+      const spring = Level.hazards.find((h) => h.kind === "spring" && Physics.overlaps(this, h));
+      if (spring) {
+        this.vy = -this.SPRING_SPEED;
+        this.onGround = false;
+        this._shortHop = false;
+        Dust.spawn(spring.x + spring.w / 2, spring.y + spring.h, 10, spring.w);
         Sfx.bump();
       }
     }
