@@ -86,6 +86,7 @@ const SETTING_FIELDS = {
   winPoints:   { input: "set-win",   min: 1, max: 20, label: "Win points" },
   killPoints:  { input: "set-kill",  min: 0, max: 10, label: "Trap kill points" },
   firstPoints: { input: "set-first", min: 0, max: 10, label: "Trailblazer points" },
+  isPublic:    { checkbox: "set-public", label: "Listed in the room list" },
 };
 for (const field of Object.values(SETTING_FIELDS)) {
   if (!field.select) continue;
@@ -98,6 +99,7 @@ for (const field of Object.values(SETTING_FIELDS)) {
 function fillSettingsForm(settings) {
   if (!settings) return;
   for (const [key, field] of Object.entries(SETTING_FIELDS)) {
+    if (field.checkbox) { document.getElementById(field.checkbox).checked = Boolean(settings[key]); continue; }
     const value = settings[key] === null ? "null" : String(settings[key]);
     if (field.input) { document.getElementById(field.input).value = value; continue; }
     const select = document.getElementById(field.select);
@@ -113,6 +115,7 @@ function fillSettingsForm(settings) {
 function readSettings() {
   const settings = {};
   for (const [key, field] of Object.entries(SETTING_FIELDS)) {
+    if (field.checkbox) { settings[key] = document.getElementById(field.checkbox).checked; continue; }
     let text;
     if (field.input) text = document.getElementById(field.input).value;
     else {
@@ -290,7 +293,7 @@ const Game = {
     if (this.phase !== "lobby") return;
     const s = this.settings || {};
     lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
-    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}`;
+    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}  •  ${s.isPublic === false ? "Private room" : "Listed room"}`;
     lobbyPlayers.replaceChildren(...this.players.map((player) => {
       const item = document.createElement("li");
       const dot = document.createElement("span");
@@ -389,6 +392,77 @@ const Game = {
   renderEraserCount() {
     const me = this.players.find((player) => player.id === Network.id);
     document.getElementById("eraser-count").textContent = me && me.erasers !== undefined ? `(${me.erasers})` : "";
+  },
+
+  // --- player ID, invites, room list ---
+  showInvite() {
+    document.getElementById("invite-status").textContent = this.inRoom ? "" : "Create or join a room first, then invite.";
+    document.getElementById("invite-id").value = "";
+    document.getElementById("invite-panel").classList.remove("hidden");
+    document.getElementById("invite-id").focus();
+  },
+  hideInvite() { document.getElementById("invite-panel").classList.add("hidden"); },
+  sendInvite() {
+    const id = document.getElementById("invite-id").value.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(id)) { document.getElementById("invite-status").textContent = "An ID is 6 letters or digits."; return; }
+    Network.send({ type: "invite", toUserId: id });
+  },
+  showInviteToast(message) {
+    this._invite = message;
+    document.getElementById("invite-text").textContent = `${message.from} invited you to room ${message.code}`;
+    document.getElementById("invite-toast").classList.remove("hidden");
+    Sfx.pickup();
+    clearTimeout(this._inviteTimer);
+    this._inviteTimer = setTimeout(() => this.hideInviteToast(), 25000);
+  },
+  hideInviteToast() { document.getElementById("invite-toast").classList.add("hidden"); },
+  acceptInvite() {
+    if (!this._invite) return;
+    const code = this._invite.code;
+    this.hideInviteToast();
+    if (this.inRoom) { Network.leave(); this.leaveOnline(); }
+    const name = playerNameInput.value.trim() || "Runner";
+    this.startOnline();
+    Network.connect(name, code);
+  },
+
+  // Room list: opened by Join Room, refreshed every few seconds while open.
+  showRoomList() {
+    document.getElementById("join-code").value = roomCodeInput.value.trim().toUpperCase();
+    document.getElementById("room-list").classList.remove("hidden");
+    this.refreshRooms();
+    clearInterval(this._roomsTimer);
+    this._roomsTimer = setInterval(() => this.refreshRooms(), 3000);
+  },
+  hideRoomList() {
+    document.getElementById("room-list").classList.add("hidden");
+    clearInterval(this._roomsTimer);
+  },
+  refreshRooms() { Network.ensure().then(() => Network.send({ type: "list_rooms" })).catch(() => {}); },
+  renderRooms(rooms) {
+    const list = document.getElementById("rooms");
+    const phaseLabel = { lobby: "In the lobby", vote: "Voting on a course", build: "Building", run: "Running", results: "Between rounds", winner: "Match over" };
+    list.replaceChildren(...rooms.map((room) => {
+      const row = document.createElement("div");
+      row.className = "room-row";
+      const info = document.createElement("div");
+      const name = document.createElement("div"); name.className = "room-name"; name.textContent = `${room.host}'s room  •  ${room.code}`;
+      const meta = document.createElement("div"); meta.className = "room-meta"; meta.textContent = `${room.players}/${room.max} players  •  ${phaseLabel[room.phase] || room.phase}  •  ${room.level}`;
+      info.append(name, meta);
+      const join = document.createElement("button"); join.type = "button"; join.textContent = "Join";
+      join.addEventListener("click", () => this.joinCode(room.code));
+      row.append(info, join);
+      return row;
+    }));
+    document.getElementById("room-list-note").textContent = rooms.length ? "" : "No open rooms right now. Create one, or type a friend's code above.";
+  },
+  joinCode(code) {
+    code = String(code || "").trim().toUpperCase();
+    if (!code) { document.getElementById("room-list-note").textContent = "Type a room code first."; return; }
+    this.hideRoomList();
+    const name = playerNameInput.value.trim() || "Runner";
+    this.startOnline();
+    Network.connect(name, code);
   },
 
   // --- settings and chat ---
@@ -591,11 +665,17 @@ const Game = {
     if (message.type === "error") {
       onlineStatus.textContent = message.message;
       this.say(message.message, 3);
+      if (!document.getElementById("invite-panel").classList.contains("hidden")) document.getElementById("invite-status").textContent = message.message;
       // A fatal error means we are not in any room: go back to the start page, keeping the reason on screen.
       if (message.fatal && this.mode === "online") this.leaveOnline(message.message);
       return;
     }
     if (message.type === "joined") return;
+    if (message.type === "hello_ok") { document.getElementById("user-id").textContent = message.userId; return; }
+    if (message.type === "offline") { if (this.mode === "solo") onlineStatus.textContent = "Not connected to the server. Retrying…"; return; }
+    if (message.type === "rooms") { this.renderRooms(message.rooms); return; }
+    if (message.type === "invited") { this.showInviteToast(message); return; }
+    if (message.type === "notice") { this.say(message.message, 3); document.getElementById("invite-status").textContent = message.message; return; }
     if (message.type === "room_state") {
       this.applyRoomState(message);
       // A room update arrives whenever anyone joins or leaves, even mid-run.
@@ -1229,13 +1309,19 @@ createRoomButton.addEventListener("click", () => {
   Network.connect(name);   // the room starts with default settings; the host adjusts them in the lobby
 });
 document.getElementById("menu-help").addEventListener("click", () => Game.showHelp());
-joinRoomButton.addEventListener("click", () => {
-  const name = playerNameInput.value.trim() || "Runner";
-  const code = roomCodeInput.value.trim();
-  if (!code) { onlineStatus.textContent = "Enter a room code first."; return; }
-  Game.startOnline();
-  Network.connect(name, code);
-});
+// Join Room opens the room list; a code typed on the menu is carried into it.
+joinRoomButton.addEventListener("click", () => Game.showRoomList());
+document.getElementById("join-code-button").addEventListener("click", () => Game.joinCode(document.getElementById("join-code").value));
+document.getElementById("join-code").addEventListener("keydown", (event) => { if (event.key === "Enter") Game.joinCode(document.getElementById("join-code").value); event.stopPropagation(); });
+document.getElementById("room-list-close").addEventListener("click", () => Game.hideRoomList());
+document.getElementById("invite-button").addEventListener("click", () => Game.showInvite());
+document.getElementById("invite-send").addEventListener("click", () => Game.sendInvite());
+document.getElementById("invite-id").addEventListener("keydown", (event) => { if (event.key === "Enter") Game.sendInvite(); event.stopPropagation(); });
+document.getElementById("invite-cancel").addEventListener("click", () => Game.hideInvite());
+document.getElementById("invite-join").addEventListener("click", () => Game.acceptInvite());
+document.getElementById("invite-dismiss").addEventListener("click", () => Game.hideInviteToast());
+document.getElementById("user-id").textContent = Network.loadUserId();
+Network.ensure().catch(() => {});   // connect right away so invites can find you on the menu
 startRunButton.addEventListener("click", () => {
   if (Game.phase === "build") Game.startPartyRun();
 });
@@ -1264,7 +1350,7 @@ chatInput.addEventListener("keydown", (event) => {
 });
 document.querySelectorAll(".trap-kind").forEach((button) => button.addEventListener("click", () => Game.setTrapKind(button.dataset.kind)));
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); }
+  if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); Game.hideInvite(); Game.hideRoomList(); }
   // 1 = the trap you were dealt, 5 = eraser
   if ((event.key === "1" || event.key === "5") && Game.phase === "build" && !event.target.matches("input, textarea, select")) Game.setTrapKind(event.key === "5" ? "eraser" : Game.dealtKind);
   // "/" or "T" opens the chat when you are in a room and not already typing somewhere.

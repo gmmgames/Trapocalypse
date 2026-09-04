@@ -9,6 +9,7 @@ const ChatFilter = require("./js/chatfilter.js");   // the same word list the ch
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8080;
 const rooms = new Map();
+const users = new Map();       // permanent player ID -> socket, for everyone connected (in a room or on the menu)
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -41,7 +42,8 @@ const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 // timeLimit is seconds per run, or null for Infinite.
 // The host can also set how much each kind of point is worth (defaults from the constants above).
 const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 99], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10] };
-const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS };
+const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, isPublic: true };
+const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points" };
 
 function roomCode() {
@@ -55,6 +57,8 @@ function roomCode() {
 // Anything outside the limits is refused with a message, never silently changed.
 function validateSettings(raw) {
   const settings = {};
+  // isPublic is a simple yes/no: listed in the room list, or private (join by code only).
+  settings.isPublic = raw && raw.isPublic !== undefined ? Boolean(raw.isPublic) : SETTING_DEFAULTS.isPublic;
   for (const key of Object.keys(SETTING_LIMITS)) {
     const [min, max] = SETTING_LIMITS[key];
     const value = raw ? raw[key] : undefined;
@@ -106,6 +110,24 @@ function snapshot(room) {
     traps: room.traps,
     players: playerList(room),
   };
+}
+
+// The public rooms a player can browse and join: listed, not full, and not mid-match-over.
+function publicRoomList() {
+  return [...rooms.values()]
+    .filter((room) => room.settings.isPublic && room.players.size < MAX_PLAYERS && room.players.size > 0)
+    .map((room) => {
+      const host = room.players.get(room.hostId);
+      return { code: room.code, host: host ? host.name : "?", players: room.players.size, max: MAX_PLAYERS, phase: room.phase, level: LEVELS[room.levelIndex].name };
+    });
+}
+
+function makeUserId() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let id;
+  do id = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+  while (users.has(id));
+  return id;
 }
 
 // A trap may not sit on the flag or on any player. During build everyone
@@ -433,6 +455,30 @@ webSocketServer.on("connection", (socket) => {
     let message;
     try { message = JSON.parse(raw); } catch { return; }
 
+    // First message after connecting: claim your permanent player ID (or get a fresh one
+    // if it is malformed or someone else is already using it right now).
+    if (message.type === "hello") {
+      let userId = String(message.userId || "").toUpperCase();
+      if (!USER_ID_PATTERN.test(userId) || (users.has(userId) && users.get(userId) !== socket)) userId = makeUserId();
+      if (socket.userId && users.get(socket.userId) === socket) users.delete(socket.userId);
+      socket.userId = userId;
+      users.set(userId, socket);
+      send(socket, { type: "hello_ok", userId });
+      return;
+    }
+    // The room list for the Join screen.
+    if (message.type === "list_rooms") { send(socket, { type: "rooms", rooms: publicRoomList() }); return; }
+    // Invite another player by their permanent ID. They get a toast with a Join button.
+    if (message.type === "invite") {
+      const target = users.get(String(message.toUserId || "").toUpperCase());
+      if (!socket.room || !socket.player) { send(socket, { type: "error", message: "Create or join a room first, then invite." }); return; }
+      if (!target) { send(socket, { type: "error", message: "No player with that ID is online." }); return; }
+      if (target === socket) { send(socket, { type: "error", message: "That's your own ID." }); return; }
+      send(target, { type: "invited", from: socket.player.name, fromUserId: socket.userId, code: socket.room.code });
+      send(socket, { type: "notice", message: `Invite sent to ${message.toUserId.toUpperCase()}.` });
+      return;
+    }
+
     if (message.type === "create_room" || message.type === "join_room") {
       if (socket.room) { send(socket, { type: "error", message: "You're already in a room." }); return; }
       const wantedName = String(message.name || "Runner").slice(0, 18).trim() || "Runner";
@@ -620,7 +666,10 @@ webSocketServer.on("connection", (socket) => {
       checkRoundOver(room);
     }
   });
-  socket.on("close", () => removePlayer(socket));
+  socket.on("close", () => {
+    removePlayer(socket);
+    if (socket.userId && users.get(socket.userId) === socket) users.delete(socket.userId);
+  });
 });
 
 server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));

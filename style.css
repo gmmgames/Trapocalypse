@@ -775,6 +775,145 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 #chat-input:focus { border-color: #ffd23c; outline: none; }
 
+/* ---------------- Player ID, invites, room list ---------------- */
+
+#user-badge {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 210, 60, 0.6);
+  border-radius: 4px;
+  background: rgba(22, 22, 37, 0.9);
+  color: #c0c0d8;
+  font-size: 12px;
+}
+
+#user-id { color: #ffd23c; letter-spacing: 1px; font-size: 14px; }
+
+#invite-button {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffd23c;
+  color: #0b0b14;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Chat sits above the badge */
+#chat { bottom: 56px; }
+
+#invite-panel, #room-list {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#invite-box, #room-list-box {
+  display: grid;
+  gap: 10px;
+  width: min(92vw, 420px);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 18px 22px;
+  border: 1px solid rgba(255, 210, 60, 0.7);
+  border-radius: 8px;
+  background: rgba(11, 11, 20, 0.97);
+  color: #e8e8ff;
+  font-size: 14px;
+  text-align: center;
+}
+
+#invite-box > strong, #room-list-box > strong {
+  font-family: "Baloo 2", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  color: #ffd23c;
+}
+
+#invite-box input, #room-list-box input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #45455d;
+  border-radius: 4px;
+  background: #0b0b14;
+  color: #e8e8ff;
+  font: inherit;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+
+#invite-box button, #room-list-box button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffd23c;
+  color: #0b0b14;
+  font: inherit;
+  font-weight: 700;
+}
+
+#invite-cancel, #room-list-close { background: transparent; border: 1px solid #ffd23c; color: #ffd23c; }
+#invite-status, #room-list-note { color: #c0c0d8; font-size: 12px; min-height: 1em; }
+
+#rooms { display: grid; gap: 6px; }
+
+.room-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #45455d;
+  border-radius: 4px;
+  background: #0b0b14;
+  text-align: left;
+}
+
+.room-row .room-name { font-weight: 700; color: #ffd23c; }
+.room-row .room-meta { font-size: 12px; color: #c0c0d8; }
+.room-row button { padding: 6px 12px; }
+
+#invite-toast {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #ffd23c;
+  border-radius: 6px;
+  background: rgba(22, 22, 37, 0.97);
+  color: #e8e8ff;
+  font-size: 14px;
+  box-shadow: 0 0 24px rgba(255, 210, 60, 0.35);
+  animation: rise-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+#invite-toast button { padding: 6px 12px; border: 0; border-radius: 4px; background: #ffd23c; color: #0b0b14; font: inherit; font-weight: 800; }
+#invite-dismiss { background: transparent !important; color: #c0c0d8 !important; }
+
+/* On phones the touch buttons own the bottom corners, so the badge moves to the bottom middle */
+@media (pointer: coarse) {
+  #user-badge { left: 50%; transform: translateX(-50%); bottom: 12px; }
+}
 /* ---------------- How to Play ---------------- */
 
 #help-button {
