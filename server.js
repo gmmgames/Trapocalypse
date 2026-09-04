@@ -510,6 +510,14 @@ function removePlayer(socket) {
   }
   // If the host left, the player who has been here longest takes over.
   if (player.id === room.hostId) room.hostId = room.players.keys().next().value;
+  // A match needs at least two players. If everyone else has gone, end it there and put the last
+  // player back in the lobby with their scores kept, rather than leaving them running alone.
+  // (A solo Test Match is meant to be one player, so it carries on.)
+  if (room.players.size === 1 && room.phase !== "lobby" && !room.testMatch) {
+    broadcast(room, { type: "notice", message: "Everyone else left, so the match is over. Back to the lobby." });
+    toLobby(room, { resetScores: false });
+    return;
+  }
   broadcast(room, snapshot(room));
   // A Final Battle needs at least two fighters. If one walks out mid-run, the other wins.
   if (room.finalBattle && room.finalBattle.ids.includes(player.id)) {
