@@ -110,7 +110,7 @@ const gainText = (label) => GAIN_TEXT[label] || GAIN_TEXT[label.replace(/ ×\d+$
 // The point values are plain number boxes ("input") with no presets.
 const SETTING_FIELDS = {
   timeLimit:   { select: "set-time",   custom: "set-time-custom",   min: 30, max: 600, label: "Time limit" },
-  pointsToWin: { select: "set-points", custom: "set-points-custom", min: 15, max: 99,  label: "Points to win" },
+  pointsToWin: { select: "set-points", custom: "set-points-custom", min: 15, max: 600, label: "Points to win" },
   roundCap:    { select: "set-rounds", custom: "set-rounds-custom", min: 3,  max: 60,  label: "Round cap" },
   winPoints:   { input: "set-win",   min: 1, max: 20, label: "Win points" },
   killPoints:  { input: "set-kill",  min: 0, max: 10, label: "Trap kill points" },
@@ -437,7 +437,13 @@ const Game = {
     if (this.myColor === null) { this.say("Pick a color first.", 1.5); return; }
     if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
     if (!this.pick) { this.say("Pick an item from the cards first.", 1.5); return; }
+    if (!this.everyonePicked()) { this.say("Waiting for everyone to pick an item.", 1.5); return; }
     this.pending = this.tileAt(clientX, clientY);
+  },
+
+  // Placing only opens once every player in the round has chosen an item.
+  everyonePicked() {
+    return this.players.filter((player) => player.status !== "out").every((player) => this.picks[player.id]);
   },
 
   confirmPlacement() {
@@ -998,6 +1004,7 @@ const Game = {
       this._finalBattleNext = message.finalBattle || null;
       this._winnerPending = message.winnerPending || null;
       this._gains = message.gains || {};
+      this._revealIn = message.revealIn || 0;   // the countdown only shows once the points have all landed
       this._resultsElapsed = 0;
       // Weapons are for the Final Battle only; hand back whatever you held and show any new offer.
       Player.setWeapon(null);
@@ -1219,7 +1226,8 @@ const Game = {
       const label = this._finalBattleNext ? "Final Battle in" : this._winnerPending ? "Final results in" : "Next round in";
       ctx.font = `16px ${FONT}`;
       ctx.fillStyle = "#c0c0d8";
-      ctx.fillText(`${label} ${Math.max(0, Math.ceil(this._nextRoundIn))}`, LEVEL_W / 2, 96);
+      const stillCounting = this._resultsElapsed < (this._revealIn || 0);
+      ctx.fillText(stillCounting ? "Adding up the points…" : `${label} ${Math.max(0, Math.ceil(this._nextRoundIn))}`, LEVEL_W / 2, 96);
       // As each of YOUR points lands, its name and a little line about it.
       const me = this.players.find((player) => player.id === Network.id);
       const mine = me ? this.animatedScore(me).labels : [];
@@ -1426,6 +1434,9 @@ const Game = {
         buildInstructions.textContent = `Item used. Waiting for ${waiting} more...`;
       } else if (!this.pick) {
         buildInstructions.textContent = `Pick one of this round's items.`;
+      } else if (!this.everyonePicked()) {
+        const left = this.players.filter((player) => player.status !== "out" && !this.picks[player.id]).length;
+        buildInstructions.textContent = `Waiting for ${left} more to pick an item…`;
       } else if (this.pick === "eraser") {
         buildInstructions.textContent = `Tap someone else's trap, then confirm to erase it.`;
       } else {

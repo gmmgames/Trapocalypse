@@ -214,6 +214,27 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 /* The HUD message line nudges in when it changes */
 #hud { transition: opacity 0.2s ease; }
 
+/* The run clock turns bright red and pulses for the last 15 seconds */
+#hud-clock.urgent {
+  color: #ff2222;
+  text-shadow: 0 0 12px rgba(255, 40, 40, 0.9);
+  animation: pulse 0.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Name row on the menu: a long name box and a small dice button */
+#online-panel .row > #player-name { flex: 1 1 auto; }
+#roll-name {
+  flex: 0 0 38px !important;
+  width: 38px;
+  padding: 0 !important;
+  font-size: 18px !important;
+  line-height: 1;
+}
+
 /* Host match settings: three dropdowns, each with an optional custom number box */
 #match-settings {
   display: grid;

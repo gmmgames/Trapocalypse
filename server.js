@@ -20,7 +20,7 @@ const MIME = {
 // --- round rules (the knobs) ---
 const TRAPS_PER_ROUND = 1;     // traps each player places before a run
 const ROUNDS_PER_LEVEL = 3;    // rounds on one course before rotating to the next
-const NEXT_ROUND_DELAY = 10;   // seconds the scoreboard shows before the next build phase
+const RESULTS_WAIT = 5;        // seconds the scoreboard stays AFTER all points have landed (10 when a course vote is up)
 const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
 const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
@@ -42,9 +42,10 @@ const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 // --- match settings the host picks when creating a room ---
 // timeLimit is seconds per run, or null for Infinite.
 // The host can also set how much each kind of point is worth (defaults from the constants above).
-const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 99], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10] };
+const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10] };
 const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
+const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
 const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points" };
 
 function roomCode() {
@@ -154,6 +155,17 @@ function startRun(room) {
   const timeLimit = room.settings.timeLimit;
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
   broadcast(room, { type: "phase", phase: "run", timeLimit, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [], weapons: room.finalBattle ? room.finalBattle.weapons || {} : {} });
+}
+
+// How long the results screen stays. The bars grow one point source at a time (the client
+// starts the first at 0.7 s and adds 1 s per stage), so the countdown only begins after
+// the last point has landed, then waits RESULTS_WAIT seconds (or the vote time if a
+// course vote is up).
+function resultsDelay(room, gains) {
+  const maxStages = Math.max(0, ...Object.values(gains).map((list) => list.length));
+  const reveal = maxStages ? 0.7 + maxStages * 1.0 : 0.5;
+  const wait = room.voteOpen ? VOTE_SECONDS : RESULTS_WAIT;
+  return { reveal, total: reveal + wait };
 }
 
 // Ids of the players with the top score (ignoring anyone sitting out, unless that is everyone).
@@ -314,6 +326,7 @@ function checkRoundOver(room) {
   // If the next round starts a new course, everyone votes on which one during the results.
   room.votes = {};
   room.voteOpen = decision.kind === "next" && room.round % ROUNDS_PER_LEVEL === 0;
+  const timing = resultsDelay(room, gains);
 
   broadcast(room, {
     type: "round_over",
@@ -324,14 +337,15 @@ function checkRoundOver(room) {
     firstBonus: room.settings.firstPoints,
     killBonus,
     gains,
-    nextIn: NEXT_ROUND_DELAY,
+    nextIn: timing.total,
+    revealIn: timing.reveal,
     players: playerList(room),
     finalBattle: decision.kind === "final" ? { ids: decision.ids, again: wasFinalBattle && finishers.length === 0 } : null,
     winnerPending: decision.kind === "winner" ? decision.ids : null,
     voteOpen: room.voteOpen,
     weaponOffers,
   });
-  const delay = NEXT_ROUND_DELAY * 1000;
+  const delay = timing.total * 1000;
   if (decision.kind === "next") room.timer = setTimeout(() => startNextRound(room), delay);
   else if (decision.kind === "final") room.timer = setTimeout(() => startFinalBattle(room), delay);
   else room.timer = setTimeout(() => declareWinner(room, decision.ids), delay);
@@ -387,8 +401,9 @@ function removePlayer(socket) {
       room.phase = "results";
       const ids = room.finalBattle.ids.length ? room.finalBattle.ids : maxScoreIds(room);
       room.finalBattle = null;
-      broadcast(room, { type: "round_over", round: room.round, finishers: [], everyoneFinished: false, firstFinisher: null, firstBonus: room.settings.firstPoints, killBonus: {}, nextIn: NEXT_ROUND_DELAY, players: playerList(room), finalBattle: null, winnerPending: ids, voteOpen: false });
-      room.timer = setTimeout(() => declareWinner(room, ids), NEXT_ROUND_DELAY * 1000);
+      const timing = resultsDelay(room, {});
+      broadcast(room, { type: "round_over", round: room.round, finishers: [], everyoneFinished: false, firstFinisher: null, firstBonus: room.settings.firstPoints, killBonus: {}, nextIn: timing.total, revealIn: timing.reveal, players: playerList(room), finalBattle: null, winnerPending: ids, voteOpen: false });
+      room.timer = setTimeout(() => declareWinner(room, ids), timing.total * 1000);
     }
   }
   // If the last runner left mid-run, do not leave the others waiting.
@@ -500,6 +515,14 @@ webSocketServer.on("connection", (socket) => {
       if (!socket.room || !socket.player) { send(socket, { type: "error", message: "Create or join a room first, then invite." }); return; }
       if (!target) { send(socket, { type: "error", message: "No player with that ID is online." }); return; }
       if (target === socket) { send(socket, { type: "error", message: "That's your own ID." }); return; }
+      if (target.room === socket.room) { send(socket, { type: "error", message: "Player is already in the server." }); return; }
+      // One invite every INVITE_COOLDOWN_MS per player, so nobody gets spammed.
+      const now = Date.now();
+      if (now - (socket.lastInviteAt || 0) < INVITE_COOLDOWN_MS) {
+        send(socket, { type: "error", message: `Slow down: one invite every ${INVITE_COOLDOWN_MS / 1000} seconds.` });
+        return;
+      }
+      socket.lastInviteAt = now;
       send(target, { type: "invited", from: socket.player.name, fromUserId: socket.userId, code: socket.room.code });
       send(socket, { type: "notice", message: `Invite sent to ${message.toUserId.toUpperCase()}.` });
       return;
@@ -664,6 +687,12 @@ webSocketServer.on("connection", (socket) => {
       if (problem) { send(socket, { type: "trap_rejected", message: problem }); return; }
       player.pick = message.item;
       broadcast(room, { type: "picks", picks: itemPicks(room) });
+      return;
+    }
+    // Nobody places anything until every player in the round has picked an item.
+    const everyonePicked = () => [...room.players.values()].filter((item) => item.status !== "out").every((item) => item.pick);
+    if ((message.type === "place_trap" || message.type === "erase_trap") && room.phase === "build" && !everyonePicked()) {
+      send(socket, { type: "trap_rejected", message: "Waiting for everyone to pick an item." });
       return;
     }
     if (message.type === "place_trap" && room.phase === "build" && player.color !== null && player.trapCount < TRAPS_PER_ROUND && (!player.pick || player.pick === "eraser")) {
