@@ -790,7 +790,8 @@ const Game = {
     if (this.pick === "eraser") return Level.hazards.some((hazard) => hazard.x === x && hazard.y === y) ? null : "Put the eraser on a trap.";
     const onSomeone = Physics.overlaps(trap, Player) ||
       Object.values(this.remotePlayers).some((remote) => Physics.overlaps(trap, { x: remote.x, y: remote.y, w: Player.w, h: Player.h }));
-    if (x < 2 * TILE || x + trap.w > Level.w - TILE || y < 0 || y + trap.h > Level.h) return "That's off the course.";
+    // Right up to the edges is fine (the start spots and the flag have their own no-go zones); past them is not.
+    if (x < 0 || x + trap.w > Level.w || y < 0 || y + trap.h > Level.h) return "That's off the course.";
     if (Level.hazards.some((hazard) => Physics.overlaps(trap, hazard))) return "There's already a trap there.";
     const flagZone = { x: Level.flag.x - 2 * TILE, y: Level.flag.y - 2 * TILE, w: Level.flag.w + 4 * TILE, h: Level.flag.h + 3 * TILE };
     if (Physics.overlaps(trap, flagZone)) return "Too close to the flag.";

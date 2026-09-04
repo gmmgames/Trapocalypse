@@ -992,7 +992,7 @@ webSocketServer.on("connection", (socket) => {
       const long = kind === "plank" || kind === "longspike", big = kind === "bigblock";
       const trap = { x, y, w: big ? TILE * 2 : long && rot % 2 === 0 ? TILE * PLANK_TILES : TILE, h: big ? TILE * 2 : long && rot % 2 === 1 ? TILE * PLANK_TILES : TILE, owner: player.id, kind, rot };
       const { W, H } = courseSize(room);
-      const inBounds = x >= 2 * TILE && x + trap.w <= W - TILE && y >= 0 && y + trap.h <= H;
+      const inBounds = x >= 0 && x + trap.w <= W && y >= 0 && y + trap.h <= H;   // the edges are fine; past them is not
       if (inBounds && !trapBlocked(room, trap)) {
         room.traps.push(trap); player.trapCount += 1;
         broadcast(room, { type: "trap_placed", trap, playerId: player.id, traps: room.traps });
