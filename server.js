@@ -4,6 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { WebSocketServer } = require("ws");
 const { LEVELS, TILE, LEVEL_W, LEVEL_H } = require("./js/level.js");
+const ChatFilter = require("./js/chatfilter.js");   // the same word list the chat filter uses, for names
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8080;
@@ -434,6 +435,8 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "create_room" || message.type === "join_room") {
       if (socket.room) { send(socket, { type: "error", message: "You're already in a room." }); return; }
+      const wantedName = String(message.name || "Runner").slice(0, 18).trim() || "Runner";
+      if (!ChatFilter.isClean(wantedName)) { send(socket, { type: "error", message: "That name isn't allowed here. Pick another.", fatal: true }); return; }
       const code = message.type === "create_room" ? roomCode() : String(message.code || "").toUpperCase();
       let room = rooms.get(code);
       // "fatal" tells the browser it is not in any room and should go back to the start page.
@@ -446,7 +449,7 @@ webSocketServer.on("connection", (socket) => {
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
       // In the lobby (or the course vote) you wait for the host. Joining mid-run means sitting this round out.
       const status = room.phase === "lobby" || room.phase === "vote" ? "waiting" : room.phase === "build" ? "building" : "out";
-      const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };
+      const player = { id: crypto.randomUUID(), name: wantedName, socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };
       room.players.set(player.id, player);
       if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
       rooms.set(code, room);

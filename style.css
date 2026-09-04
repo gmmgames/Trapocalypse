@@ -70,13 +70,12 @@ body {
 /* The main menu sits in the middle of the screen with the logo above it */
 #online-panel {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 14vh 0 0 0;             /* centered with inset + auto margins (no transform), so nothing can knock it sideways; the top gap leaves room for the logo */
+  margin: auto;
+  height: fit-content;
   display: grid;
   gap: 10px;
   width: min(92vw, 380px);
-  margin-top: 8vh;               /* leaves room for the logo floating above */
   overflow: visible;             /* the logo hangs outside the box */
   padding: 18px;
   border: 1px solid #ffd23c;
@@ -149,10 +148,10 @@ body {
 
 /* Main menu title */
 #menu-title {
-  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
-  font-weight: 400;
-  font-size: 46px;
-  letter-spacing: 3px;
+  font-family: "Baloo 2", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 40px;
+  letter-spacing: 1px;
   text-align: center;
   color: #ff3c78;
   text-shadow: 0 0 12px rgba(255, 60, 120, 0.7);
@@ -191,7 +190,12 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-#online-panel, #lobby, #build-hud:not(.hidden), #color-picker:not(#lobby #color-picker) { animation: pop-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes pop-in-plain {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+#online-panel { animation: pop-in-plain 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+#lobby, #build-hud:not(.hidden), #color-picker:not(#lobby #color-picker) { animation: pop-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 #map-vote.floating, #weapon-pick, #winner-hud { animation: rise-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 #help-box, #settings-box, .chat-line, #lobby-players li { animation: fade-in 0.22s ease-out both; }
 
@@ -410,10 +414,10 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 /* Big shouty titles use the display font */
 #lobby-title, #online-panel > strong, #build-title, #color-picker > strong {
-  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
-  font-weight: 400;
-  font-size: 22px;
-  letter-spacing: 1px;
+  font-family: "Baloo 2", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.5px;
 }
 
 /* ---------------- Lobby ---------------- */
@@ -569,8 +573,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 }
 
 #weapon-pick > strong {
-  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
-  font-weight: 400;
+  font-family: "Baloo 2", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
   font-size: 24px;
   letter-spacing: 1px;
   color: #ff3c78;
@@ -681,8 +685,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 }
 
 #settings-box > strong {
-  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
-  font-weight: 400;
+  font-family: "Baloo 2", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
   font-size: 26px;
   letter-spacing: 1px;
   color: #ffd23c;
@@ -813,8 +817,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 #help-box > strong {
   display: block;
-  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
-  font-weight: 400;
+  font-family: "Baloo 2", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
   font-size: 30px;
   letter-spacing: 1px;
   color: #ffd23c;

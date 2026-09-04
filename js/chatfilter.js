@@ -63,4 +63,21 @@ const ChatFilter = {
     }
     return result + text.slice(last);
   },
+
+  // For player names: the worst words are refused even when glued inside a longer word
+  // ("sh1thead"), unlike chat where "grass" must stay clean. Anything the chat filter
+  // would bleep is refused too.
+  strictWords: ["fuck", "fuk", "fck", "shit", "cunt", "nigg", "fagg", "bitch", "whore", "slut", "rape", "rapist", "nazi", "hitler", "kys", "dick", "cock", "penis", "vagina", "porn", "pedo"],
+  _strictRegex: null,
+
+  isClean(text) {
+    if (!this._strictRegex) {
+      const parts = this.strictWords.map((word) => [...word].map((ch) => `${ch}+`).join(""));
+      this._strictRegex = new RegExp(`(?:${parts.join("|")})`, "i");
+    }
+    return !this._strictRegex.test(this._normalize(text)) && this.censor(text) === text;
+  },
 };
+
+// The server uses the same list to refuse rude player names. In the browser "module" does not exist.
+if (typeof module !== "undefined") module.exports = ChatFilter;

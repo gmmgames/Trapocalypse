@@ -71,7 +71,7 @@ const PALETTE = [
 
 // Canvas text uses the same fonts as the page (see index.html). Bangers is for big shouty titles.
 const FONT = "'Fredoka', 'Segoe UI', system-ui, sans-serif";
-const DISPLAY_FONT = "'Bangers', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
+const DISPLAY_FONT = "'Baloo 2', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
 const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper" };
 
@@ -1274,7 +1274,7 @@ Game.loadPreferences();
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
 
 // The canvas only picks up a web font once the browser has loaded it, so ask for both now.
-if (document.fonts) { document.fonts.load("16px Fredoka"); document.fonts.load("16px Bangers"); }
+if (document.fonts) { document.fonts.load("16px Fredoka"); document.fonts.load("16px 'Baloo 2'"); }
 Game.buildSwatches();
 Game.buildMapButtons();
 Game.start();
