@@ -53,6 +53,13 @@
       <span id="lobby-note"></span>
     </div>
 
+    <!-- Final Battle weapon pick, shown during the countdown. main.js fills in the three cards. -->
+    <div id="weapon-pick" class="hidden">
+      <strong>CHOOSE YOUR WEAPON</strong>
+      <div id="weapon-cards"></div>
+      <span id="weapon-note">Pick before the battle starts, or you get a random one.</span>
+    </div>
+
     <!-- Winner screen buttons, under the final scoreboard. -->
     <div id="winner-hud" class="hidden">
       <button id="back-to-lobby" type="button" class="hidden">Back to Lobby</button>
@@ -95,6 +102,8 @@
       <p>The match ends when someone reaches the points target, or when the round cap is hit and the top score wins. If two or more players qualify at once, they fight a Final Battle: one more run, no traps placed, everyone else watching.</p>
       <h3>Traps</h3>
       <p>Pick one with the buttons or keys 1 to 4. <b>Spikes</b> kill on touch. A <b>Crumbler</b> looks like a platform but gives way a moment after you land on it. <b>Glue</b> slows you to a crawl and you can't jump out of it. A <b>Bumper</b> flings you sideways, away from it. The <b>Eraser</b> (key 5) removes one of someone else's traps; you get one per course, and it doesn't use up your trap for the round.</p>
+      <h3>Final Battle weapons</h3>
+      <p>Before a Final Battle each fighter is offered three weapons and picks one. <b>Rocket Boots</b>: one extra jump in mid-air. <b>Dash</b>: X or Shift for a burst forward. <b>Shield</b>: survive one spike hit. <b>Freeze Ray</b>: X or Shift freezes the other fighters for a moment, once. <b>Trap Bomb</b>: X or Shift drops a spike trap under your feet, once. <b>Feather</b>: floaty low gravity for the whole run.</p>
       <h3>Points</h3>
       <ul id="help-points"></ul>
       <p class="help-note">No points if everyone finishes, or everyone dies. Your own trap never pays you.</p>
@@ -153,6 +162,7 @@
       <button class="touch-btn" data-action="right" aria-label="Move right">&#9654;</button>
     </div>
     <div class="touch-group">
+      <button class="touch-btn use hidden" data-action="use" aria-label="Use weapon">USE</button>
       <button class="touch-btn jump" data-action="jump" aria-label="Jump">JUMP</button>
     </div>
   </div>

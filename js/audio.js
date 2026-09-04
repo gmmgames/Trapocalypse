@@ -74,6 +74,12 @@ const Sfx = {
     this.tone(110, 0, 0.18, "sawtooth", 0.18);
   },
 
+  // Weapons.
+  dash() { this.tone(300, 0, 0.05, "sawtooth", 0.1); this.tone(900, 0.03, 0.12, "sawtooth", 0.08); },
+  shieldPop() { this.tone(1200, 0, 0.08, "sine", 0.2); this.noise(0.2, 0.15); },
+  freeze() { [1400, 1100, 800, 500].forEach((f, i) => this.tone(f, i * 0.07, 0.25, "sine", 0.12)); },
+  boots() { this.tone(500, 0, 0.06, "square", 0.08); this.tone(750, 0.05, 0.06, "square", 0.08); this.tone(1000, 0.1, 0.1, "square", 0.08); },
+
   // Bumper: a springy boing.
   bump() {
     this.tone(200, 0, 0.08, "square", 0.14);

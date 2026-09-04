@@ -28,8 +28,8 @@ const Physics = {
   // solids: array of rectangles you cannot pass through
   // dt:     seconds since last frame (about 0.016 at 60fps)
   moveAndCollide(body, solids, dt) {
-    // --- gravity ---
-    body.vy += this.GRAVITY * dt;
+    // --- gravity (a body can ask for less, like the Feather weapon) ---
+    body.vy += this.GRAVITY * (body.gravityScale || 1) * dt;
     if (body.vy > this.MAX_FALL) body.vy = this.MAX_FALL;
 
     // --- horizontal ---

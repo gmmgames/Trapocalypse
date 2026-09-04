@@ -41,7 +41,20 @@ const chatFilterToggle = document.getElementById("chat-filter");
 const soundsToggle = document.getElementById("sounds-toggle");
 const settingsBackToLobby = document.getElementById("settings-back-to-lobby");
 const settingsNote = document.getElementById("settings-note");
+const weaponPick = document.getElementById("weapon-pick");
+const weaponCards = document.getElementById("weapon-cards");
+const touchUseButton = document.querySelector(".touch-btn.use");
 const helpPanel = document.getElementById("help");
+
+// What each Final Battle weapon is called and does (the rules live in js/player.js).
+const WEAPON_INFO = {
+  boots:   { icon: "🚀", name: "Rocket Boots", desc: "One extra jump in mid-air" },
+  dash:    { icon: "💨", name: "Dash",         desc: "X / Shift: burst forward" },
+  shield:  { icon: "🛡️", name: "Shield",       desc: "Survive one spike hit" },
+  freeze:  { icon: "❄️", name: "Freeze Ray",   desc: "X / Shift: freeze the others, once" },
+  bomb:    { icon: "💣", name: "Trap Bomb",    desc: "X / Shift: spikes under your feet, once" },
+  feather: { icon: "🪶", name: "Feather",      desc: "Floaty low gravity all run" },
+};
 const helpPoints = document.getElementById("help-points");
 const winnerHud = document.getElementById("winner-hud");
 const backToLobbyButton = document.getElementById("back-to-lobby");
@@ -139,6 +152,9 @@ const Game = {
   _resultsElapsed: 0,     // seconds since the results screen appeared (drives the bar animation)
   myColor: null,        // index into PALETTE, chosen once when you join
   trapKind: "spike",    // which trap you place next (spike, crumble, glue, bumper)
+  weaponOffer: [],      // Final Battle: the weapons you may pick from
+  myWeapon: null,       // the one you picked (null = not yet)
+  weapons: {},          // playerId -> weapon for the current Final Battle run
   _nextRoundIn: 0,      // countdown shown on the scoreboard
   _chartX: {},          // where each player's bar currently sits (slides toward its sorted spot)
   _firstFinisher: null, // who earned the "First One There!" bonus this round
@@ -213,6 +229,10 @@ const Game = {
     mapVote.classList.add("hidden");
     chatBox.classList.add("hidden");
     chatLog.replaceChildren();
+    weaponPick.classList.add("hidden");
+    touchUseButton.classList.add("hidden");
+    this.weaponOffer = []; this.myWeapon = null; this.weapons = {};
+    Player.setWeapon(null);
     onlinePanel.classList.remove("hidden");
     onlineStatus.textContent = statusText;
     roomCodeInput.value = "";
@@ -287,6 +307,39 @@ const Game = {
   setTrapKind(kind) {
     this.trapKind = kind;
     document.querySelectorAll(".trap-kind").forEach((button) => button.classList.toggle("selected", button.dataset.kind === kind));
+  },
+
+  // --- Final Battle weapons ---
+  renderWeaponPick() {
+    const show = this.phase === "results" && this.weaponOffer.length > 0;
+    weaponPick.classList.toggle("hidden", !show);
+    if (!show) return;
+    weaponCards.replaceChildren(...this.weaponOffer.map((weapon) => {
+      const info = WEAPON_INFO[weapon];
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "weapon-card" + (this.myWeapon === weapon ? " mine" : "");
+      card.dataset.weapon = weapon;
+      const icon = document.createElement("span"); icon.className = "icon"; icon.textContent = info.icon;
+      const name = document.createElement("span"); name.className = "name"; name.textContent = info.name;
+      const desc = document.createElement("span"); desc.className = "desc"; desc.textContent = info.desc;
+      card.append(icon, name, desc);
+      card.addEventListener("click", () => Network.send({ type: "pick_weapon", weapon }));
+      return card;
+    }));
+  },
+
+  // The runner pressed the weapon button for a weapon the server has to handle.
+  useWeapon() {
+    if (Player.weapon === "bomb") {
+      // The tile you are standing in (not the ground under you), so the next runner hits it.
+      const x = Math.round((Player.x + Player.w / 2 - TILE / 2) / TILE) * TILE;
+      const y = Math.round((Player.y + Player.h) / TILE) * TILE - TILE;
+      Network.send({ type: "weapon_use", x, y });
+    } else {
+      Network.send({ type: "weapon_use" });
+    }
+    Player.weaponUsed = true;
   },
 
   renderEraserCount() {
@@ -520,7 +573,13 @@ const Game = {
     if (message.type === "color_rejected") { this.say(message.message, 1.5); this.refreshSwatches(); }
     if (message.type === "trap_placed") {
       if (!Level.hazards.some((hazard) => hazard.x === message.trap.x && hazard.y === message.trap.y)) Level.hazards.push(message.trap);
-      if (message.playerId === Network.id) { this.placements[0] += 1; Sfx.pickup(); }
+      if (message.bomb) {
+        // A Trap Bomb during a Final Battle. The dropper gets a moment to step off it.
+        Sfx.crumble();
+        if (message.playerId === Network.id) { Player._immune = 0.8; this.say("Trap Bomb dropped! Move!", 2); }
+        else this.say(`${this.nameOf(message.playerId)} dropped a Trap Bomb!`, 2);
+      }
+      else if (message.playerId === Network.id) { this.placements[0] += 1; Sfx.pickup(); }
       const who = this.players.find((player) => player.id === message.playerId);
       if (who) who.trapCount += 1;
     }
@@ -554,9 +613,29 @@ const Game = {
       this._runTimeLimit = message.timeLimit === undefined ? null : message.timeLimit;
       this._runStartedAt = performance.now();
       this._runTimeLeft = this._runTimeLimit;
+      // Weapons, only in a Final Battle.
+      this.weapons = message.weapons || {};
+      this.weaponOffer = [];
+      this.renderWeaponPick();
+      Player.setWeapon(this.weapons[Network.id] || null);
+      touchUseButton.classList.toggle("hidden", !["dash", "freeze", "bomb"].includes(Player.weapon));
       if (this.finalBattleIds.length === 0) this.say("Run! One life. Reach the flag.", 2);
-      else if (fighting(Network.id)) this.say("FINAL BATTLE! First to the flag gets +5.", 3);
+      else if (fighting(Network.id)) {
+        const info = WEAPON_INFO[Player.weapon];
+        this.say(info ? `FINAL BATTLE! ${info.name}: ${info.desc}.` : "FINAL BATTLE! First to the flag gets +5.", 4);
+      }
       else { Player.alive = false; this.say("Final Battle! Watch the tied players fight it out.", 3); }
+    }
+    if (message.type === "weapon_picked") {
+      this.weapons[message.playerId] = message.weapon;
+      if (message.playerId === Network.id) { this.myWeapon = message.weapon; this.renderWeaponPick(); this.say(`${WEAPON_INFO[message.weapon].name} it is!`, 2); }
+    }
+    if (message.type === "freeze") {
+      Sfx.freeze();
+      const by = this.nameOf(message.by);
+      for (const id of message.ids) if (this.remotePlayers[id]) this.remotePlayers[id].frozenUntil = performance.now() + message.seconds * 1000;
+      if (message.ids.includes(Network.id)) { Player.frozen = message.seconds; this.say(`Frozen by ${by}'s Freeze Ray!`, 2); }
+      else if (message.by === Network.id) this.say("Freeze Ray fired!", 2);
     }
     if (message.type === "votes") {
       this.votes = message.votes;
@@ -637,9 +716,16 @@ const Game = {
       this._winnerPending = message.winnerPending || null;
       this._gains = message.gains || {};
       this._resultsElapsed = 0;
+      // Weapons are for the Final Battle only; hand back whatever you held and show any new offer.
+      Player.setWeapon(null);
+      touchUseButton.classList.add("hidden");
+      this.weaponOffer = (message.weaponOffers || {})[Network.id] || [];
+      this.myWeapon = null;
+      this.weapons = {};
       this.votes = {};
       this.voteOpen = Boolean(message.voteOpen);
       this.renderVote();
+      this.renderWeaponPick();
       const iFinished = message.finishers.includes(Network.id);
       // Points from your trap's kills, banked because you finished.
       const myKills = message.killBonus ? message.killBonus[Network.id] : 0;
@@ -1003,6 +1089,10 @@ const Game = {
       const color = this.colorOf(id);
       ctx.fillStyle = color;
       ctx.fillRect(remote.x, remote.y, Player.w, Player.h);
+      if (remote.frozenUntil && remote.frozenUntil > performance.now()) {   // hit by a Freeze Ray
+        ctx.fillStyle = "rgba(160, 230, 255, 0.55)";
+        ctx.fillRect(remote.x - 3, remote.y - 3, Player.w + 6, Player.h + 6);
+      }
       if (this.mode === "online") this.drawNametag(remote.x, remote.y, remote.name, color);
     }
     Player.draw(ctx);
@@ -1021,7 +1111,9 @@ const Game = {
       const cap = this.settings ? this.settings.roundCap : "?";
       const roundLabel = `ROUND ${this.round} of ${cap}  ${Level.name}`;
       const clock = this.phase === "run" && this._runTimeLeft !== null ? `  •  ⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
-      hud.textContent = `${roundLabel}${clock}  •  ${this.message}`;
+      const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
+      const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
+      hud.textContent = `${roundLabel}${clock}${weapon}  •  ${this.message}`;
     } else {
       const progress = `LEVEL ${this.levelIndex + 1}/${LEVELS.length}  ${Level.name}`;
       hud.textContent = this.complete ? `${progress}  •  COMPLETE` : `${progress}  •  ${this.message}`;

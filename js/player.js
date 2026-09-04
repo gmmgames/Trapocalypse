@@ -29,8 +29,26 @@ const Player = {
   finished: false,
   _coyote: 0,
   _buffer: 0,
+  _shortHop: true,     // whether letting go of jump can cut the current jump short
   _knock: 0,           // seconds left of bumper knockback
   _knockVx: 0,         // and which way it throws us
+
+  // --- Final Battle weapon (null outside a Final Battle) ---
+  //   boots    one extra jump while in the air
+  //   dash     X / Shift: a short burst forward, 1.5 s cooldown
+  //   shield   the first spike touch is survived
+  //   freeze   X / Shift once: the other fighters freeze (the server tells everyone)
+  //   bomb     X / Shift once: a spike trap appears under your feet (via the server)
+  //   feather  gravity is a bit more than half
+  weapon: null,
+  weaponUsed: false,   // for the one-shot weapons
+  gravityScale: 1,
+  _boots: false,       // extra jump still available
+  _dash: 0,            // seconds of dash left
+  _dashCooldown: 0,
+  _shield: false,
+  _immune: 0,          // seconds of spike immunity after the shield pops
+  frozen: 0,           // seconds left frozen by a Freeze Ray
 
   // Put the player back at the start, fresh.
   spawn() {
@@ -45,6 +63,17 @@ const Player = {
     this._coyote = 0;
     this._buffer = 0;
     this._knock = 0;
+    this._dash = 0; this._dashCooldown = 0; this._immune = 0; this.frozen = 0;
+    this.setWeapon(this.weapon);   // re-arm whatever we hold (nothing outside a Final Battle)
+  },
+
+  // Hand the runner a weapon (or null to take it away). Called at run start.
+  setWeapon(weapon) {
+    this.weapon = weapon;
+    this.weaponUsed = false;
+    this._boots = weapon === "boots";
+    this._shield = weapon === "shield";
+    this.gravityScale = weapon === "feather" ? 0.55 : 1;
   },
 
   update(dt) {
@@ -56,6 +85,16 @@ const Player = {
       }
     }
     if (!this.alive || this.finished) return;
+
+    // Frozen by a Freeze Ray: you just stand there (gravity still applies).
+    if (this.frozen > 0) {
+      this.frozen -= dt;
+      this.vx = 0;
+      Physics.moveAndCollide(this, Level.solids, dt);
+      return;
+    }
+    this._immune = Math.max(0, this._immune - dt);
+    this._dashCooldown = Math.max(0, this._dashCooldown - dt);
 
     // 1. Sideways movement straight from input
     this.vx = 0;
@@ -69,32 +108,50 @@ const Player = {
     // A bumper's throw overrides your controls for a moment.
     if (this._knock > 0) { this._knock -= dt; this.vx = this._knockVx; }
 
+    // Weapon button: dash, or ask the server to freeze / drop a bomb.
+    if (Input.usePressed && this.weapon) {
+      if (this.weapon === "dash" && this._dashCooldown <= 0) { this._dash = 0.15; this._dashCooldown = 1.5; Sfx.dash(); }
+      if ((this.weapon === "freeze" || this.weapon === "bomb") && !this.weaponUsed) Game.useWeapon();
+    }
+    if (this._dash > 0) { this._dash -= dt; this.vx = this.facing * 900; this.vy = 0; }
+
     // 2. Jump forgiveness timers.
     //    Coyote time: a tiny grace period after leaving a ledge.
     //    Jump buffer: press slightly before landing and it still counts.
     this._coyote = this.onGround && !inGlue ? this.COYOTE_TIME : this._coyote - dt;
     this._buffer = Input.jumpPressed ? this.JUMP_BUFFER : this._buffer - dt;
-
     if (this._buffer > 0 && this._coyote > 0) {
       this.vy = -this.JUMP_SPEED;   // negative Y is UP on a canvas
       this._buffer = 0;
       this._coyote = 0;
+      this._shortHop = true;        // this jump can be cut short by letting go
       Sfx.jump();
+    } else if (Input.jumpPressed && this._boots && !this.onGround && this._coyote <= 0) {
+      // Rocket Boots: one more jump from thin air. A tap gives the full boost.
+      this.vy = -this.JUMP_SPEED * 0.9;
+      this._boots = false;
+      this._shortHop = false;
+      Dust.spawn(this.x + this.w / 2, this.y + this.h, 8, 20);
+      Sfx.boots();
     }
+    if (this.onGround && this.weapon === "boots") this._boots = true;   // the extra jump comes back when you land
 
     // Let go of jump early = shorter hop. Feels much better than fixed jumps.
-    if (!Input.jump && this.vy < -200) this.vy = -200;
+    if (this._shortHop && !Input.jump && this.vy < -200 && this._dash <= 0) this.vy = -200;
 
     // 3. Move and bump into things. Crumblers count as solid until they give way.
     const wasOnGround = this.onGround;   // remembered so we can tell a landing from standing still
     const solids = Level.solids.concat(Level.hazards.filter((h) => h.kind === "crumble" && !h._gone));
+    if (this._dash > 0) this.gravityScale = 0;   // a dash flies level
     Physics.moveAndCollide(this, solids, dt);
+    if (this._dash <= 0) this.gravityScale = this.weapon === "feather" ? 0.55 : 1;
 
     // Traps are checked after movement so touching a spike is immediately fatal.
     // The deadly box is a little smaller than the drawn tile (a "hitbox" is the
     // invisible rectangle used for touching), so near misses feel fair.
     for (const hazard of Level.hazards) {
       if (hazard.kind && hazard.kind !== "spike") continue;   // only spikes kill
+      if (this._immune > 0) break;
       const deadly = {
         x: hazard.x + this.SPIKE_INSET_SIDE,
         y: hazard.y + this.SPIKE_INSET_TOP,
@@ -102,6 +159,14 @@ const Player = {
         h: hazard.h - this.SPIKE_INSET_TOP,
       };
       if (Physics.overlaps(this, deadly)) {
+        if (this._shield) {
+          // The shield takes the hit: it pops, and you are safe for a moment to get clear.
+          this._shield = false;
+          this._immune = 0.6;
+          Sfx.shieldPop();
+          Game.say("Shield popped!", 1.5);
+          break;
+        }
         this.die(hazard);   // pass the spike along so its owner can get credit
         return;
       }
@@ -164,6 +229,17 @@ const Player = {
     ctx.fillStyle = this.color;
     ctx.fillRect(this.x, this.y, this.w, this.h);
     ctx.shadowBlur = 0;
+
+    // Shield: a ring. Frozen: an icy tint.
+    if (this._shield || this._immune > 0) {
+      ctx.strokeStyle = this._shield ? "rgba(120, 220, 255, 0.9)" : "rgba(120, 220, 255, 0.4)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(this.x + this.w / 2, this.y + this.h / 2, 20, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (this.frozen > 0) {
+      ctx.fillStyle = "rgba(160, 230, 255, 0.55)";
+      ctx.fillRect(this.x - 3, this.y - 3, this.w + 6, this.h + 6);
+    }
 
     // Two little eyes that look where you are going
     ctx.fillStyle = "#0b0b14";

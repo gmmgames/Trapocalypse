@@ -280,6 +280,15 @@ Weapons and weapon selection in the Final Battle (separate feature, next). Map v
 
 Trap ownership lookup by position (server.js:208-212). Trap placement validation (server.js:69-76, 190-202). Jump feel constants in player.js. Spike hitbox inset (player.js:13-14, 71-82). Physics one-axis-at-a-time collision. The scoreboard bar layout and slide animation (main.js:402-468) apart from the title and countdown lines. Color picker refusal flow. Level rotation every 3 rounds and trap persistence within a level (behavior preserved by §4 even though the code moves).
 
+## Addendum: Final Battle weapons (2026-09-03, LOCKED by the owner's "go down the list")
+
+- Pool: `boots` (one extra mid-air jump), `dash` (X/Shift: 0.15 s burst at 900 px/s, gravity off during it, 1.5 s cooldown, ignores glue), `shield` (the first spike touch is survived, 0.6 s of immunity, shield gone), `freeze` (X/Shift once: every other fighter is frozen 1.5 s), `bomb` (X/Shift once: a spike trap owned by you appears on the tile under your feet, for everyone), `feather` (gravity × 0.55 for the run).
+- When a Final Battle is decided, the server deals each fighter 3 distinct random weapons (`round_over.weaponOffers[id]`). Fighters pick with `pick_weapon { weapon }` during the countdown; `weapon_picked { playerId, weapon }` is broadcast. At `startFinalBattle` anyone without a pick gets a random one from their offer. The `phase run` message carries `weapons { id: weapon }`.
+- `weapon_use { x, y }` is accepted only in a Final Battle run from a running fighter whose weapon is `freeze` or `bomb` and not yet used. Freeze broadcasts `freeze { by, ids, seconds: 1.5 }`; bomb validates the tile (in bounds, not on the flag, not on another trap) and broadcasts `trap_placed` with `owner` = the fighter. Boots, dash, shield, feather are client-side.
+- Weapons and offers are cleared at every round end, lobby, and match start. Non-fighters (spectators) get no offer.
+- Touch: a USE button appears next to JUMP whenever you hold a weapon that needs it.
+- Kill credit from a bomb follows the normal trap rules (owner must finish, which in a Final Battle pays nothing anyway).
+
 ## Related
 
 Owner's wishlist items 1 (lobby, merged here), 2 (this spec), 4 (map voting, next, depends on the lobby), 5 (scoring, merged here). Final Battle weapons: to be specced separately.

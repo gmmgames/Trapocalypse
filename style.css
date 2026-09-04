@@ -397,6 +397,61 @@ body {
   cursor: pointer;
 }
 
+/* ---------------- Final Battle weapon pick ---------------- */
+
+#weapon-pick {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 8px;
+  width: min(92%, 640px);
+  padding: 12px;
+  border: 1px solid rgba(255, 60, 120, 0.8);
+  border-radius: 6px;
+  background: rgba(11, 11, 20, 0.95);
+  color: #ffd23c;
+  text-align: center;
+  z-index: 2;
+}
+
+#weapon-pick > strong {
+  font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 24px;
+  letter-spacing: 1px;
+  color: #ff3c78;
+}
+
+#weapon-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.weapon-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 8px;
+  border: 2px solid #45455d;
+  border-radius: 6px;
+  background: #0b0b14;
+  color: #e8e8ff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.weapon-card .icon { font-size: 26px; }
+.weapon-card .name { font-weight: 700; color: #ffd23c; }
+.weapon-card .desc { font-size: 12px; color: #c0c0d8; }
+.weapon-card:hover { border-color: #ffd23c; }
+.weapon-card.mine { border-color: #ffffff; background: #1c1c2e; }
+
+#weapon-note { color: #c0c0d8; font-size: 12px; }
+
+.touch-btn.use { width: 80px; font-size: 18px; border-color: rgba(255, 210, 60, 0.7); color: #ffd23c; background: rgba(255, 210, 60, 0.15); }
+
 #winner-hud {
   position: absolute;
   left: 50%;

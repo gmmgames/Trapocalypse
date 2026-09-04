@@ -29,6 +29,9 @@ const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defi
 const PLAYER_W = 22, PLAYER_H = 26;
 const TRAP_KINDS = ["spike", "crumble", "glue", "bumper"];   // what a player may place (see js/level.js for what each does)
 const ERASERS_PER_COURSE = 1;  // erasers each player gets on every new course, to remove someone else's trap
+const WEAPONS = ["boots", "dash", "shield", "freeze", "bomb", "feather"];   // Final Battle weapons (what they do: js/player.js)
+const WEAPON_OFFER = 3;        // how many each fighter gets to choose from
+const FREEZE_SECONDS = 1.5;
 const CHAT_MAX_LENGTH = 140;   // characters per chat message
 const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 
@@ -124,7 +127,7 @@ function startRun(room) {
   room.runTimer = null;
   const timeLimit = room.settings.timeLimit;
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
-  broadcast(room, { type: "phase", phase: "run", timeLimit, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [] });
+  broadcast(room, { type: "phase", phase: "run", timeLimit, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [], weapons: room.finalBattle ? room.finalBattle.weapons || {} : {} });
 }
 
 // Ids of the players with the top score (ignoring anyone sitting out, unless that is everyone).
@@ -160,6 +163,25 @@ function decideMatchState(room) {
   return { kind: qualified.length === 1 ? "winner" : "final", ids: qualified };
 }
 
+// Deal each fighter a few random weapons to choose from before a Final Battle.
+function dealWeapons(room, ids) {
+  const offers = {};
+  for (const id of ids) {
+    const player = room.players.get(id);
+    if (!player) continue;
+    const deck = [...WEAPONS].sort(() => Math.random() - 0.5);
+    player.weaponOffer = deck.slice(0, WEAPON_OFFER);
+    player.weapon = null;
+    player.weaponUsed = false;
+    offers[id] = player.weaponOffer;
+  }
+  return offers;
+}
+
+function clearWeapons(room) {
+  for (const player of room.players.values()) { player.weapon = null; player.weaponOffer = null; player.weaponUsed = false; }
+}
+
 // The tied players run the current course again, no build phase. Everyone else watches.
 function startFinalBattle(room) {
   room.timer = null;
@@ -167,10 +189,18 @@ function startFinalBattle(room) {
   room.finalBattle.ids = room.finalBattle.ids.filter((id) => room.players.has(id));
   if (room.finalBattle.ids.length < 2) { declareWinner(room, room.finalBattle.ids); return; }
   room.finalBattle.runs += 1;
+  const weapons = {};
   for (const player of room.players.values()) {
     player.pendingKills = 0;
     player.status = room.finalBattle.ids.includes(player.id) ? "running" : "out";
+    if (player.status === "running") {
+      // No pick in time? Take a random one from the offer.
+      if (!player.weapon) player.weapon = (player.weaponOffer || WEAPONS)[Math.floor(Math.random() * (player.weaponOffer || WEAPONS).length)];
+      player.weaponUsed = false;
+      weapons[player.id] = player.weapon;
+    }
   }
+  room.finalBattle.weapons = weapons;
   startRun(room);
 }
 
@@ -250,6 +280,8 @@ function checkRoundOver(room) {
   const wasFinalBattle = room.finalBattle !== null;
   if (decision.kind === "final") room.finalBattle = { ids: decision.ids, runs: wasFinalBattle ? room.finalBattle.runs : 0 };
   else room.finalBattle = null;
+  clearWeapons(room);
+  const weaponOffers = decision.kind === "final" ? dealWeapons(room, decision.ids) : {};
   // If the next round starts a new course, everyone votes on which one during the results.
   room.votes = {};
   room.voteOpen = decision.kind === "next" && room.round % ROUNDS_PER_LEVEL === 0;
@@ -268,6 +300,7 @@ function checkRoundOver(room) {
     finalBattle: decision.kind === "final" ? { ids: decision.ids, again: wasFinalBattle && finishers.length === 0 } : null,
     winnerPending: decision.kind === "winner" ? decision.ids : null,
     voteOpen: room.voteOpen,
+    weaponOffers,
   });
   const delay = NEXT_ROUND_DELAY * 1000;
   if (decision.kind === "next") room.timer = setTimeout(() => startNextRound(room), delay);
@@ -292,6 +325,7 @@ function toLobby(room, { resetScores }) {
   room.phase = "lobby"; room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0;
   room.traps = []; room.finishOrder = []; room.finalBattle = null; room.winnerIds = [];
   room.votes = {}; room.voteOpen = false;
+  clearWeapons(room);
   for (const player of room.players.values()) {
     player.trapCount = 0; player.pendingKills = 0; player.status = "waiting";
     if (resetScores) player.score = 0;
@@ -419,6 +453,36 @@ webSocketServer.on("connection", (socket) => {
       for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
       room.phase = "build";
       broadcast(room, { ...snapshot(room), type: "round_start" });
+      return;
+    }
+    // Final Battle: choose a weapon from your offer during the countdown.
+    if (message.type === "pick_weapon") {
+      const fighting = room.phase === "results" && room.finalBattle && room.finalBattle.ids.includes(player.id) && !room.finalBattle.weapons;
+      if (fighting && player.weaponOffer && player.weaponOffer.includes(message.weapon)) {
+        player.weapon = message.weapon;
+        broadcast(room, { type: "weapon_picked", playerId: player.id, weapon: player.weapon });
+      }
+      return;
+    }
+    // Final Battle: fire a weapon that needs the server (freeze everyone else, or drop a trap bomb).
+    if (message.type === "weapon_use") {
+      const fighting = room.phase === "run" && room.finalBattle && player.status === "running" && !player.weaponUsed;
+      if (!fighting) return;
+      if (player.weapon === "freeze") {
+        player.weaponUsed = true;
+        const ids = room.finalBattle.ids.filter((id) => id !== player.id);
+        broadcast(room, { type: "freeze", by: player.id, ids, seconds: FREEZE_SECONDS });
+      } else if (player.weapon === "bomb") {
+        const x = Math.round((Number(message.x) || 0) / TILE) * TILE;
+        const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
+        const trap = { x, y, w: TILE, h: TILE, owner: player.id, kind: "spike" };
+        const level = LEVELS[room.levelIndex];
+        const inBounds = x >= 0 && x + TILE <= LEVEL_W && y >= 0 && y + TILE <= LEVEL_H;
+        if (!inBounds || overlaps(trap, level.flag) || room.traps.some((item) => overlaps(item, trap))) return;
+        player.weaponUsed = true;
+        room.traps.push(trap);
+        broadcast(room, { type: "trap_placed", trap, playerId: player.id, traps: room.traps, bomb: true });
+      }
       return;
     }
     // Erase someone else's trap during the build phase. Costs one eraser.
