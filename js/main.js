@@ -1088,6 +1088,11 @@ const Game = {
       const count = document.createElement("span");
       count.className = "count";
       button.append(chip, level.name, count);
+      if (index >= LEVELS.length) {   // a custom course: purple, with a C badge
+        button.classList.add("custom");
+        const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = "C"; badge.title = "Custom course";
+        button.append(badge);
+      }
       button.addEventListener("click", () => Network.send({ type: "vote_map", level: index }));
       mapButtons.appendChild(button);
     });
