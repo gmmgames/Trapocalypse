@@ -1,6 +1,6 @@
 # TRAPOCALYPSE
 
-An online party platformer inspired by Ultimate Chicken Horse. Build traps, run the course, betray your friends. Built GMMGames.
+An online party platformer inspired by Ultimate Chicken Horse. Build traps, run the course, betray your friends. Built by GMMGames.
 
 ## How to play
 
