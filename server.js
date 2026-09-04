@@ -42,12 +42,12 @@ const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 // --- match settings the host picks when creating a room ---
 // timeLimit is seconds per run, or null for Infinite.
 // The host can also set how much each kind of point is worth (defaults from the constants above).
-const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10] };
-const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, isPublic: true };
+const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10], autonomousPoints: [0, 10] };
+const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
 const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot"];   // character models (drawn in js/player.js)
-const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points" };
+const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points" };
 
 function roomCode() {
   let code;
@@ -141,7 +141,10 @@ function trapBlocked(room, trap) {
   const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
   const inWall = trap.kind === "crumble" && level.solids.some((solid) => overlaps(solid, trap));
-  return inWall || overlaps(trap, level.flag) || overlaps(trap, startBox) ||
+  // Ice sits on top of a block: never inside one, and there must be a block right under it.
+  const below = { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 };
+  const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !level.solids.some((solid) => overlaps(solid, below)));
+  return inWall || badIce || overlaps(trap, level.flag) || overlaps(trap, startBox) ||
     room.traps.some((item) => overlaps(item, trap));
 }
 
@@ -296,7 +299,7 @@ function checkRoundOver(room) {
       if (player && room.finalBattle.ids.includes(id) && place < FINAL_BONUSES.length) award(player, placeNames[place], FINAL_BONUSES[place]);
     });
   } else if (!everyoneFinished) {
-    const { winPoints, killPoints, firstPoints } = room.settings;   // the host's values
+    const { winPoints, killPoints, firstPoints, autonomousPoints } = room.settings;   // the host's values
     for (const player of finishers) {
       award(player, "Win", winPoints);
       // "Curiosity": trap kills only pay if you made it to the flag yourself.
@@ -311,7 +314,7 @@ function checkRoundOver(room) {
       if (firstFinisher) award(firstFinisher, "Trailblazer", firstPoints);
     }
     // "Autonomous": the only one to make it when at least two ran.
-    if (runners.length >= 2 && finishers.length === 1) award(finishers[0], "Autonomous", AUTONOMOUS_BONUS);
+    if (runners.length >= 2 && finishers.length === 1) award(finishers[0], "Autonomous", autonomousPoints);
   }
   for (const player of players) player.pendingKills = 0;
   if (!room.finalBattle) room.roundsPlayed += 1;   // what the round cap is checked against
@@ -595,14 +598,20 @@ webSocketServer.on("connection", (socket) => {
 
     // Only the host starts the match, from the lobby, with 2+ players who all have colors.
     if (message.type === "start_match") {
-      const everyoneColored = [...room.players.values()].every((item) => item.color !== null);
       let problem = null;
       if (player.id !== room.hostId) problem = "Only the host can start.";
       else if (room.phase === "winner") problem = "Use Back to Lobby first.";
       else if (room.phase !== "lobby") problem = "The match has already started.";
       else if (room.players.size < 2) problem = "You need at least 2 players.";
-      else if (!everyoneColored) problem = "Everyone needs to pick a color first.";
       if (problem) { send(socket, { type: "error", message: problem }); return; }
+      // Anyone who never picked a color gets a random one nobody else has.
+      for (const item of room.players.values()) {
+        if (item.color !== null) continue;
+        const used = new Set([...room.players.values()].map((other) => other.color));
+        const free = [...Array(PALETTE_SIZE).keys()].filter((color) => !used.has(color));
+        item.color = free[Math.floor(Math.random() * free.length)] ?? 0;
+        broadcast(room, { type: "color", playerId: item.id, color: item.color });
+      }
       // First, everyone votes on the course for VOTE_SECONDS. Then the match begins.
       room.phase = "vote"; room.votes = {}; room.voteOpen = true;
       for (const item of room.players.values()) item.status = "waiting";

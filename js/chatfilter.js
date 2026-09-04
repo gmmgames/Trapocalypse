@@ -31,6 +31,9 @@ const ChatFilter = {
   _swaps: { "@": "a", "4": "a", "$": "s", "5": "s", "0": "o", "1": "i", "!": "i", "|": "i", "3": "e", "7": "t", "+": "t", "*": "u", "(": "c", "€": "e", "£": "l" },
 
   // Turn "Sh!!!t" into "shiiit" (same length, so positions still line up with the original).
+  // Words from the list that must stand alone to count (see _pattern).
+  wholeWords: ["spic", "spick"],
+
   _normalize(text) {
     let out = "";
     for (const ch of text) out += this._swaps[ch] || ch.toLowerCase();
@@ -41,7 +44,11 @@ const ChatFilter = {
   // Each letter may repeat (fuuuck), and common endings are allowed.
   _pattern() {
     if (!this._regex) {
-      const parts = this.words.map((word) => [...word].map((ch) => (ch === " " ? "\\s*" : `${ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}+`)).join(""));
+      const parts = this.words.map((word) => {
+        const body = [...word].map((ch) => (ch === " " ? "\\s*" : `${ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}+`)).join("");
+        // Short slurs that also start everyday words ("spicy") only count on their own.
+        return this.wholeWords.includes(word) ? `(?<![a-z])${body}(?![a-z])` : body;
+      });
       this._regex = new RegExp(`(?<![a-z])(?:${parts.join("|")})(?:s|es|ed|ing|er|ers|y|ies)?(?![a-z])`, "gi");
     }
     return this._regex;
