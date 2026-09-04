@@ -87,7 +87,7 @@ function overlaps(a, b) {
 
 function playerList(room) {
   return [...room.players.values()].map((player) => ({
-    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, trapKind: player.trapKind,
+    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, pick: player.pick || null,
   }));
 }
 
@@ -107,6 +107,7 @@ function snapshot(room) {
     finalBattleIds: room.finalBattle ? room.finalBattle.ids : [],
     votes: room.votes,
     voteOpen: room.voteOpen,
+    offer: room.offer || [],
     traps: room.traps,
     players: playerList(room),
   };
@@ -391,9 +392,30 @@ function removePlayer(socket) {
   maybeStartRun(room);
 }
 
-// Every round each player is dealt one random trap kind to place (plus their eraser, if any).
-function dealTrapKinds(room) {
-  for (const player of room.players.values()) player.trapKind = TRAP_KINDS[Math.floor(Math.random() * TRAP_KINDS.length)];
+// Every round the room is offered a random handful of items (traps plus maybe the eraser),
+// one more than there are players, at most all five. Everyone sees the same offer and
+// picks one; while any offered item is still free, two players cannot pick the same one.
+const ITEM_POOL = [...TRAP_KINDS, "eraser"];
+function dealItems(room) {
+  const count = Math.min(ITEM_POOL.length, Math.max(2, room.players.size + 1));
+  room.offer = [...ITEM_POOL].sort(() => Math.random() - 0.5).slice(0, count);
+  for (const player of room.players.values()) player.pick = null;
+}
+
+function itemPicks(room) {
+  const picks = {};
+  for (const player of room.players.values()) if (player.pick) picks[player.id] = player.pick;
+  return picks;
+}
+
+// May this player take this item right now?
+function canPick(room, player, item) {
+  if (!room.offer || !room.offer.includes(item)) return "That item isn't on offer this round.";
+  if (item === "eraser" && player.erasers <= 0) return "No erasers left on this course.";
+  const takenByOthers = new Set([...room.players.values()].filter((other) => other !== player && other.pick).map((other) => other.pick));
+  const anyFree = room.offer.some((offered) => !takenByOthers.has(offered));
+  if (takenByOthers.has(item) && anyFree) return "Someone already took that one.";
+  return null;
 }
 
 // After a trap is placed or an eraser used: once everyone has used their item, the run starts.
@@ -410,7 +432,7 @@ function beginMatch(room) {
   room.votes = {}; room.voteOpen = false;
   room.finalBattle = null; room.winnerIds = [];
   for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
-  dealTrapKinds(room);
+  dealItems(room);
   room.phase = "build";
   broadcast(room, { ...snapshot(room), type: "round_start" });
 }
@@ -432,7 +454,7 @@ function startNextRound(room) {
   room.phase = "build";
   // Colors are picked once when you join and kept for the whole game.
   for (const player of room.players.values()) { player.trapCount = 0; player.pendingKills = 0; player.status = "building"; }
-  dealTrapKinds(room);
+  dealItems(room);
   broadcast(room, { ...snapshot(room), type: "round_start" });
 }
 
@@ -576,6 +598,7 @@ webSocketServer.on("connection", (socket) => {
       const index = room.traps.findIndex((item) => item.x === x && item.y === y);
       let problem = null;
       if (player.trapCount >= TRAPS_PER_ROUND) problem = "You've already used your item this round.";
+      else if (player.pick !== "eraser") problem = "Pick the eraser first.";
       else if (player.erasers <= 0) problem = "No erasers left on this course.";
       else if (index < 0) problem = "Only placed traps can be erased.";
       else if (room.traps[index].owner === player.id) problem = "You can't erase your own trap.";
@@ -630,10 +653,22 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "place_trap" && room.phase === "build" && player.color === null) {
       send(socket, { type: "trap_rejected", message: "Pick a color first." });
     }
-    if (message.type === "place_trap" && room.phase === "build" && player.color !== null && player.trapCount < TRAPS_PER_ROUND) {
+    // Pick one of this round's offered items (you can change your mind until you place).
+    if (message.type === "pick_item" && room.phase === "build") {
+      if (player.trapCount >= TRAPS_PER_ROUND) { send(socket, { type: "trap_rejected", message: "You've already used your item this round." }); return; }
+      const problem = canPick(room, player, message.item);
+      if (problem) { send(socket, { type: "trap_rejected", message: problem }); return; }
+      player.pick = message.item;
+      broadcast(room, { type: "picks", picks: itemPicks(room) });
+      return;
+    }
+    if (message.type === "place_trap" && room.phase === "build" && player.color !== null && player.trapCount < TRAPS_PER_ROUND && (!player.pick || player.pick === "eraser")) {
+      send(socket, { type: "trap_rejected", message: player.pick === "eraser" ? "You picked the eraser: click a trap to erase it." : "Pick an item first." });
+    }
+    if (message.type === "place_trap" && room.phase === "build" && player.color !== null && player.trapCount < TRAPS_PER_ROUND && player.pick && player.pick !== "eraser") {
       const x = Math.round((Number(message.x) || 0) / TILE) * TILE;
       const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
-      const kind = player.trapKind || "spike";   // the kind you were dealt this round; the browser's claim is ignored
+      const kind = player.pick;   // the item you picked this round; the browser's claim is ignored
       const trap = { x, y, w: TILE, h: TILE, owner: player.id, kind };
       const inBounds = x >= 2 * TILE && x + TILE <= LEVEL_W - TILE && y >= 0 && y + TILE <= LEVEL_H;
       if (inBounds && !trapBlocked(room, trap)) {

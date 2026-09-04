@@ -236,6 +236,31 @@ const Level = {
     ctx.fill();
   },
 
+  // A picture of an item for the build-phase cards: the trap drawn into a 30x30 box,
+  // or a pink eraser block with a white X.
+  drawItemIcon(ctx, item) {
+    const box = { x: 0, y: 0, w: TILE, h: TILE };
+    const t = this.theme;
+    ctx.clearRect(0, 0, TILE, TILE);
+    if (item === "eraser") {
+      ctx.fillStyle = "#ff3c78";
+      ctx.fillRect(3, 8, 24, 16);
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(9, 11); ctx.lineTo(21, 21); ctx.moveTo(21, 11); ctx.lineTo(9, 21); ctx.stroke();
+      return;
+    }
+    if (item === "crumble") { this.drawCrumbler(ctx, { ...box, kind: "crumble" }, t); return; }
+    if (item === "glue") { this.drawGlue(ctx, box); return; }
+    if (item === "bumper") { this.drawBumper(ctx, box); return; }
+    // spikes
+    ctx.fillStyle = t.spike;
+    for (let x = 0; x < TILE; x += 12) {
+      ctx.beginPath(); ctx.moveTo(x, TILE); ctx.lineTo(x + 6, 0); ctx.lineTo(Math.min(x + 12, TILE), TILE); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = t.spikeBase;
+    ctx.fillRect(0, TILE - 3, TILE, 3);
+  },
+
   // A platform-looking block with cracks. It shivers once someone has stepped on it.
   drawCrumbler(ctx, c, t) {
     if (c._gone) return;

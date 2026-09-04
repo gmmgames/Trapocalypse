@@ -73,7 +73,7 @@ const PALETTE = [
 const FONT = "'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const DISPLAY_FONT = "'Baloo 2', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", eraser: "Eraser" };
 
 // --- match settings (host only) ---
 // Each dropdown has presets plus "Custom…", which reveals a number box.
@@ -178,8 +178,10 @@ const Game = {
   _gains: {},             // playerId -> [{ label, points }] for this round, from the server
   _resultsElapsed: 0,     // seconds since the results screen appeared (drives the bar animation)
   myColor: null,        // index into PALETTE, chosen once when you join
-  trapKind: "spike",    // what you place next: the kind you were dealt this round, or "eraser"
-  dealtKind: "spike",   // the trap kind the server dealt you for this round
+  offer: [],            // this round's items on offer (the same for everyone), from the server
+  picks: {},            // playerId -> the item they picked
+  pick: null,           // the item you picked (null = not yet)
+  pending: null,        // { x, y } where your item will go once you confirm
   weaponOffer: [],      // Final Battle: the weapons you may pick from
   myWeapon: null,       // the one you picked (null = not yet)
   weapons: {},          // playerId -> weapon for the current Final Battle run
@@ -343,17 +345,114 @@ const Game = {
     helpPanel.classList.add("hidden");
   },
 
-  // --- trap picker ---
-  // Only two choices each round: the trap you were dealt, or your eraser.
-  setTrapKind(kind) {
-    if (kind !== "eraser" && kind !== this.dealtKind) kind = this.dealtKind;
-    this.trapKind = kind;
-    document.querySelectorAll(".trap-kind").forEach((button) => {
-      const isDealt = button.dataset.kind === this.dealtKind, isEraser = button.dataset.kind === "eraser";
-      button.classList.toggle("hidden", !(isDealt || isEraser));
-      button.classList.toggle("selected", button.dataset.kind === kind);
-      if (isDealt) button.textContent = `1 ${TRAP_NAMES[this.dealtKind]} (this round)`;
-    });
+  // --- this round's items ---
+  // One card per offered item: a picture, the name, and who has taken it. Your own pick
+  // is outlined; an item someone else took is greyed out while other items are still free.
+  renderItems() {
+    const cards = document.getElementById("item-cards");
+    const me = this.players.find((player) => player.id === Network.id);
+    const takenByOthers = new Set(Object.entries(this.picks).filter(([id]) => id !== Network.id).map(([, item]) => item));
+    const anyFree = this.offer.some((item) => !takenByOthers.has(item));
+    cards.replaceChildren(...this.offer.map((item) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "item-card" + (this.pick === item ? " mine" : "");
+      card.dataset.item = item;
+      const icon = document.createElement("canvas");
+      icon.width = TILE; icon.height = TILE;
+      Level.drawItemIcon(icon.getContext("2d"), item);
+      const name = document.createElement("span");
+      name.className = "item-name";
+      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : TRAP_NAMES[item];
+      const taker = document.createElement("span");
+      taker.className = "item-taker";
+      const takerId = Object.keys(this.picks).find((id) => this.picks[id] === item && id !== Network.id);
+      if (takerId) {
+        const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = this.colorOf(takerId);
+        taker.append(dot, this.nameOf(takerId));
+      } else if (this.pick === item) taker.textContent = "yours";
+      card.append(icon, name, taker);
+      const used = me && me.trapCount >= this.trapsPerRound;
+      card.disabled = used || (takenByOthers.has(item) && anyFree) || (item === "eraser" && me && me.erasers <= 0);
+      card.addEventListener("click", () => Network.send({ type: "pick_item", item }));
+      return card;
+    }));
+  },
+
+  // --- placing: put the item down, move it if you like, then confirm ---
+  // Where would the item go if you tapped here? (Snapped to the tile grid.)
+  tileAt(clientX, clientY) {
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: Math.floor(((clientX - bounds.left) / bounds.width) * LEVEL_W / TILE) * TILE,
+      y: Math.floor(((clientY - bounds.top) / bounds.height) * LEVEL_H / TILE) * TILE,
+    };
+  },
+
+  // Why can't a trap go here? null means it can.
+  placementProblem(x, y) {
+    const trap = { x, y, w: TILE, h: TILE, kind: this.pick };
+    if (this.pick === "eraser") return Level.hazards.some((hazard) => hazard.x === x && hazard.y === y) ? null : "Put the eraser on a trap.";
+    const onSomeone = Physics.overlaps(trap, Player) ||
+      Object.values(this.remotePlayers).some((remote) => Physics.overlaps(trap, { x: remote.x, y: remote.y, w: Player.w, h: Player.h }));
+    if (x < 2 * TILE || x + TILE > LEVEL_W - TILE || y < 0 || y + TILE > LEVEL_H) return "That's off the course.";
+    if (Level.hazards.some((hazard) => Physics.overlaps(trap, hazard))) return "There's already a trap there.";
+    if (Physics.overlaps(trap, Level.flag) || onSomeone) return "Not on a runner or the flag.";
+    if (this.pick === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A crumbler needs open air, not a wall.";
+    return null;
+  },
+
+  setPending(clientX, clientY) {
+    if (this.phase !== "build" || this.mode !== "online") return;
+    if (this.myColor === null) { this.say("Pick a color first.", 1.5); return; }
+    if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
+    if (!this.pick) { this.say("Pick an item from the cards first.", 1.5); return; }
+    this.pending = this.tileAt(clientX, clientY);
+  },
+
+  confirmPlacement() {
+    if (!this.pending || this.phase !== "build" || !this.pick) return;
+    const { x, y } = this.pending;
+    const problem = this.placementProblem(x, y);
+    if (problem) { this.say(problem, 1.5); return; }
+    if (this.pick === "eraser") Network.send({ type: "erase_trap", x, y });
+    else Network.send({ type: "place_trap", x, y, kind: this.pick });
+  },
+
+  cancelPlacement() { this.pending = null; },
+
+  // The see-through preview of your item on the course, green outline if it can go
+  // there, red if not. The ✓ / ✕ buttons are moved to sit just above it.
+  drawPending() {
+    const confirm = document.getElementById("place-confirm");
+    const show = this.pending && this.phase === "build" && this.mode === "online" && this.pick && this.placements[0] < this.trapsPerRound;
+    confirm.classList.toggle("hidden", !show);
+    if (!show) return;
+    const { x, y } = this.pending;
+    const problem = this.placementProblem(x, y);
+    ctx.save();
+    ctx.globalAlpha = 0.65;
+    if (this.pick === "eraser") {
+      ctx.fillStyle = "rgba(255, 60, 120, 0.5)";
+      ctx.fillRect(x, y, TILE, TILE);
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 23, y + 23); ctx.moveTo(x + 23, y + 7); ctx.lineTo(x + 7, y + 23); ctx.stroke();
+    } else {
+      ctx.translate(x, y);
+      Level.drawItemIcon(ctx, this.pick);
+      ctx.translate(-x, -y);
+    }
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = problem ? "#ff5a3c" : "#5cf05a";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 2, y - 2, TILE + 4, TILE + 4);
+    ctx.restore();
+    // Just to the right of the ghost (or to the left if it is near the right edge).
+    const nearRightEdge = x > LEVEL_W - 6 * TILE;
+    confirm.style.left = nearRightEdge ? "" : `${((x + TILE + 6) / LEVEL_W) * 100}%`;
+    confirm.style.right = nearRightEdge ? `${((LEVEL_W - x + 6) / LEVEL_W) * 100}%` : "";
+    confirm.style.top = `${((y + TILE / 2) / LEVEL_H) * 100}%`;
   },
 
   // --- Final Battle weapons ---
@@ -389,10 +488,6 @@ const Game = {
     Player.weaponUsed = true;
   },
 
-  renderEraserCount() {
-    const me = this.players.find((player) => player.id === Network.id);
-    document.getElementById("eraser-count").textContent = me && me.erasers !== undefined ? `(${me.erasers})` : "";
-  },
 
   // --- player ID, invites, room list ---
   showInvite() {
@@ -645,9 +740,12 @@ const Game = {
     if (this.phase === "lobby") this._chartX = {};   // a fresh match gets a fresh chart
     this.showScores();
     this.renderRoom();
-    this.renderEraserCount();
-    this.dealtKind = me && me.trapKind ? me.trapKind : "spike";
-    this.setTrapKind(this.dealtKind);   // each build starts with the trap you were dealt selected
+    this.offer = message.offer || [];
+    this.picks = {};
+    for (const player of message.players) if (player.pick) this.picks[player.id] = player.pick;
+    this.pick = me ? me.pick || null : null;
+    this.pending = null;
+    this.renderItems();
     startRunButton.classList.add("hidden");
     // In the lobby the picker is always open. Elsewhere it only shows until you have a color.
     this.placeColorPicker();
@@ -723,7 +821,7 @@ const Game = {
         if (message.playerId === Network.id) { Player._immune = 0.8; this.say("Trap Bomb dropped! Move!", 2); }
         else this.say(`${this.nameOf(message.playerId)} dropped a Trap Bomb!`, 2);
       }
-      else if (message.playerId === Network.id) { this.placements[0] += 1; Sfx.pickup(); }
+      else if (message.playerId === Network.id) { this.placements[0] += 1; this.pending = null; Sfx.pickup(); this.renderItems(); }
       const who = this.players.find((player) => player.id === message.playerId);
       if (who) who.trapCount += 1;
     }
@@ -736,10 +834,10 @@ const Game = {
       Sfx.crumble();
       this.players = message.players;
       const owner = this.nameOf(message.trap.owner);
-      if (message.by === Network.id) { this.placements[0] += 1; this.say(`You erased ${owner}'s trap! That was your item this round.`, 2.5); }
+      if (message.by === Network.id) { this.placements[0] += 1; this.pending = null; this.say(`You erased ${owner}'s trap! That was your item this round.`, 2.5); }
       else if (message.trap.owner === Network.id) this.say(`${this.nameOf(message.by)} erased your trap!`, 2);
       else this.say(`${this.nameOf(message.by)} erased ${owner}'s trap.`, 1.5);
-      this.renderEraserCount();
+      this.renderItems();
     }
     if (message.type === "phase" && message.phase === "run") {
       this.phase = "run";
@@ -784,6 +882,12 @@ const Game = {
     if (message.type === "votes") {
       this.votes = message.votes;
       this.renderVote();
+    }
+    if (message.type === "picks") {
+      this.picks = message.picks;
+      const mine = message.picks[Network.id] || null;
+      if (mine !== this.pick) { this.pick = mine; this.pending = null; if (mine) Sfx.pickup(); }
+      this.renderItems();
     }
     if (message.type === "chat") this.addChatLine(message);
     if (message.type === "match_over") {
@@ -897,38 +1001,12 @@ const Game = {
     this.say("Runner 1: survive the sabotage", 3);
   },
 
+  // Local party mode only (unreachable from the menu for now): place straight away.
   placeTrap(clientX, clientY) {
-    if (this.phase !== "build") return;
-    if (this.mode === "online" && this.myColor === null) { this.say("Pick a color first.", 1.5); return; }
-    const bounds = canvas.getBoundingClientRect();
-    const x = Math.floor(((clientX - bounds.left) / bounds.width) * LEVEL_W / TILE) * TILE;
-    const y = Math.floor(((clientY - bounds.top) / bounds.height) * LEVEL_H / TILE) * TILE;
-    const trap = { x, y, w: TILE, h: TILE, kind: this.trapKind };
-
-    // The eraser is not a trap: click one of someone else's traps to remove it.
-    if (this.trapKind === "eraser") {
-      if (this.mode !== "online") return;
-      if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
-      const target = Level.hazards.find((hazard) => hazard.x === x && hazard.y === y);
-      if (!target) { this.say("Click a trap to erase it.", 1.5); return; }
-      Network.send({ type: "erase_trap", x, y });
-      return;
-    }
-
-    // No traps on the flag, on any player, on another trap, or off the edges.
-    const onSomeone = Physics.overlaps(trap, Player) ||
-      Object.values(this.remotePlayers).some((remote) => Physics.overlaps(trap, { x: remote.x, y: remote.y, w: Player.w, h: Player.h }));
-    const blocked = x < 2 * TILE || x + TILE > LEVEL_W - TILE ||
-      Level.hazards.some((hazard) => Physics.overlaps(trap, hazard)) ||
-      Physics.overlaps(trap, Level.flag) || onSomeone;
-    if (blocked) { this.say("You can't place a trap there.", 1.5); return; }
-    if (trap.kind === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) { this.say("A crumbler needs open air, not a wall.", 1.5); return; }
-
-    if (this.mode === "online") {
-      if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
-      Network.send({ type: "place_trap", x, y, kind: this.trapKind });
-      return;
-    }
+    if (this.phase !== "build" || this.mode !== "party") return;
+    const { x, y } = this.tileAt(clientX, clientY);
+    const trap = { x, y, w: TILE, h: TILE, kind: "spike" };
+    if (x < 2 * TILE || x + TILE > LEVEL_W - TILE || Level.hazards.some((hazard) => Physics.overlaps(trap, hazard)) || Physics.overlaps(trap, Level.flag) || Physics.overlaps(trap, Player)) { this.say("You can't place a trap there.", 1.5); return; }
     Level.hazards.push(trap);
     this.placements[this.builder] += 1;
     if (this.placements[this.builder] >= 2 && this.builder === 0) {
@@ -1241,6 +1319,7 @@ const Game = {
       if (this.mode === "online") this.drawNametag(remote.x, remote.y, remote.name, color);
     }
     Player.draw(ctx);
+    this.drawPending();
     if (this.mode === "online" && Player.alive) {
       const me = this.players.find((player) => player.id === Network.id);
       this.drawNametag(Player.x, Player.y, me ? me.name : "You", "#ffffff");
@@ -1281,8 +1360,12 @@ const Game = {
         buildInstructions.textContent = `Waiting for another player. Share room code ${roomCodeInput.value}.`;
       } else if (this.placements[0] >= this.trapsPerRound) {
         buildInstructions.textContent = `Item used. Waiting for ${waiting} more...`;
+      } else if (!this.pick) {
+        buildInstructions.textContent = `Pick one of this round's items.`;
+      } else if (this.pick === "eraser") {
+        buildInstructions.textContent = `Tap someone else's trap, then confirm to erase it.`;
       } else {
-        buildInstructions.textContent = `This round you have ${TRAP_NAMES[this.dealtKind]}. Tap the level to place it, or use your eraser.`;
+        buildInstructions.textContent = `Tap the course to set your ${TRAP_NAMES[this.pick]} down, move it if you like, then confirm.`;
       }
     }
   },
@@ -1348,16 +1431,20 @@ chatInput.addEventListener("keydown", (event) => {
   if (event.key === "Escape") chatInput.blur();
   event.stopPropagation();   // typing never reaches the game's key handlers
 });
-document.querySelectorAll(".trap-kind").forEach((button) => button.addEventListener("click", () => Game.setTrapKind(button.dataset.kind)));
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); Game.hideInvite(); Game.hideRoomList(); }
-  // 1 = the trap you were dealt, 5 = eraser
-  if ((event.key === "1" || event.key === "5") && Game.phase === "build" && !event.target.matches("input, textarea, select")) Game.setTrapKind(event.key === "5" ? "eraser" : Game.dealtKind);
+  if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); Game.hideInvite(); Game.hideRoomList(); Game.cancelPlacement(); }
+  if ((event.key === "e" || event.key === "E") && Game.pending && !event.target.matches("input, textarea, select")) Game.confirmPlacement();
   // "/" or "T" opens the chat when you are in a room and not already typing somewhere.
   if ((event.key === "/" || event.key === "t" || event.key === "T") && Game.inRoom && !event.target.matches("input, textarea, select")) { chatInput.focus(); event.preventDefault(); }
 });
 Game.loadPreferences();
-canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));
+// Tap the course to set your item down; drag to move it; ✓ or E to confirm; ✕ or Escape to cancel.
+let pointerHeld = false;
+canvas.addEventListener("pointerdown", (event) => { pointerHeld = true; Game.setPending(event.clientX, event.clientY); Game.placeTrap(event.clientX, event.clientY); });
+canvas.addEventListener("pointermove", (event) => { if (pointerHeld && Game.pending) Game.setPending(event.clientX, event.clientY); });
+window.addEventListener("pointerup", () => { pointerHeld = false; });
+document.getElementById("place-ok").addEventListener("click", () => Game.confirmPlacement());
+document.getElementById("place-cancel").addEventListener("click", () => Game.cancelPlacement());
 
 // The canvas only picks up a web font once the browser has loaded it, so ask for both now.
 if (document.fonts) { document.fonts.load("16px Fredoka"); document.fonts.load("16px 'Baloo 2'"); }

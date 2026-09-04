@@ -21,15 +21,16 @@
     <div id="build-hud" class="hidden">
       <strong id="build-title">BUILD PHASE</strong>
       <span id="build-instructions">Place traps for the other runner.</span>
-      <!-- Which trap you place. Keys 1-4 work too. -->
-      <div id="trap-kinds">
-        <button type="button" class="trap-kind selected" data-kind="spike" title="Kills on touch">1 Spikes</button>
-        <button type="button" class="trap-kind" data-kind="crumble" title="A fake platform that gives way">2 Crumbler</button>
-        <button type="button" class="trap-kind" data-kind="glue" title="Slows to a crawl, no jumping">3 Glue</button>
-        <button type="button" class="trap-kind" data-kind="bumper" title="Flings you sideways">4 Bumper</button>
-        <button type="button" class="trap-kind" data-kind="eraser" title="Erase someone else's trap (one per course)">5 Eraser <span id="eraser-count"></span></button>
-      </div>
-      <button id="start-run" type="button">Start Run</button>
+      <!-- This round's items, drawn as pictures. main.js fills the cards from the server's offer. -->
+      <div id="item-cards"></div>
+      <button id="start-run" type="button" class="hidden">Start Run</button>
+    </div>
+
+    <!-- Confirm or cancel where you are about to put your item. Sits next to the ghost on the course. -->
+    <div id="place-confirm" class="hidden">
+      <button id="place-ok" type="button" aria-label="Confirm placement">✓</button>
+      <button id="place-cancel" type="button" aria-label="Cancel placement">✕</button>
+      <span id="place-hint">E to confirm</span>
     </div>
 
     <!-- Color picker shown at the start of every online round. main.js fills in the 24 swatches. -->
@@ -140,10 +141,10 @@
       <p>Move with the arrow keys or A / D. Jump with Up, W, or Space. Tap jump just before you land and it still counts. Let go early for a shorter hop. Phones get buttons on screen.</p>
       <h3>A match</h3>
       <p>The host creates a room and sets the rules in the lobby. Everyone else presses Join Room and picks a room from the list, or types a private room's six-letter code at the top. You can also invite a friend by the six-character player ID shown at the bottom of their screen; they get a Join button. Pick a color (you can change it until the start). When the host presses Start, everyone gets ten seconds to vote on the first course.</p>
-      <p>Each round, every player places one trap by tapping the course. Once everyone has placed, everyone runs at once with a single life. Reach the flag before the clock runs out. Traps stay for three rounds, then the room votes on the next course.</p>
+      <p>Each round, every player picks an item and places it on the course. Once everyone has placed, everyone runs at once with a single life. Reach the flag before the clock runs out. Traps stay for three rounds, then the room votes on the next course.</p>
       <p>The match ends when someone reaches the points target, or when the round cap is hit and the top score wins. If two or more players qualify at once, they fight a Final Battle: one more run, no traps placed, everyone else watching.</p>
       <h3>Traps</h3>
-      <p>Each round you are dealt one trap at random (key 1 selects it). <b>Spikes</b> kill on touch. A <b>Crumbler</b> looks like a platform but gives way a moment after you land on it. <b>Glue</b> slows you to a crawl and you can't jump out of it. A <b>Bumper</b> bounces you away from its center, so the angle you hit it at decides where you fly. The <b>Eraser</b> (key 5) removes one of someone else's traps instead of placing yours; you get one per course.</p>
+      <p>Each round the room is offered a random handful of items, and everyone picks one. Once someone takes an item, nobody else can take it while others are still free. Tap the course to set your item down, move it if you like, then press E or the ✓ to confirm. <b>Spikes</b> kill on touch. A <b>Crumbler</b> looks like a platform but gives way a moment after you land on it. <b>Glue</b> slows you to a crawl and you can't jump out of it. A <b>Bumper</b> bounces you away from its center, so the angle you hit it at decides where you fly. The <b>Eraser</b> removes one of someone else's traps instead of placing yours; you get one per course.</p>
       <h3>Final Battle weapons</h3>
       <p>Before a Final Battle each fighter is offered three weapons and picks one. <b>Rocket Boots</b>: one extra jump in mid-air. <b>Dash</b>: X or Shift for a burst forward. <b>Shield</b>: survive one spike hit. <b>Freeze Ray</b>: X or Shift freezes the other fighters for a moment, once. <b>Trap Bomb</b>: X or Shift drops a spike trap under your feet, once. <b>Feather</b>: floaty low gravity for the whole run.</p>
       <h3>Points</h3>

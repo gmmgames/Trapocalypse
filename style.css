@@ -309,30 +309,68 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   font-size: 14px;
 }
 
-/* Trap picker inside the build box */
-#trap-kinds {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));   /* only the dealt trap and the eraser show */
-  gap: 4px;
+/* Item cards inside the build box: a picture, a name, and who took it */
+#item-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
   pointer-events: auto;
 }
 
-.trap-kind {
-  padding: 6px 4px;
+.item-card {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  width: 92px;
+  padding: 8px 6px;
   border: 2px solid #45455d;
-  border-radius: 4px;
+  border-radius: 6px;
   background: #0b0b14;
   color: #e8e8ff;
   font: inherit;
   font-size: 12px;
-  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
 }
 
-.trap-kind:hover { border-color: #ffd23c; }
-.trap-kind.selected { border-color: #ffffff; background: #1c1c2e; }
-.trap-kind[data-kind=eraser] { color: #ffd23c; }
-#eraser-count { font-weight: 800; }
+.item-card canvas { width: 48px; height: 48px; image-rendering: pixelated; }
+.item-card .item-name { font-weight: 700; }
+.item-card .item-taker { font-size: 11px; color: #c0c0d8; min-height: 1.2em; display: flex; align-items: center; gap: 4px; }
+.item-card .item-taker .dot { width: 9px; height: 9px; border-radius: 2px; }
+.item-card:hover:not(:disabled) { border-color: #ffd23c; transform: scale(1.05); }
+.item-card.mine { border-color: #ffffff; background: #1c1c2e; }
+.item-card:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* The confirm/cancel buttons next to the ghost item */
+#place-confirm {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translate(0, -50%);          /* sits just to the right of the ghost, vertically centered on it */
+  pointer-events: auto;
+  animation: slide-side 0.15s ease-out both;
+}
+
+@keyframes slide-side {
+  from { opacity: 0; transform: translate(-6px, -50%); }
+  to { opacity: 1; transform: translate(0, -50%); }
+}
+
+#place-confirm button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+#place-ok { background: #5cf05a; color: #0b0b14; }
+#place-cancel { background: #ff5a3c; color: #ffffff; }
+#place-hint { font-size: 11px; color: #e8e8ff; text-shadow: 0 0 4px #000; }
+@media (pointer: coarse) { #place-hint { display: none; } }
 #start-run {
   margin-top: 6px;
   padding: 8px 12px;
