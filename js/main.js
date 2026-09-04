@@ -116,6 +116,7 @@ const BURST_STYLE = {
 };
 const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart", boots: "Rocket Boots", feather: "Feather", speedshoes: "Speed Shoes", bigblock: "Big Block", belt: "Conveyor Belt", fan: "Fan", generator: "Generator" };
 const PICKUPS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // collected by touch during the run
+const MAX_CARRIED = 3;   // pickups you may collect in a round, however many of each
 const COARSE_POINTER = matchMedia("(pointer: coarse)");   // a finger, not a mouse
 const PHONE_VIEW_TILES = 20;   // how much of a course a phone shows while you are running
 const BAT_REACH = 46;   // how far in front of you a swing reaches
@@ -279,6 +280,7 @@ const Game = {
   bat: false,           // carrying the Baseball Bat this run
   _swing: 0,            // seconds left of the current swing
   buckler: 0,           // Shield item health left this run
+  pickups: 0,           // how many pickups you have collected this run (at most MAX_CARRIED)
   revive: 0,            // Revive Hearts held: each one is another life this run
   boots: 0,             // Rocket Boots held: each pair is another mid-air jump per landing
   feather: false,       // Feather this run: floaty gravity
@@ -366,7 +368,7 @@ const Game = {
     // Nothing from the old round may linger behind the menu: cards, ghost, bursts, balls, dialogs.
     buildHud.classList.add("hidden");
     this.offer = []; this.picks = {}; this.pick = null; this.pending = null; this.renderItems();
-    this._bursts = []; this._balls = []; this.pencil = 0; this.portal = 0; this.testMatch = false; this._stroke = null;
+    this._bursts = []; this._balls = []; this.pencil = 0; this.portal = 0; this.pickups = 0; this.testMatch = false; this._stroke = null;
     this.hideSettings();
     this.weaponOffer = []; this.myWeapon = null; this.weapons = {};
     Player.setWeapon(null);
@@ -1506,6 +1508,7 @@ const Game = {
       if (orb) orb.taken = true;
       const kind = message.kind || "portal";
       if (message.by === Network.id) {
+        this.pickups += 1;
         // Two of the same means two goes with it: throws, lives, shield hits and jumps add up.
         // The bat, feather and shoes have no uses to count; they simply last the whole run.
         if (kind === "heart") { this.revive += 1; this.say(this.revive > 1 ? `Another Revive Heart! ${this.revive} lives in hand.` : "Revive Heart! If you die this run, you get one more go from the start.", 4); }
@@ -1608,7 +1611,7 @@ const Game = {
       this.rotation = 0;
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
       Level.lavaRising = true;                 // on the Rising Lava course the flood begins now
-      this.portal = 0; this._balls = []; this._charge = 0;
+      this.portal = 0; this._balls = []; this._charge = 0; this.pickups = 0;
       this.bat = false; this._swing = 0; this.buckler = 0; this.revive = 0; this.boots = 0; this.feather = false; this.speedshoes = false;
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
@@ -1869,6 +1872,11 @@ const Game = {
         this.updateBalls(dt);
         // Touch a Teleport Ball orb to claim it (the server decides who was first).
         for (const orb of Level.hazards) {
+          if (PICKUPS.includes(orb.kind) && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb) && this.pickups >= MAX_CARRIED) {
+            orb._claimed = true;   // hands full: leave it lying there for somebody else
+            this.say(`Your hands are full: ${MAX_CARRIED} items is all you can carry in a round.`, 2);
+            continue;
+          }
           if (PICKUPS.includes(orb.kind) && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
             orb._claimed = true;
             Network.send({ type: "pickup", x: orb.x, y: orb.y });
@@ -2410,7 +2418,7 @@ const Game = {
       const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
       const portal = this.portal ? `  •  🔮 Teleport Ball${this.portal > 1 ? " ×" + this.portal : ""}: hold X / Shift to aim, let go to throw` : "";
       const twist = this.event && this.phase === "run" ? `  •  ⚠ ${EVENT_INFO[this.event].title}` : "";
-      const carry = twist + (this.boots ? `  •  🚀 Boots${this.boots > 1 ? " ×" + this.boots : ""}` : "") + (this.feather ? "  •  🪶 Feather" : "") + (this.speedshoes ? "  •  👟 Speed Shoes" : "") + (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? `  •  💗 Revive${this.revive > 1 ? " ×" + this.revive : ""} ready` : "");
+      const carry = twist + (this.boots ? `  •  🚀 Boots${this.boots > 1 ? " ×" + this.boots : ""}` : "") + (this.feather ? "  •  🪶 Feather" : "") + (this.speedshoes ? "  •  👟 Speed Shoes" : "") + (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? `  •  💗 Revive${this.revive > 1 ? " ×" + this.revive : ""} ready` : "") + (this.pickups ? `  •  ${this.pickups}/${MAX_CARRIED} carried` : "");
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";

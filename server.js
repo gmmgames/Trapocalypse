@@ -560,6 +560,7 @@ const ITEM_WEIGHTS = {
   plank: 0.5, bigblock: 0.45, mover: 0.4, mirror: 0.3, belt: 0.35, fan: 0.3, generator: 0.3, eraser: 0.5, pencil: 0.15,
   bat: 0.12, buckler: 0.12, boots: 0.1, feather: 0.1, speedshoes: 0.1, heart: 0.06, portal: 0.05,
 };
+const MAX_CARRIED = 3;             // pickups one runner may collect in a round
 const PICKUP_KINDS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // placed in the build phase, collected by touch during the run
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
 // Random round events (the effects themselves live in the browser). Each has a weight, so the
@@ -591,7 +592,7 @@ function dealItems(room) {
   room.buildEndsAt = Date.now() + picking * 1000;
   room.buildTimer = setTimeout(() => pickTimeUp(room), picking * 1000);
   if (process.env.FORCE_ITEM) process.env.FORCE_ITEM.split(",").forEach((kind, slot) => { if (slot < room.offer.length) room.offer[slot] = kind; });   // test hook: FORCE_ITEM=pencil (or plank,spike to pin the first cards in order)
-  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = 0; }
+  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = 0; player.pickups = 0; }
 }
 
 // Who holds which card (by card number, since two cards can show the same item).
@@ -1109,6 +1110,9 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "pickup" && room.phase === "run" && player.status === "running") {
       const orb = room.traps.find((trap) => PICKUP_KINDS.includes(trap.kind) && !trap.taken && trap.x === Number(message.x) && trap.y === Number(message.y));
       if (!orb) return;
+      // Three is all anyone can carry, so a fourth is left where it lies for somebody else.
+      if ((player.pickups || 0) >= MAX_CARRIED) { send(socket, { type: "notice", message: `Your hands are full: ${MAX_CARRIED} items is all you can carry in a round.` }); return; }
+      player.pickups = (player.pickups || 0) + 1;
       orb.taken = true;
       if (orb.kind === "portal") player.portal = (player.portal || 0) + 1;   // two balls, two throws
       broadcast(room, { type: "picked_up", x: orb.x, y: orb.y, by: player.id, kind: orb.kind });
@@ -1178,4 +1182,4 @@ webSocketServer.on("connection", (socket) => {
 
 // Started directly, it plays host. Loaded by a test, it just hands over the pieces worth checking.
 if (require.main === module) server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));
-module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE, CONDOLENCE_POINTS, CONDOLENCE_GAP };
+module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE, CONDOLENCE_POINTS, CONDOLENCE_GAP, MAX_CARRIED };
