@@ -1409,3 +1409,57 @@ body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto
   text-align: center;
   pointer-events: none;
 }
+
+/* Held upright, the course is only a band across the middle of the screen, so the lobby, which
+   normally sits inside it, hung off the bottom where it could not be reached. Upright, it is
+   pinned to the screen instead, and everything is tightened to fit: the top strip is left for the
+   gear, the bottom for the chat, the ID badge and the run buttons. */
+@media (pointer: coarse) and (orientation: portrait) {
+  #lobby {
+    position: fixed;
+    top: 56px;
+    left: 6px;
+    right: 6px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+    transform: none;
+    max-height: calc(100% - 200px);
+    gap: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  /* Smaller swatches and a tighter settings form, so the lobby needs far less scrolling. */
+  .swatch { width: clamp(22px, 7vw, 30px); }
+  #color-picker { gap: 5px; padding: 10px; }
+  #color-note { font-size: 11px; }
+  #swatches { grid-template-columns: repeat(10, auto); gap: 6px; }   /* 3 rows instead of 5 */
+  #avatar-picker { gap: 4px; }
+  .avatar-btn { width: 34px; height: 34px; }
+  .avatar-btn canvas { width: 28px; height: 28px; }
+  #match-settings { gap: 3px; padding: 6px; font-size: 12px; }
+  #match-settings select, #match-settings input[type="number"] { padding: 2px 4px; }
+  #lobby-players { max-height: 92px; overflow-y: auto; touch-action: pan-y; }
+  #lobby button, #lobby select { padding: 6px 8px; }
+  /* The menu loses a little bulk so the logo above it has room. */
+  #online-panel { width: min(94vw, 330px); gap: 8px; padding: 14px; }
+  #online-panel button { padding: 7px 8px; }
+  #menu-buttons button { padding: 8px 10px; font-size: 16px; }
+  #menu-help, #menu-editor { padding: 7px 10px; font-size: 14px; }
+  #menu-logo { top: 10px; }
+  /* The boxes that float over everything keep clear of the top and bottom strips. */
+  #settings-box, #help-box, #room-list-box, #invite-box { max-height: calc(100% - 110px); width: min(94vw, 360px); }
+  /* Five run buttons in a row do not fit across an upright phone, so they shrink to suit. */
+  #touch-controls { padding: 8px 8px 12px; }
+  .touch-group { gap: 6px; }
+  .touch-btn { width: 58px; height: 58px; font-size: 22px; }
+  .touch-btn.jump { width: 88px; font-size: 15px; }
+  .touch-btn.use { width: 64px; font-size: 14px; }
+  /* Then everything above them stacks up the screen without overlapping: buttons, ID badge, chat. */
+  #user-badge { bottom: 86px; }
+  #chat, body:not(.in-run) #chat { bottom: 128px; }
+  #settings-button { bottom: 86px; }
+  #rotate-hint { bottom: 128px; }
+  body.in-room #rotate-hint { display: none; }   /* said once on the menu is enough */
+}
