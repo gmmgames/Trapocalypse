@@ -90,7 +90,7 @@ function overlaps(a, b) {
 
 function playerList(room) {
   return [...room.players.values()].map((player) => ({
-    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, pick: player.pick || null, avatar: player.avatar || "cube",
+    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, pick: player.pick || null, pickSlot: player.pick ? player.pickSlot : null, avatar: player.avatar || "cube",
   }));
 }
 
@@ -415,26 +415,35 @@ function removePlayer(socket) {
 // Every round the room is offered a random handful of items (traps plus maybe the eraser),
 // one more than there are players, at most all five. Everyone sees the same offer and
 // picks one; while any offered item is still free, two players cannot pick the same one.
-const ITEM_POOL = [...TRAP_KINDS, "eraser"];
+// Each card is a separate random draw, so the same trap can show up twice. Rarer
+// items have a lower weight: the eraser turns up in maybe one round in four.
+const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5 };
+function drawItem() {
+  let roll = Math.random() * Object.values(ITEM_WEIGHTS).reduce((sum, weight) => sum + weight, 0);
+  for (const [item, weight] of Object.entries(ITEM_WEIGHTS)) { roll -= weight; if (roll < 0) return item; }
+  return "spike";
+}
 function dealItems(room) {
-  const count = Math.min(ITEM_POOL.length, Math.max(2, room.players.size + 1));
-  room.offer = [...ITEM_POOL].sort(() => Math.random() - 0.5).slice(0, count);
-  for (const player of room.players.values()) player.pick = null;
+  const count = Math.min(8, Math.max(2, room.players.size + 1));
+  room.offer = Array.from({ length: count }, drawItem);
+  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; }
 }
 
+// Who holds which card (by card number, since two cards can show the same item).
 function itemPicks(room) {
   const picks = {};
-  for (const player of room.players.values()) if (player.pick) picks[player.id] = player.pick;
+  for (const player of room.players.values()) if (player.pick) picks[player.id] = player.pickSlot;
   return picks;
 }
 
-// May this player take this item right now?
-function canPick(room, player, item) {
-  if (!room.offer || !room.offer.includes(item)) return "That item isn't on offer this round.";
+// May this player take this card right now?
+function canPick(room, player, slot) {
+  const item = room.offer ? room.offer[slot] : undefined;
+  if (!Number.isInteger(slot) || !item) return "That item isn't on offer this round.";
   if (item === "eraser" && player.erasers <= 0) return "No erasers left on this course.";
-  const takenByOthers = new Set([...room.players.values()].filter((other) => other !== player && other.pick).map((other) => other.pick));
-  const anyFree = room.offer.some((offered) => !takenByOthers.has(offered));
-  if (takenByOthers.has(item) && anyFree) return "Someone already took that one.";
+  const takenByOthers = new Set([...room.players.values()].filter((other) => other !== player && other.pick).map((other) => other.pickSlot));
+  const anyFree = room.offer.some((offered, index) => !takenByOthers.has(index));
+  if (takenByOthers.has(slot) && anyFree) return "Someone already took that one.";
   return null;
 }
 
@@ -692,9 +701,11 @@ webSocketServer.on("connection", (socket) => {
     // Pick one of this round's offered items (you can change your mind until you place).
     if (message.type === "pick_item" && room.phase === "build") {
       if (player.trapCount >= TRAPS_PER_ROUND) { send(socket, { type: "trap_rejected", message: "You've already used your item this round." }); return; }
-      const problem = canPick(room, player, message.item);
+      const slot = Number(message.slot);
+      const problem = canPick(room, player, slot);
       if (problem) { send(socket, { type: "trap_rejected", message: problem }); return; }
-      player.pick = message.item;
+      player.pick = room.offer[slot];
+      player.pickSlot = slot;
       broadcast(room, { type: "picks", picks: itemPicks(room) });
       return;
     }

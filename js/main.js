@@ -389,13 +389,18 @@ const Game = {
   renderItems() {
     const cards = document.getElementById("item-cards");
     const me = this.players.find((player) => player.id === Network.id);
-    const takenByOthers = new Set(Object.entries(this.picks).filter(([id]) => id !== Network.id).map(([, item]) => item));
-    const anyFree = this.offer.some((item) => !takenByOthers.has(item));
-    cards.replaceChildren(...this.offer.map((item) => {
+    // Cards are tracked by number, not name: two cards can show the same trap.
+    const mineSlot = this.picks[Network.id];
+    const takenByOthers = new Set(Object.entries(this.picks).filter(([id]) => id !== Network.id).map(([, slot]) => slot));
+    const anyFree = this.offer.some((item, slot) => !takenByOthers.has(slot));
+    // Once everyone holds a card the menu gets out of the way so you can place.
+    cards.classList.toggle("hidden", this.phase !== "build" || this.offer.length === 0 || this.everyonePicked());
+    cards.replaceChildren(...this.offer.map((item, slot) => {
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "item-card" + (this.pick === item ? " mine" : "");
+      card.className = "item-card" + (mineSlot === slot ? " mine" : "");
       card.dataset.item = item;
+      card.dataset.slot = slot;
       const icon = document.createElement("canvas");
       icon.width = TILE; icon.height = TILE;
       Level.drawItemIcon(icon.getContext("2d"), item);
@@ -404,15 +409,15 @@ const Game = {
       name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : TRAP_NAMES[item];
       const taker = document.createElement("span");
       taker.className = "item-taker";
-      const takerId = Object.keys(this.picks).find((id) => this.picks[id] === item && id !== Network.id);
+      const takerId = Object.keys(this.picks).find((id) => this.picks[id] === slot && id !== Network.id);
       if (takerId) {
         const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = this.colorOf(takerId);
         taker.append(dot, this.nameOf(takerId));
-      } else if (this.pick === item) taker.textContent = "yours";
+      } else if (mineSlot === slot) taker.textContent = "yours";
       card.append(icon, name, taker);
       const used = me && me.trapCount >= this.trapsPerRound;
-      card.disabled = used || (takenByOthers.has(item) && anyFree) || (item === "eraser" && me && me.erasers <= 0);
-      card.addEventListener("click", () => Network.send({ type: "pick_item", item }));
+      card.disabled = used || (takenByOthers.has(slot) && anyFree) || (item === "eraser" && me && me.erasers <= 0);
+      card.addEventListener("click", () => Network.send({ type: "pick_item", slot }));
       return card;
     }));
   },
@@ -451,7 +456,7 @@ const Game = {
 
   // Placing only opens once every player in the round has chosen an item.
   everyonePicked() {
-    return this.players.filter((player) => player.status !== "out").every((player) => this.picks[player.id]);
+    return this.players.filter((player) => player.status !== "out").every((player) => this.picks[player.id] !== undefined);
   },
 
   confirmPlacement() {
@@ -825,7 +830,7 @@ const Game = {
     this.renderRoom();
     this.offer = message.offer || [];
     this.picks = {};
-    for (const player of message.players) if (player.pick) this.picks[player.id] = player.pick;
+    for (const player of message.players) if (player.pick) this.picks[player.id] = player.pickSlot;
     this.pick = me ? me.pick || null : null;
     this.pending = null;
     this.renderItems();
@@ -974,7 +979,7 @@ const Game = {
     }
     if (message.type === "picks") {
       this.picks = message.picks;
-      const mine = message.picks[Network.id] || null;
+      const mine = message.picks[Network.id] === undefined ? null : this.offer[message.picks[Network.id]] || null;
       if (mine !== this.pick) { this.pick = mine; this.pending = null; if (mine) Sfx.pickup(); }
       this.renderItems();
     }
@@ -1525,7 +1530,7 @@ const Game = {
       } else if (!this.pick) {
         buildInstructions.textContent = `Pick one of this round's items.`;
       } else if (!this.everyonePicked()) {
-        const left = this.players.filter((player) => player.status !== "out" && !this.picks[player.id]).length;
+        const left = this.players.filter((player) => player.status !== "out" && this.picks[player.id] === undefined).length;
         buildInstructions.textContent = `Waiting for ${left} more to pick an item…`;
       } else if (this.pick === "eraser") {
         buildInstructions.textContent = `Tap someone else's trap, then confirm to erase it.`;
