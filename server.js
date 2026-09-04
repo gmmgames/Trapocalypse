@@ -154,7 +154,7 @@ function levelsOf(room) { return LEVELS.concat(room.customLevels || []); }
 
 // A custom course from a browser: same checks as the editor, returns the cleaned course or null.
 const CUSTOM_SIZES = [[32, 18], [48, 27]];
-const CUSTOM_THEMES = ["neon", "rust", "dusk", "grotto", "ash", "meadow", "frost"];
+const CUSTOM_THEMES = ["neon", "rust", "dusk", "grotto", "ash", "meadow", "frost", "midnight", "ocean", "lava", "candy"];
 function cleanCustomLevel(raw) {
   if (!raw || typeof raw !== "object") return null;
   const name = String(raw.name || "").slice(0, 24).trim();

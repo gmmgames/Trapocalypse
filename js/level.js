@@ -25,14 +25,31 @@ function tileRect(col, row, cols = 1, rows = 1) {
 //   dust      the puffs kicked up when a runner moves or lands
 // Random background decoration for the title screen, picked to suit the theme.
 function makeScenery(themeName) {
-  const daylight = themeName === "meadow";
+  const daylight = ["meadow", "ocean", "candy"].includes(themeName);
   const items = [];
   if (!daylight) for (let i = 0; i < 45; i++) items.push({ kind: "star", x: Math.random() * LEVEL_W, y: Math.random() * LEVEL_H * 0.65, r: 0.6 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
-  items.push({ kind: daylight ? "sun" : "moon", x: 80 + Math.random() * (LEVEL_W - 160), y: 50 + Math.random() * 80, r: 18 + Math.random() * 10 });
-  if (daylight || themeName === "frost") for (let i = 0; i < 4; i++) items.push({ kind: "cloud", x: Math.random() * LEVEL_W, y: 40 + Math.random() * 150, w: 60 + Math.random() * 60, speed: 6 + Math.random() * 10 });
-  items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
-  const prop = { meadow: "tree", rust: "cactus", frost: "crystal", grotto: "crystal", neon: "tower", dusk: "tower", ash: "stump" }[themeName] || "stump";
-  for (let i = 0; i < 6; i++) items.push({ kind: prop, x: 20 + Math.random() * (LEVEL_W - 40), h: 30 + Math.random() * 60 });
+  items.push({ kind: daylight ? "sun" : "moon", x: 80 + Math.random() * (LEVEL_W - 160), y: 50 + Math.random() * 80, r: 18 + Math.random() * 10, tint: themeName === "lava" ? "#ff5a3c" : null });
+  if (daylight || themeName === "frost") for (let i = 0; i < 4; i++) items.push({ kind: "cloud", x: Math.random() * LEVEL_W, y: 40 + Math.random() * 150, w: 60 + Math.random() * 60, speed: 6 + Math.random() * 10, pink: themeName === "candy" });
+  if (themeName === "midnight") {
+    // A city: two rows of dark towers with lit windows, and a shooting star now and then.
+    for (let layer = 0; layer < 2; layer++) for (let x = -20; x < LEVEL_W; x += 50 + Math.random() * 40) items.push({ kind: "building", layer, x, w: 34 + Math.random() * 36, h: 70 + Math.random() * (layer ? 160 : 110), seed: Math.random() * 100 });
+    items.push({ kind: "shooting", period: 5 + Math.random() * 4, offset: Math.random() * 5 });
+  } else if (themeName === "ocean") {
+    items.push({ kind: "waves", layer: 0, seed: Math.random() * 100 }, { kind: "waves", layer: 1, seed: Math.random() * 100 });
+    items.push({ kind: "boat", x: 120 + Math.random() * (LEVEL_W - 240), speed: 8 + Math.random() * 8 });
+    for (let i = 0; i < 3; i++) items.push({ kind: "gull", x: Math.random() * LEVEL_W, y: 60 + Math.random() * 120, speed: 20 + Math.random() * 20, phase: Math.random() * 6 });
+  } else if (themeName === "lava") {
+    items.push({ kind: "volcano", x: 200 + Math.random() * (LEVEL_W - 400), w: 260 + Math.random() * 120, h: 160 + Math.random() * 80 });
+    for (let i = 0; i < 26; i++) items.push({ kind: "ember", x: Math.random() * LEVEL_W, speed: 18 + Math.random() * 30, phase: Math.random() * 100, r: 1 + Math.random() * 1.6 });
+    items.push({ kind: "hills", layer: 1, seed: Math.random() * 100 });
+  } else if (themeName === "candy") {
+    items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
+    for (let i = 0; i < 6; i++) items.push({ kind: "lollipop", x: 20 + Math.random() * (LEVEL_W - 40), h: 40 + Math.random() * 60, hue: Math.random() * 360 });
+  } else {
+    items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
+    const prop = { meadow: "tree", rust: "cactus", frost: "crystal", grotto: "crystal", neon: "tower", dusk: "tower", ash: "stump" }[themeName] || "stump";
+    for (let i = 0; i < 6; i++) items.push({ kind: prop, x: 20 + Math.random() * (LEVEL_W - 40), h: 30 + Math.random() * 60 });
+  }
   return items;
 }
 
@@ -44,6 +61,10 @@ const THEMES = {
   ash:    { bg: "#1c1a1a", grid: "rgba(255,120,60,0.05)",  solid: "#3a3232", solidTop: "#ff5a1f", spike: "#ffb347", spikeBase: "#ffe0b3", pole: "#e8e8ff", dust: "rgba(140,140,140,0.7)" },
   meadow: { bg: "#9ad7f5", grid: "rgba(0,0,0,0.04)",       solid: "#6b4a2b", solidTop: "#7ed957", spike: "#3b2a1a", spikeBase: "#5a3d24", pole: "#3b2a1a", dust: "rgba(120,90,50,0.6)" },
   frost:  { bg: "#0e1a2e", grid: "rgba(200,230,255,0.05)", solid: "#24405f", solidTop: "#dff6ff", spike: "#bfe9ff", spikeBase: "#ffffff", pole: "#ffffff", dust: "rgba(230,245,255,0.7)" },
+  midnight: { bg: "#070b1a", grid: "rgba(120,140,255,0.05)", solid: "#1a2040", solidTop: "#ffd23c", spike: "#ff8fb0", spikeBase: "#ffd6e6", pole: "#ffffff", dust: "rgba(200,200,255,0.6)" },
+  ocean:  { bg: "#8fd3ff", grid: "rgba(0,60,120,0.05)",     solid: "#c9a56a", solidTop: "#ffe9b8", spike: "#2f4fa0", spikeBase: "#a8c8ff", pole: "#2f4fa0", dust: "rgba(255,240,200,0.7)" },
+  lava:   { bg: "#1a0606", grid: "rgba(255,90,60,0.06)",    solid: "#3d1a14", solidTop: "#ff8c1a", spike: "#ffd23c", spikeBase: "#fff0b0", pole: "#ffe9b8", dust: "rgba(255,150,80,0.6)" },
+  candy:  { bg: "#ffd6ec", grid: "rgba(160,60,120,0.06)",   solid: "#ff8fb0", solidTop: "#ffffff", spike: "#7b3fe4", spikeBase: "#d9b8ff", pole: "#7b3fe4", dust: "rgba(255,255,255,0.8)" },
 };
 
 // A placed Mover block slides this far to the right and back, taking this long per round trip.
@@ -450,12 +471,13 @@ const Level = {
 
   // The title screen: a random little world to hop around in behind the menu.
   // A random theme, a full floor, a few floating ledges, no traps and no flag.
-  loadTitle() {
+  loadTitle(wantedTheme) {
     this.index = -1;
     this.w = LEVEL_W; this.h = LEVEL_H;
     this.name = "Title";
     const themeNames = Object.keys(THEMES);
-    const themeName = themeNames[Math.floor(Math.random() * themeNames.length)];
+    const themeName = THEMES[wantedTheme] ? wantedTheme : themeNames[Math.floor(Math.random() * themeNames.length)];
+    this.titleTheme = themeName;
     this.theme = THEMES[themeName];
     this.hazards = [];
     this.flag = { x: -1000, y: 0, w: TILE, h: TILE * 2 };   // parked off-screen: nothing to finish
@@ -490,14 +512,67 @@ const Level = {
         ctx.beginPath(); ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2); ctx.fill();
       } else if (item.kind === "moon" || item.kind === "sun") {
         ctx.globalAlpha = 0.9;
-        ctx.fillStyle = item.kind === "sun" ? "#ffe066" : "#f4f1e0";
+        ctx.fillStyle = item.tint || (item.kind === "sun" ? "#ffe066" : "#f4f1e0");
         ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 30;
         ctx.beginPath(); ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 0;
         if (item.kind === "moon") { ctx.fillStyle = t.bg; ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(item.x + item.r * 0.3, item.y - item.r * 0.2, item.r * 0.3, 0, Math.PI * 2); ctx.fill(); }
+      } else if (item.kind === "building") {
+        // A tower on the skyline with rows of windows, some lit, one flickering.
+        ctx.globalAlpha = item.layer ? 0.9 : 0.55;
+        ctx.fillStyle = item.layer ? "#0d1230" : "#141a3d";
+        ctx.fillRect(item.x, groundY - item.h, item.w, item.h);
+        for (let wy = groundY - item.h + 8; wy < groundY - 6; wy += 12) for (let wx = item.x + 5; wx < item.x + item.w - 6; wx += 10) {
+          const lit = Math.sin(wx * 12.9 + wy * 7.3 + item.seed) > 0.1;
+          const flicker = Math.sin(time * 3 + wx + wy) > 0.97;
+          if (lit !== flicker) { ctx.fillStyle = "#ffd23c"; ctx.globalAlpha = item.layer ? 0.85 : 0.4; ctx.fillRect(wx, wy, 5, 6); }
+        }
+      } else if (item.kind === "shooting") {
+        // Once per period a streak crosses the top of the sky.
+        const t = ((time + item.offset) % item.period) / item.period;
+        if (t < 0.15) {
+          const p = t / 0.15, sx = LEVEL_W * (1.1 - p * 1.2), sy = 40 + p * 140;
+          ctx.globalAlpha = 0.9 * (1 - p); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 60, sy - 18); ctx.stroke();
+        }
+      } else if (item.kind === "waves") {
+        // Rolling water below the beach, two bands sliding at different speeds.
+        const base = groundY - (item.layer ? 22 : 46), amp = item.layer ? 5 : 8;
+        ctx.globalAlpha = item.layer ? 0.9 : 0.6;
+        ctx.fillStyle = item.layer ? "#2f7fd6" : "#5fb0ff";
+        ctx.beginPath(); ctx.moveTo(0, groundY);
+        for (let x = 0; x <= LEVEL_W; x += 12) ctx.lineTo(x, base + Math.sin(x * 0.04 + time * (item.layer ? 1.6 : 1.1) + item.seed) * amp);
+        ctx.lineTo(LEVEL_W, groundY); ctx.closePath(); ctx.fill();
+      } else if (item.kind === "boat") {
+        const x = ((item.x + time * item.speed) % (LEVEL_W + 200)) - 100, y = groundY - 52 + Math.sin(time * 1.4) * 4;
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = "#8a4a2a"; ctx.beginPath(); ctx.moveTo(x - 22, y); ctx.lineTo(x + 22, y); ctx.lineTo(x + 14, y + 10); ctx.lineTo(x - 14, y + 10); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#f4f1e0"; ctx.fillRect(x - 1, y - 30, 2, 30); ctx.beginPath(); ctx.moveTo(x + 1, y - 30); ctx.lineTo(x + 18, y - 8); ctx.lineTo(x + 1, y - 6); ctx.closePath(); ctx.fill();
+      } else if (item.kind === "gull") {
+        const x = ((item.x + time * item.speed) % (LEVEL_W + 100)) - 50, y = item.y + Math.sin(time * 2 + item.phase) * 6, flap = Math.sin(time * 8 + item.phase) * 4;
+        ctx.globalAlpha = 0.8; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x - 8, y - flap); ctx.lineTo(x, y); ctx.lineTo(x + 8, y - flap); ctx.stroke();
+      } else if (item.kind === "volcano") {
+        // A dark cone with a glowing mouth and a lava trickle.
+        ctx.globalAlpha = 0.95; ctx.fillStyle = "#24100c";
+        ctx.beginPath(); ctx.moveTo(item.x - item.w / 2, groundY); ctx.lineTo(item.x - 18, groundY - item.h); ctx.lineTo(item.x + 18, groundY - item.h); ctx.lineTo(item.x + item.w / 2, groundY); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#ff5a1f"; ctx.shadowColor = "#ff8c1a"; ctx.shadowBlur = 25 + Math.sin(time * 3) * 8;
+        ctx.fillRect(item.x - 18, groundY - item.h - 3, 36, 5);
+        ctx.fillRect(item.x + 4, groundY - item.h, 5, item.h * 0.55);
+        ctx.shadowBlur = 0;
+      } else if (item.kind === "ember") {
+        // Sparks drifting up and away, fading as they rise.
+        const life = ((time * item.speed + item.phase) % 220) / 220, x = item.x + Math.sin(time + item.phase) * 14, y = groundY - life * 260;
+        ctx.globalAlpha = 0.9 * (1 - life); ctx.fillStyle = life < 0.5 ? "#ffd23c" : "#ff5a1f";
+        ctx.beginPath(); ctx.arc(x, y, item.r, 0, Math.PI * 2); ctx.fill();
+      } else if (item.kind === "lollipop") {
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(item.x - 2, groundY - item.h, 4, item.h);
+        ctx.fillStyle = `hsl(${item.hue}, 90%, 70%)`; ctx.beginPath(); ctx.arc(item.x, groundY - item.h, 16, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(item.x, groundY - item.h, 9, 0.4, 3.6); ctx.stroke();
       } else if (item.kind === "cloud") {
         const x = ((item.x + time * item.speed) % (LEVEL_W + 200)) - 100;
-        ctx.globalAlpha = 0.8; ctx.fillStyle = "#ffffff";
+        ctx.globalAlpha = 0.8; ctx.fillStyle = item.pink ? "#fff0f7" : "#ffffff";
         for (const [dx, dy, r] of [[0, 0, item.w * 0.22], [item.w * 0.25, -item.w * 0.08, item.w * 0.28], [item.w * 0.5, 0, item.w * 0.2]]) {
           ctx.beginPath(); ctx.arc(x + dx, item.y + dy, r, 0, Math.PI * 2); ctx.fill();
         }
