@@ -73,6 +73,7 @@ const PALETTE = [
 const FONT = "'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const DISPLAY_FONT = "'Bangers', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper" };
 
 // --- match settings (host only) ---
 // Each dropdown has presets plus "Custom…", which reveals a number box.
@@ -174,7 +175,8 @@ const Game = {
   _gains: {},             // playerId -> [{ label, points }] for this round, from the server
   _resultsElapsed: 0,     // seconds since the results screen appeared (drives the bar animation)
   myColor: null,        // index into PALETTE, chosen once when you join
-  trapKind: "spike",    // which trap you place next (spike, crumble, glue, bumper)
+  trapKind: "spike",    // what you place next: the kind you were dealt this round, or "eraser"
+  dealtKind: "spike",   // the trap kind the server dealt you for this round
   weaponOffer: [],      // Final Battle: the weapons you may pick from
   myWeapon: null,       // the one you picked (null = not yet)
   weapons: {},          // playerId -> weapon for the current Final Battle run
@@ -338,9 +340,16 @@ const Game = {
   },
 
   // --- trap picker ---
+  // Only two choices each round: the trap you were dealt, or your eraser.
   setTrapKind(kind) {
+    if (kind !== "eraser" && kind !== this.dealtKind) kind = this.dealtKind;
     this.trapKind = kind;
-    document.querySelectorAll(".trap-kind").forEach((button) => button.classList.toggle("selected", button.dataset.kind === kind));
+    document.querySelectorAll(".trap-kind").forEach((button) => {
+      const isDealt = button.dataset.kind === this.dealtKind, isEraser = button.dataset.kind === "eraser";
+      button.classList.toggle("hidden", !(isDealt || isEraser));
+      button.classList.toggle("selected", button.dataset.kind === kind);
+      if (isDealt) button.textContent = `1 ${TRAP_NAMES[this.dealtKind]} (this round)`;
+    });
   },
 
   // --- Final Battle weapons ---
@@ -562,7 +571,8 @@ const Game = {
     this.showScores();
     this.renderRoom();
     this.renderEraserCount();
-    if (this.trapKind === "eraser") this.setTrapKind("spike");   // start each build with a real trap selected
+    this.dealtKind = me && me.trapKind ? me.trapKind : "spike";
+    this.setTrapKind(this.dealtKind);   // each build starts with the trap you were dealt selected
     startRunButton.classList.add("hidden");
     // In the lobby the picker is always open. Elsewhere it only shows until you have a color.
     this.placeColorPicker();
@@ -645,7 +655,7 @@ const Game = {
       Sfx.crumble();
       this.players = message.players;
       const owner = this.nameOf(message.trap.owner);
-      if (message.by === Network.id) this.say(`You erased ${owner}'s trap!`, 2);
+      if (message.by === Network.id) { this.placements[0] += 1; this.say(`You erased ${owner}'s trap! That was your item this round.`, 2.5); }
       else if (message.trap.owner === Network.id) this.say(`${this.nameOf(message.by)} erased your trap!`, 2);
       else this.say(`${this.nameOf(message.by)} erased ${owner}'s trap.`, 1.5);
       this.renderEraserCount();
@@ -817,6 +827,7 @@ const Game = {
     // The eraser is not a trap: click one of someone else's traps to remove it.
     if (this.trapKind === "eraser") {
       if (this.mode !== "online") return;
+      if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
       const target = Level.hazards.find((hazard) => hazard.x === x && hazard.y === y);
       if (!target) { this.say("Click a trap to erase it.", 1.5); return; }
       Network.send({ type: "erase_trap", x, y });
@@ -833,7 +844,7 @@ const Game = {
     if (trap.kind === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) { this.say("A crumbler needs open air, not a wall.", 1.5); return; }
 
     if (this.mode === "online") {
-      if (this.placements[0] >= this.trapsPerRound) { this.say("You've placed your trap. Waiting for the others.", 1.5); return; }
+      if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
       Network.send({ type: "place_trap", x, y, kind: this.trapKind });
       return;
     }
@@ -1185,9 +1196,9 @@ const Game = {
       if (this.players.length < 2) {
         buildInstructions.textContent = `Waiting for another player. Share room code ${roomCodeInput.value}.`;
       } else if (this.placements[0] >= this.trapsPerRound) {
-        buildInstructions.textContent = `Trap placed. Waiting for ${waiting} more...`;
+        buildInstructions.textContent = `Item used. Waiting for ${waiting} more...`;
       } else {
-        buildInstructions.textContent = `Pick a trap, then tap the level to place it. Not on a runner or the flag.`;
+        buildInstructions.textContent = `This round you have ${TRAP_NAMES[this.dealtKind]}. Tap the level to place it, or use your eraser.`;
       }
     }
   },
@@ -1248,10 +1259,10 @@ chatInput.addEventListener("keydown", (event) => {
   event.stopPropagation();   // typing never reaches the game's key handlers
 });
 document.querySelectorAll(".trap-kind").forEach((button) => button.addEventListener("click", () => Game.setTrapKind(button.dataset.kind)));
-const TRAP_KEYS = { "1": "spike", "2": "crumble", "3": "glue", "4": "bumper", "5": "eraser" };
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); }
-  if (TRAP_KEYS[event.key] && Game.phase === "build" && !event.target.matches("input, textarea, select")) Game.setTrapKind(TRAP_KEYS[event.key]);
+  // 1 = the trap you were dealt, 5 = eraser
+  if ((event.key === "1" || event.key === "5") && Game.phase === "build" && !event.target.matches("input, textarea, select")) Game.setTrapKind(event.key === "5" ? "eraser" : Game.dealtKind);
   // "/" or "T" opens the chat when you are in a room and not already typing somewhere.
   if ((event.key === "/" || event.key === "t" || event.key === "T") && Game.inRoom && !event.target.matches("input, textarea, select")) { chatInput.focus(); event.preventDefault(); }
 });

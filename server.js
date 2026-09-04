@@ -82,7 +82,7 @@ function overlaps(a, b) {
 
 function playerList(room) {
   return [...room.players.values()].map((player) => ({
-    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers,
+    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, trapKind: player.trapKind,
   }));
 }
 
@@ -365,6 +365,16 @@ function removePlayer(socket) {
   }
   // If the last runner left mid-run, do not leave the others waiting.
   checkRoundOver(room);
+  maybeStartRun(room);
+}
+
+// Every round each player is dealt one random trap kind to place (plus their eraser, if any).
+function dealTrapKinds(room) {
+  for (const player of room.players.values()) player.trapKind = TRAP_KINDS[Math.floor(Math.random() * TRAP_KINDS.length)];
+}
+
+// After a trap is placed or an eraser used: once everyone has used their item, the run starts.
+function maybeStartRun(room) {
   if (room.phase === "build" && room.players.size >= 2 && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
 }
 
@@ -377,6 +387,7 @@ function beginMatch(room) {
   room.votes = {}; room.voteOpen = false;
   room.finalBattle = null; room.winnerIds = [];
   for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
+  dealTrapKinds(room);
   room.phase = "build";
   broadcast(room, { ...snapshot(room), type: "round_start" });
 }
@@ -398,6 +409,7 @@ function startNextRound(room) {
   room.phase = "build";
   // Colors are picked once when you join and kept for the whole game.
   for (const player of room.players.values()) { player.trapCount = 0; player.pendingKills = 0; player.status = "building"; }
+  dealTrapKinds(room);
   broadcast(room, { ...snapshot(room), type: "round_start" });
 }
 
@@ -509,18 +521,21 @@ webSocketServer.on("connection", (socket) => {
       }
       return;
     }
-    // Erase someone else's trap during the build phase. Costs one eraser.
+    // Erase someone else's trap during the build phase. Costs one eraser AND your item for the round.
     if (message.type === "erase_trap" && room.phase === "build") {
       const x = Number(message.x), y = Number(message.y);
       const index = room.traps.findIndex((item) => item.x === x && item.y === y);
       let problem = null;
-      if (player.erasers <= 0) problem = "No erasers left on this course.";
+      if (player.trapCount >= TRAPS_PER_ROUND) problem = "You've already used your item this round.";
+      else if (player.erasers <= 0) problem = "No erasers left on this course.";
       else if (index < 0) problem = "Only placed traps can be erased.";
       else if (room.traps[index].owner === player.id) problem = "You can't erase your own trap.";
       if (problem) { send(socket, { type: "trap_rejected", message: problem }); return; }
       const [trap] = room.traps.splice(index, 1);
       player.erasers -= 1;
+      player.trapCount += 1;   // the eraser was your item this round
       broadcast(room, { type: "trap_erased", trap, by: player.id, traps: room.traps, players: playerList(room) });
+      maybeStartRun(room);
       return;
     }
     // Vote for a course: in the lobby, or on the results screen when the course is about to change.
@@ -569,13 +584,13 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "place_trap" && room.phase === "build" && player.color !== null && player.trapCount < TRAPS_PER_ROUND) {
       const x = Math.round((Number(message.x) || 0) / TILE) * TILE;
       const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
-      const kind = TRAP_KINDS.includes(message.kind) ? message.kind : "spike";
+      const kind = player.trapKind || "spike";   // the kind you were dealt this round; the browser's claim is ignored
       const trap = { x, y, w: TILE, h: TILE, owner: player.id, kind };
       const inBounds = x >= 2 * TILE && x + TILE <= LEVEL_W - TILE && y >= 0 && y + TILE <= LEVEL_H;
       if (inBounds && !trapBlocked(room, trap)) {
         room.traps.push(trap); player.trapCount += 1;
         broadcast(room, { type: "trap_placed", trap, playerId: player.id, traps: room.traps });
-        if (room.players.size >= 2 && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
+        maybeStartRun(room);
       } else {
         send(socket, { type: "trap_rejected", message: "You can't place a trap there." });
       }

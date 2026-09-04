@@ -172,14 +172,21 @@ const Player = {
       }
     }
 
-    // Bumpers: touch one and it throws you away from it (and a little upward).
+    // Bumpers: touch one and it throws you straight away from its center, so the
+    // angle you hit it at decides where you go. Land on top: launched up. Clip the
+    // side: flung sideways. Catch the underside: slammed down.
     if (this._knock <= 0) {
       const bumper = Level.hazards.find((h) => h.kind === "bumper" && Physics.overlaps(this, h));
       if (bumper) {
-        const direction = this.x + this.w / 2 < bumper.x + bumper.w / 2 ? -1 : 1;
+        let dx = (this.x + this.w / 2) - (bumper.x + bumper.w / 2);
+        let dy = (this.y + this.h / 2) - (bumper.y + bumper.h / 2);
+        const length = Math.hypot(dx, dy) || 1;
+        dx /= length; dy /= length;
+        if (Math.abs(dx) < 0.25 && Math.abs(dy) < 0.25) { dx = -this.facing; dy = 0; }   // dead center: straight back
         this._knock = this.KNOCK_TIME;
-        this._knockVx = direction * this.KNOCK_SPEED;
-        this.vy = -260;
+        this._knockVx = dx * this.KNOCK_SPEED;
+        this.vy = dy * this.KNOCK_SPEED - 120;   // a touch of lift so ground bumpers still pop you up a bit
+        this._shortHop = false;                  // a throw is not a jump: letting go must not cut it short
         Sfx.bump();
       }
     }
