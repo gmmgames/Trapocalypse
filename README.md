@@ -116,7 +116,7 @@ Open `server.js` for the round rules, then restart the server:
 - `NEXT_ROUND_DELAY` seconds the scoreboard shows before the next round
 - `FINISH_POINTS` (4), `FIRST_BONUS` (2, the Trailblazer), and `KILL_POINTS` (1) are the defaults for the host's point-value boxes. Kills pay at round end only if the trap's owner finished; level spikes, falls, and your own trap pay nothing.
 - `NEXT_ROUND_DELAY` (10) is also how long the bars have to grow; `BANNER_SECONDS` at the top of `js/main.js` is how long the Trailblazer burst stays.
-- Courses and their themes live in `LEVELS` and `THEMES` at the top of `js/level.js`. Add a course there and it shows up in the vote automatically.
+- Courses and their themes live in `LEVELS` and `THEMES` at the top of `js/level.js`. Add a course there and it shows up in the vote automatically. Give it `cols` and `rows` (default 32 x 18) to make a bigger course; it is drawn zoomed out to fit the screen.
 - `FINAL_BONUSES` (5, 3, 1) for the podium in a Final Battle, `FINAL_BATTLE_MAX_RUNS` (3) before a tie is shared
 - `SETTING_LIMITS` and `SETTING_DEFAULTS` for what the host may pick: time limit 30-600 s or Infinite (default 60), points to win 15-600 (default 45), round cap 3-60 (default 30), and the point values Win 1-20, Kill 0-10, Trailblazer 0-10, Autonomous 0-10. The dropdown presets live in `index.html`.
 - `ITEM_WEIGHTS` is how often each item card turns up: traps 1 each, eraser 0.5, pencil 0.2, teleport ball 0.08. `PENCIL_CHARGES` (3) strokes per pencil, `PENCIL_MAX_BLOCKS` (8) squares per stroke.

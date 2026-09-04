@@ -526,7 +526,7 @@ const Game = {
     const step = 1 / 60;
     for (let i = 0; i < 90; i++) {
       dy += Physics.GRAVITY * step; x += dx * step; y += dy * step;
-      if (x < 0 || x > LEVEL_W || y > LEVEL_H) break;
+      if (x < 0 || x > Level.w || y > Level.h) break;
       if (solids.some((solid) => x >= solid.x && x <= solid.x + solid.w && y >= solid.y && y <= solid.y + solid.h)) { dots.push({ x, y, end: true }); break; }
       if (i % 3 === 0) dots.push({ x, y });
     }
@@ -540,7 +540,7 @@ const Game = {
     glow.addColorStop(0.6, "rgba(0, 0, 0, 0.75)");
     glow.addColorStop(1, "rgba(0, 0, 0, 0.97)");
     ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, LEVEL_W, LEVEL_H);
+    ctx.fillRect(0, 0, Level.w, Level.h);
   },
   // The 3-2-1 before a run, the big shaky GO!, and the event warning under it.
   drawCountdownAndGo() {
@@ -663,17 +663,17 @@ const Game = {
       if (hit) {
         // Came down onto its top: stand there. Anything else: appear where the ball last was.
         landing = ball.vy > 0 && before.y <= hit.y ? { x: ball.x - Player.w / 2, y: hit.y - Player.h } : { x: before.x - Player.w / 2, y: before.y - Player.h / 2 };
-      } else if (ball.x < 0 || ball.x > LEVEL_W || ball.y < 0) {
+      } else if (ball.x < 0 || ball.x > Level.w || ball.y < 0) {
         landing = { x: before.x - Player.w / 2, y: before.y - Player.h / 2 };
-      } else if (ball.y > LEVEL_H) {
+      } else if (ball.y > Level.h) {
         ball.done = true;   // fell out of the world: no teleport
         if (ball.by === Network.id) this.say("The ball fell out of the world!", 2);
       }
       if (landing) {
         ball.done = true;
         if (ball.by === Network.id && Player.alive && !Player.finished) {
-          Player.x = Math.max(0, Math.min(LEVEL_W - Player.w, landing.x));
-          Player.y = Math.max(0, Math.min(LEVEL_H - Player.h, landing.y));
+          Player.x = Math.max(0, Math.min(Level.w - Player.w, landing.x));
+          Player.y = Math.max(0, Math.min(Level.h - Player.h, landing.y));
           Player.vx = 0; Player.vy = 0;
           Dust.spawn(Player.x + Player.w / 2, Player.y + Player.h, 12, 20);
           Sfx.boots();
@@ -701,7 +701,7 @@ const Game = {
   // --- pencil: hold the pointer during the run to sketch a short line of blocks ---
   levelPoint(clientX, clientY) {
     const bounds = canvas.getBoundingClientRect();
-    return { x: ((clientX - bounds.left) / bounds.width) * LEVEL_W, y: ((clientY - bounds.top) / bounds.height) * LEVEL_H };
+    return { x: ((clientX - bounds.left) / bounds.width) * Level.w, y: ((clientY - bounds.top) / bounds.height) * Level.h };
   },
   // Returns true when the press started a stroke (so it is not a trap placement).
   beginStroke(clientX, clientY) {
@@ -738,8 +738,8 @@ const Game = {
   tileAt(clientX, clientY) {
     const bounds = canvas.getBoundingClientRect();
     return {
-      x: Math.floor(((clientX - bounds.left) / bounds.width) * LEVEL_W / TILE) * TILE,
-      y: Math.floor(((clientY - bounds.top) / bounds.height) * LEVEL_H / TILE) * TILE,
+      x: Math.floor(((clientX - bounds.left) / bounds.width) * Level.w / TILE) * TILE,
+      y: Math.floor(((clientY - bounds.top) / bounds.height) * Level.h / TILE) * TILE,
     };
   },
 
@@ -749,7 +749,7 @@ const Game = {
     if (this.pick === "eraser") return Level.hazards.some((hazard) => hazard.x === x && hazard.y === y) ? null : "Put the eraser on a trap.";
     const onSomeone = Physics.overlaps(trap, Player) ||
       Object.values(this.remotePlayers).some((remote) => Physics.overlaps(trap, { x: remote.x, y: remote.y, w: Player.w, h: Player.h }));
-    if (x < 2 * TILE || x + trap.w > LEVEL_W - TILE || y < 0 || y + trap.h > LEVEL_H) return "That's off the course.";
+    if (x < 2 * TILE || x + trap.w > Level.w - TILE || y < 0 || y + trap.h > Level.h) return "That's off the course.";
     if (Level.hazards.some((hazard) => Physics.overlaps(trap, hazard))) return "There's already a trap there.";
     const flagZone = { x: Level.flag.x - 2 * TILE, y: Level.flag.y - 2 * TILE, w: Level.flag.w + 4 * TILE, h: Level.flag.h + 3 * TILE };
     if (Physics.overlaps(trap, flagZone)) return "Too close to the flag.";
@@ -848,10 +848,10 @@ const Game = {
     ctx.strokeRect(x - 2, y - 2, ghostW + 4, ghostH + 4);
     ctx.restore();
     // Just to the right of the ghost (or to the left if it is near the right edge).
-    const nearRightEdge = x > LEVEL_W - 6 * TILE;
-    confirm.style.left = nearRightEdge ? "" : `${((x + ghostW + 6) / LEVEL_W) * 100}%`;
-    confirm.style.right = nearRightEdge ? `${((LEVEL_W - x + 6) / LEVEL_W) * 100}%` : "";
-    confirm.style.top = `${((y + ghostH / 2) / LEVEL_H) * 100}%`;
+    const nearRightEdge = x > Level.w - 6 * TILE;
+    confirm.style.left = nearRightEdge ? "" : `${((x + ghostW + 6) / Level.w) * 100}%`;
+    confirm.style.right = nearRightEdge ? `${((Level.w - x + 6) / Level.w) * 100}%` : "";
+    confirm.style.top = `${((y + ghostH / 2) / Level.h) * 100}%`;
   },
 
   // --- Final Battle weapons ---
@@ -2061,6 +2061,7 @@ const Game = {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     if (this.event === "quake" && this.phase === "run") ctx.translate((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);   // the earthquake
+    ctx.scale(LEVEL_W / Level.w, LEVEL_H / Level.h);   // a big course is shown smaller so all of it fits
     Level.draw(ctx);
     Dust.draw(ctx);   // under the runners, over the ground
 

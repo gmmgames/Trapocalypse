@@ -292,10 +292,10 @@ const Player = {
 
     // 4. Keep inside the left and right edges of the level
     if (this.x < 0) this.x = 0;
-    if (this.x + this.w > LEVEL_W) this.x = LEVEL_W - this.w;
+    if (this.x + this.w > Level.w) this.x = Level.w - this.w;
 
     // 5. Fell off the bottom? That is a death.
-    if (this.y > LEVEL_H + 100) { this.die(); return; }
+    if (this.y > Level.h + 100) { this.die(); return; }
 
     // 6. Dust under our feet. We only get here if the spikes didn't get us,
     //    so a landing on spikes never puffs (the spike check above returned).

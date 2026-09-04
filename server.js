@@ -145,6 +145,12 @@ function makeUserId() {
 
 // A trap may not sit on the flag or on any player. During build everyone
 // stands at the start, so the start box covers every runner.
+// A course's size in world pixels (most are 32 x 18 tiles; big ones say otherwise).
+function courseSize(room) {
+  const level = LEVELS[room.levelIndex];
+  return { W: (level.cols || 32) * TILE, H: (level.rows || 18) * TILE };
+}
+
 function trapBlocked(room, trap) {
   const level = LEVELS[room.levelIndex];
   const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
@@ -724,7 +730,8 @@ webSocketServer.on("connection", (socket) => {
         const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
         const trap = { x, y, w: TILE, h: TILE, owner: player.id, kind: "spike" };
         const level = LEVELS[room.levelIndex];
-        const inBounds = x >= 0 && x + TILE <= LEVEL_W && y >= 0 && y + TILE <= LEVEL_H;
+        const { W, H } = courseSize(room);
+        const inBounds = x >= 0 && x + TILE <= W && y >= 0 && y + TILE <= H;
         if (!inBounds || overlaps(trap, level.flag) || room.traps.some((item) => overlaps(item, trap))) return;
         player.weaponUsed = true;
         room.traps.push(trap);
@@ -838,7 +845,8 @@ webSocketServer.on("connection", (socket) => {
       const rot = [1, 2, 3].includes(Number(message.rot)) ? Number(message.rot) : 0;
       const long = kind === "plank" || kind === "longspike";
       const trap = { x, y, w: long && rot % 2 === 0 ? TILE * PLANK_TILES : TILE, h: long && rot % 2 === 1 ? TILE * PLANK_TILES : TILE, owner: player.id, kind, rot };
-      const inBounds = x >= 2 * TILE && x + trap.w <= LEVEL_W - TILE && y >= 0 && y + trap.h <= LEVEL_H;
+      const { W, H } = courseSize(room);
+      const inBounds = x >= 2 * TILE && x + trap.w <= W - TILE && y >= 0 && y + trap.h <= H;
       if (inBounds && !trapBlocked(room, trap)) {
         room.traps.push(trap); player.trapCount += 1;
         broadcast(room, { type: "trap_placed", trap, playerId: player.id, traps: room.traps });
@@ -861,7 +869,8 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "portal_throw" && room.phase === "run" && player.status === "running" && player.portal) {
       player.portal = false;
       const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number(value) || 0));
-      broadcast(room, { type: "portal_ball", by: player.id, x: clamp(message.x, 0, LEVEL_W), y: clamp(message.y, 0, LEVEL_H), vx: clamp(message.vx, -600, 600), vy: clamp(message.vy, -700, 700) });
+      const { W, H } = courseSize(room);
+      broadcast(room, { type: "portal_ball", by: player.id, x: clamp(message.x, 0, W), y: clamp(message.y, 0, H), vx: clamp(message.vx, -600, 600), vy: clamp(message.vy, -700, 700) });
       return;
     }
     // Pencil: sketch a few short-lived blocks to stand on, mid-run. The browser sends the
@@ -869,7 +878,7 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "draw_block" && room.phase === "run" && player.status === "running" && player.pencil > 0) {
       const blocks = (Array.isArray(message.blocks) ? message.blocks : []).slice(0, PENCIL_MAX_BLOCKS)
         .map((block) => ({ x: Math.round(Number(block.x) || 0), y: Math.round(Number(block.y) || 0), w: 15, h: 15 }))
-        .filter((block) => block.x >= 0 && block.x + block.w <= LEVEL_W && block.y >= 0 && block.y + block.h <= LEVEL_H);
+        .filter((block) => { const { W, H } = courseSize(room); return block.x >= 0 && block.x + block.w <= W && block.y >= 0 && block.y + block.h <= H; });
       if (!blocks.length) return;
       player.pencil -= 1;
       broadcast(room, { type: "drawn", by: player.id, blocks, left: player.pencil });   // blocks last until the round ends

@@ -315,6 +315,45 @@ const LEVELS = [
     start: { x: 29 * TILE, y: 2 * TILE - 26 },
     flag: tileRect(1, 14, 1, 2),
   },
+  {
+    // BIG course (48 x 27 tiles, drawn zoomed out). A canyon of spikes in the middle with a
+    // climbing arc of ledges over it, towers at either side, and a drifting slab down low.
+    name: "Grand Ravine",
+    theme: THEMES.rust,
+    cols: 48, rows: 27,
+    solids: [
+      tileRect(0, 25, 48, 2),
+      tileRect(4, 18, 2, 7), tileRect(42, 18, 2, 7),
+      tileRect(6, 12, 3, 1), tileRect(41, 12, 3, 1),
+      tileRect(10, 20, 3, 1), tileRect(15, 17, 3, 1), tileRect(20, 14, 3, 1), tileRect(24, 11, 4, 1),
+      tileRect(29, 14, 3, 1), tileRect(34, 17, 3, 1), tileRect(38, 20, 3, 1),
+    ],
+    hazards: [
+      tileRect(16, 24, 16, 1), tileRect(22, 13, 1, 1), tileRect(35, 16, 1, 1), tileRect(8, 24, 2, 1), tileRect(37, 24, 2, 1),
+    ],
+    movers: [{ ...tileRect(20, 22, 3, 1), dx: 150, dy: 0, period: 4 }],
+    start: { x: 1 * TILE, y: 25 * TILE - 26 },
+    flag: tileRect(45, 23, 1, 2),
+  },
+  {
+    // BIG course (48 x 27 tiles). Floating islands over a bottomless spike pit, climbing to a
+    // citadel in the top-right corner, with pillars to kick off on the way.
+    name: "Sky Citadel",
+    theme: THEMES.dusk,
+    cols: 48, rows: 27,
+    solids: [
+      tileRect(0, 25, 8, 2),
+      tileRect(12, 22, 4, 1), tileRect(17, 19, 4, 1), tileRect(23, 16, 5, 2), tileRect(30, 13, 4, 1), tileRect(36, 10, 4, 1),
+      tileRect(42, 8, 6, 2),
+      tileRect(9, 14, 1, 8), tileRect(20, 9, 1, 7), tileRect(33, 3, 1, 9),
+    ],
+    hazards: [
+      tileRect(8, 26, 40, 1), tileRect(12, 21, 1, 1), tileRect(31, 12, 1, 1), tileRect(25, 15, 1, 1),
+    ],
+    movers: [{ ...tileRect(7, 22, 3, 1), dx: 60, dy: 0, period: 3 }],
+    start: { x: 1 * TILE, y: 25 * TILE - 26 },
+    flag: tileRect(46, 6, 1, 2),
+  },
 ];
 
 const Level = {
@@ -329,12 +368,16 @@ const Level = {
   scenery: [],          // title-screen decoration (stars, hills, trees...); empty on real courses
   sceneryId: 0,
   drawn: [],            // pencil blocks: { x, y, w, h, until (performance.now() ms), color }
+  w: LEVEL_W,           // this course's size in world pixels. Bigger courses are drawn zoomed out to fit the screen.
+  h: LEVEL_H,
   movers: [],           // the course's moving platforms (current x,y plus baseX/baseY, dx, dy, period, prevX/prevY)
   moverEpoch: 0,        // performance.now() the movers' clock started; everyone resets it when a run starts
 
   load(index) {
     this.index = index;
     const level = LEVELS[index];
+    this.w = (level.cols || 32) * TILE;
+    this.h = (level.rows || 18) * TILE;
     this.name = level.name;
     this.theme = level.theme;
     this.solids = level.solids.map((solid) => ({ ...solid }));
@@ -389,6 +432,7 @@ const Level = {
   // A random theme, a full floor, a few floating ledges, no traps and no flag.
   loadTitle() {
     this.index = -1;
+    this.w = LEVEL_W; this.h = LEVEL_H;
     this.name = "Title";
     const themeNames = Object.keys(THEMES);
     const themeName = themeNames[Math.floor(Math.random() * themeNames.length)];
@@ -477,17 +521,17 @@ const Level = {
 
     // Background first, then everything else on top of it.
     ctx.fillStyle = t.bg;
-    ctx.fillRect(0, 0, LEVEL_W, LEVEL_H);
+    ctx.fillRect(0, 0, this.w, this.h);
     if (this.scenery.length) this.drawScenery(ctx);
 
     // Faint grid so you can see the tiles. Handy when we start placing pieces.
     ctx.strokeStyle = t.grid;
     ctx.lineWidth = 1;
-    for (let x = 0; x <= LEVEL_W; x += TILE) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, LEVEL_H); ctx.stroke();
+    for (let x = 0; x <= this.w; x += TILE) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, this.h); ctx.stroke();
     }
-    for (let y = 0; y <= LEVEL_H; y += TILE) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(LEVEL_W, y); ctx.stroke();
+    for (let y = 0; y <= this.h; y += TILE) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(this.w, y); ctx.stroke();
     }
 
     // Solids: blocks with a bright top edge

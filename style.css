@@ -1068,6 +1068,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 .avatar-btn canvas { width: 34px; height: 34px; }
 .avatar-btn.mine { border-color: #ffffff; box-shadow: 0 0 0 2px #ffffff; }
+/* The secret old-film mouse gets an old-film button: a black-and-white gradient. */
+.avatar-btn[data-avatar="steamboat"] { background: linear-gradient(135deg, #f4f1e0 0%, #9a9a9a 45%, #0b0b14 100%); border-color: #f4f1e0; }
 
 /* ---------------- Chat scroll strip ---------------- */
 
