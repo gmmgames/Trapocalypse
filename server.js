@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 8080;
 const rooms = new Map();
 const users = new Map();       // permanent player ID -> socket, for everyone connected (in a room or on the menu)
 const MIME = {
-  ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+  ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".mp3": "audio/mpeg",
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",

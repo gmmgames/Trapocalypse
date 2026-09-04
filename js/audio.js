@@ -163,7 +163,7 @@ const Music = {
     if (this.el) return;
     this.el = new Audio("assets/music/menu.mp3");
     this.el.loop = true;
-    this.el.volume = 0.35;
+    this.el.volume = 0.22;   // background level: under the sound effects
     this.el.addEventListener("error", () => { this.missing = true; });
   },
   play() {
