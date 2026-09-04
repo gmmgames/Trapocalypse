@@ -55,6 +55,16 @@
         <div id="map-buttons"></div>
       </div>
       <ul id="lobby-players"></ul>
+      <!-- Host tools: kick or ban someone. main.js fills the player list and shows this to the host only. -->
+      <div id="host-tools" class="hidden">
+        <select id="kick-target" aria-label="Player"></select>
+        <button id="kick-button" type="button">Kick</button>
+        <select id="ban-length" aria-label="Ban length">
+          <option value="5">5 min</option><option value="30" selected>30 min</option><option value="120">2 hours</option>
+          <option value="1440">24 hours</option><option value="forever">Forever</option>
+        </select>
+        <button id="ban-button" type="button">Ban</button>
+      </div>
       <button id="start-match" type="button" class="hidden">Start Trap Apocalypse</button>
       <span id="lobby-note"></span>
     </div>

@@ -356,6 +356,13 @@ const Game = {
       item.append(dot, `${player.name}${player.id === this.hostId ? " (host)" : ""}`);
       return item;
     }));
+    // Host tools: everyone but the host in a dropdown, with Kick and Ban beside it.
+    const hostTools = document.getElementById("host-tools"), kickTarget = document.getElementById("kick-target");
+    const others = this.players.filter((player) => player.id !== Network.id);
+    hostTools.classList.toggle("hidden", !isHost || others.length === 0);
+    const chosen = kickTarget.value;
+    kickTarget.replaceChildren(...others.map((player) => { const option = document.createElement("option"); option.value = player.id; option.textContent = player.name; return option; }));
+    if (others.some((player) => player.id === chosen)) kickTarget.value = chosen;
     startMatchButton.classList.toggle("hidden", !isHost);
     if (!isHost) lobbyNote.textContent = "Waiting for the host to start";
     else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players";
@@ -1774,6 +1781,8 @@ startRunButton.addEventListener("click", () => {
 });
 startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
 leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
+document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));
+document.getElementById("ban-button").addEventListener("click", () => Network.send({ type: "ban", playerId: document.getElementById("kick-target").value, minutes: document.getElementById("ban-length").value }));
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
 document.getElementById("settings-help").addEventListener("click", () => { Game.hideSettings(); Game.showHelp(); });
 document.getElementById("help-close").addEventListener("click", () => Game.hideHelp());

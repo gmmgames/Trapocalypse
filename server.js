@@ -46,6 +46,10 @@ const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap:
 const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
+// Ban lengths the host can pick, in minutes. The room forgets its bans when it empties.
+const BAN_LENGTHS = { "5": 5, "30": 30, "120": 120, "1440": 1440, "forever": Infinity };
+function banLength(minutes) { return minutes >= 1440 ? "24 hours" : minutes >= 60 ? `${minutes / 60} hours` : `${minutes} minutes`; }
+function banLeft(until) { const minutes = Math.ceil((until - Date.now()) / 60000); return minutes >= 60 ? `${Math.ceil(minutes / 60)} hour${minutes >= 120 ? "s" : ""}` : `${minutes} minute${minutes === 1 ? "" : "s"}`; }
 const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot"];   // character models (drawn in js/player.js)
 const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points" };
 
@@ -556,8 +560,15 @@ webSocketServer.on("connection", (socket) => {
       if (!room) {
         const check = validateSettings(message.settings);
         if (!check.ok) { send(socket, { type: "error", message: check.message, fatal: true }); return; }
-        room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null, finalBattle: null, winnerIds: [], votes: {}, voteOpen: false };
+        room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null, finalBattle: null, winnerIds: [], votes: {}, voteOpen: false, bans: new Map() };
       }
+      // Banned by this room's host? Bans are per user ID and per room, and end with the room.
+      const bannedUntil = room.bans.get(socket.userId);
+      if (bannedUntil && bannedUntil > Date.now()) {
+        send(socket, { type: "error", message: bannedUntil === Infinity ? "You're banned from this room." : `You're banned from this room for another ${banLeft(bannedUntil)}.`, fatal: true });
+        return;
+      }
+      if (bannedUntil) room.bans.delete(socket.userId);
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
       // In the lobby (or the course vote) you wait for the host. Joining mid-run means sitting this round out.
       const status = room.phase === "lobby" || room.phase === "vote" ? "waiting" : room.phase === "build" ? "building" : "out";
@@ -577,6 +588,25 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "leave_room") { removePlayer(socket); return; }
 
+    // Host tools: throw someone out (kick), or throw them out and keep them out (ban).
+    if (message.type === "kick" || message.type === "ban") {
+      if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can do that." }); return; }
+      const target = room.players.get(String(message.playerId));
+      if (!target || target === player) return;
+      let reason = "You were kicked by the host.", note = `${target.name} was kicked by the host.`;
+      if (message.type === "ban") {
+        const minutes = BAN_LENGTHS[String(message.minutes)];
+        if (minutes === undefined) { send(socket, { type: "error", message: "Pick a ban length." }); return; }
+        room.bans.set(target.socket.userId, minutes === Infinity ? Infinity : Date.now() + minutes * 60000);
+        const forHow = minutes === Infinity ? "" : ` for ${banLength(minutes)}`;
+        reason = `You were banned from this room by the host${forHow}.`;
+        note = `${target.name} was banned by the host${forHow}.`;
+      }
+      send(target.socket, { type: "error", message: reason, fatal: true });
+      removePlayer(target.socket);
+      broadcast(room, { type: "notice", message: note });
+      return;
+    }
     // Pick your character model (in the lobby, any number of times).
     if (message.type === "choose_avatar") {
       if (room.phase !== "lobby") { send(socket, { type: "error", message: "You can change your character in the lobby." }); return; }
