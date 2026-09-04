@@ -480,7 +480,7 @@ const Game = {
     const takenByOthers = new Set(Object.entries(this.picks).filter(([id]) => id !== Network.id).map(([, slot]) => slot));
     const anyFree = this.offer.some((item, slot) => !takenByOthers.has(slot));
     // Once everyone holds a card the menu gets out of the way so you can place.
-    cards.classList.toggle("hidden", this.phase !== "build" || this.offer.length === 0 || this.everyonePicked());
+    cards.classList.toggle("hidden", this.phase !== "build" || this.offer.length === 0 || this.everyonePicked() || this.amSpectating());
     cards.replaceChildren(...this.offer.map((item, slot) => {
       const card = document.createElement("button");
       card.type = "button";
@@ -513,6 +513,12 @@ const Game = {
   },
 
   // --- stuck? give up this run ---
+  // True when the server has me sitting this round out: I joined mid-match, or I am not in the
+  // Final Battle. Either way I am watching, not playing.
+  amSpectating() {
+    const me = this.players.find((player) => player.id === Network.id);
+    return Boolean(me && me.status === "out" && this.phase !== "lobby" && this.phase !== "vote");
+  },
   canResetMe() { return this.mode === "online" && this.phase === "run" && Player.alive && !Player.finished; },
   resetCharacter() {
     if (!this.canResetMe()) return;
@@ -1391,11 +1397,11 @@ const Game = {
       // exactly where they were.
       const me = this.players.find((player) => player.id === Network.id);
       if (this.phase === "lobby") Player.spawn();
-      else if (this.phase === "build") { Player.spawn(); this.say("Pick a color, then place your trap.", 3); }
       else if (me && me.status === "out") {
         Player.spawn(); Player.alive = false;
-        this.say(this.phase === "winner" ? "Match over. Pick a color and wait for the lobby." : "Round in progress. Pick a color for next round.", 3);
+        this.say(this.phase === "winner" ? "Match over. Pick a color and wait for the lobby." : "Watching this round. Pick a color and you are in on the next one.", 3);
       }
+      else if (this.phase === "build") { Player.spawn(); this.say("Pick a color, then place your trap.", 3); }
     }
     if (message.type === "round_start") {
       this.event = null; this._eventBanner = 0; this._goTimer = 0; this._countdownEnds = 0;
@@ -1535,8 +1541,10 @@ const Game = {
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
       this.finalBattleIds = message.finalBattleIds || [];
-      const fighting = (id) => this.finalBattleIds.length === 0 || this.finalBattleIds.includes(id);
-      for (const player of this.players) player.status = fighting(player.id) ? "running" : "out";
+      // The server says who is in this run: everyone, or only the tied players in a Final Battle,
+      // and never someone who joined mid-match and is waiting for the next round.
+      const running = (id) => (message.runningIds ? message.runningIds.includes(id) : this.finalBattleIds.length === 0 || this.finalBattleIds.includes(id));
+      for (const player of this.players) player.status = running(player.id) ? "running" : "out";
       this._runTimeLimit = message.timeLimit === undefined ? null : message.timeLimit;
       this._runStartedAt = performance.now();
       this._runTimeLeft = this._runTimeLimit;
@@ -1546,12 +1554,15 @@ const Game = {
       this.renderWeaponPick();
       Player.setWeapon(this.weapons[Network.id] || null);
       touchUseButton.classList.toggle("hidden", !["dash", "freeze", "bomb"].includes(Player.weapon));
-      if (this.finalBattleIds.length === 0) this.say("Run! One life. Reach the flag.", 2);
-      else if (fighting(Network.id)) {
+      if (!running(Network.id)) {
+        Player.alive = false;
+        this.say(this.finalBattleIds.length ? "Final Battle! Watch the tied players fight it out." : "Watching this round. You are in on the next one.", 3);
+      }
+      else if (this.finalBattleIds.length === 0) this.say("Run! One life. Reach the flag.", 2);
+      else {
         const info = WEAPON_INFO[Player.weapon];
         this.say(info ? `FINAL BATTLE! ${info.name}: ${info.desc}.` : "FINAL BATTLE! First to the flag gets +5.", 4);
       }
-      else { Player.alive = false; this.say("Final Battle! Watch the tied players fight it out.", 3); }
     }
     if (message.type === "weapon_picked") {
       this.weapons[message.playerId] = message.weapon;
@@ -2351,7 +2362,9 @@ const Game = {
         hudClock.textContent = `⏱ ${left}s`;
         hudClock.classList.toggle("urgent", left <= 10);
       }
-      if (this.players.length < 2) {
+      if (this.amSpectating()) {
+        buildInstructions.textContent = "Watching: you joined mid-match, and you are in on the next round.";
+      } else if (this.players.length < 2) {
         buildInstructions.textContent = `Waiting for another player. Share room code ${roomCodeInput.value}.`;
       } else if (this.placements[0] >= this.trapsPerRound) {
         buildInstructions.textContent = `Item used. Waiting for ${waiting} more...`;

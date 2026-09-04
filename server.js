@@ -226,8 +226,9 @@ function trapBlocked(room, trap) {
 function startRun(room) {
   room.phase = "run";
   room.finishOrder = [];
-  // In a Final Battle the statuses were already set: tied players run, the rest watch.
-  if (!room.finalBattle) for (const player of room.players.values()) player.status = "running";
+  // In a Final Battle the statuses were already set: tied players run, the rest watch. Anyone
+  // sitting the round out (they joined mid-match) keeps watching too.
+  if (!room.finalBattle) for (const player of room.players.values()) if (player.status !== "out") player.status = "running";
   for (const player of room.players.values()) player.pencil = 0;   // no drawing once the run is on
   // The host's time limit: when it runs out, anyone still running is out.
   clearTimeout(room.runTimer);
@@ -237,7 +238,9 @@ function startRun(room) {
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
   // Some rounds get a twist. Never in a Final Battle. FORCE_EVENT=<name> is a test hook.
   room.event = process.env.FORCE_EVENT || (!room.finalBattle && Math.random() < EVENT_CHANCE ? EVENTS[Math.floor(Math.random() * EVENTS.length)] : null);
-  broadcast(room, { type: "phase", phase: "run", timeLimit, event: room.event, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [], weapons: room.finalBattle ? room.finalBattle.weapons || {} : {} });
+  // runningIds says exactly who is in this run, so watchers are not swept along with everyone else.
+  const runningIds = [...room.players.values()].filter((item) => item.status === "running").map((item) => item.id);
+  broadcast(room, { type: "phase", phase: "run", timeLimit, event: room.event, runningIds, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [], weapons: room.finalBattle ? room.finalBattle.weapons || {} : {} });
 }
 
 // How long the results screen stays. The bars grow one point source at a time (the client
@@ -573,6 +576,7 @@ function itemPicks(room) {
 // May this player take this card right now?
 function canPick(room, player, slot) {
   const item = room.offer ? room.offer[slot] : undefined;
+  if (player.status === "out") return "You joined mid-match: watch this round, you are in on the next one.";
   if (!Number.isInteger(slot) || !item) return "That item isn't on offer this round.";
   if (item === "eraser" && player.erasers <= 0) return "No erasers left on this course.";
   const takenByOthers = new Set([...room.players.values()].filter((other) => other !== player && other.pick).map((other) => other.pickSlot));
@@ -593,7 +597,7 @@ function buildTimeUp(room) {
 }
 
 function maybeStartRun(room) {
-  if (room.phase === "build" && !room.countdown && room.players.size >= (room.testMatch ? 1 : 2) && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) {
+  if (room.phase === "build" && !room.countdown && room.players.size >= (room.testMatch ? 1 : 2) && [...room.players.values()].every((item) => item.status === "out" || item.trapCount >= TRAPS_PER_ROUND)) {
     // Everyone has placed: three seconds of countdown, then GO.
     room.countdown = true;
     broadcast(room, { type: "countdown", seconds: GO_COUNTDOWN });
@@ -728,8 +732,10 @@ webSocketServer.on("connection", (socket) => {
       if (bannedUntil) room.bans.delete(socket.userId);
       const roomSize = room.settings.maxPlayers || MAX_PLAYERS;   // the host's limit
       if (room.players.size >= roomSize) { send(socket, { type: "error", message: `That room is full (${roomSize} players).`, fatal: true }); return; }
-      // In the lobby (or the course vote) you wait for the host. Joining mid-run means sitting this round out.
-      const status = room.phase === "lobby" || room.phase === "vote" ? "waiting" : room.phase === "build" ? "building" : "out";
+      // In the lobby (or the course vote) you wait for the host. Joining a match already under way
+      // means watching it: "out" for this round, back in when the next round starts. That includes
+      // joining while traps are being placed, so nobody drops into a round halfway through.
+      const status = room.phase === "lobby" || room.phase === "vote" ? "waiting" : "out";
       const player = { id: crypto.randomUUID(), name: wantedName, socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };
       room.players.set(player.id, player);
       if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
