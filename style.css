@@ -1006,6 +1006,35 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 #help-points .point-name { font-style: italic; font-weight: 800; letter-spacing: 0.3px; text-shadow: 0 0 6px currentColor; }
 
+/* ---------------- Level editor ---------------- */
+
+#editor {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  z-index: 6;
+  display: grid;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(11, 11, 20, 0.92);
+  border-bottom: 2px solid rgba(255, 210, 60, 0.6);
+  color: #e8e8ff;
+  font-size: 13px;
+}
+
+#editor-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#editor-bar strong { color: #ffd23c; font-family: "Baloo 2", "Fredoka", sans-serif; font-size: 16px; margin-right: 6px; }
+#editor-bar input, #editor-bar select { padding: 5px 6px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; background: #0b0b14; color: #e8e8ff; font: inherit; }
+#editor-bar input { width: 150px; }
+#editor-bar button { padding: 5px 10px; border: 0; border-radius: 4px; background: #45455d; color: #e8e8ff; font: inherit; font-weight: 700; }
+#editor-tools { display: flex; gap: 4px; }
+#editor-tools .tool.active { background: #ffd23c; color: #0b0b14; }
+#editor-save, #editor-test { background: #5cf05a; color: #0b0b14; }
+#editor-close { background: #ff5a3c; color: #ffffff; }
+#editor-note { color: #c0c0d8; font-size: 12px; }
+#editor-stop { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 8px 14px; border: 0; border-radius: 4px; background: #ffd23c; color: #0b0b14; font: inherit; font-weight: 800; }
+#menu-editor { padding: 8px 14px; border: 1px solid rgba(255, 210, 60, 0.6); border-radius: 4px; background: transparent; color: #ffd23c; font: inherit; font-weight: 700; }
+#add-courses { padding: 8px 14px; border: 1px solid rgba(255, 210, 60, 0.6); border-radius: 4px; background: transparent; color: #ffd23c; font: inherit; font-weight: 700; }
+
 /* ---------------- Host tools (kick / ban) ---------------- */
 
 #host-tools {

@@ -338,6 +338,7 @@ const Game = {
     this._runTimeLeft = null;
     this.winnerIds = [];
     this.finalBattleIds = [];
+    this.customLevels = []; Level.list = null; this.buildMapButtons();
     Player.color = "#ff3c78";
     Player.avatar = titleAvatar();
     Music.play();        // back on the menu: tune back on (the click that got us here counts as the gesture)
@@ -407,6 +408,7 @@ const Game = {
     kickTarget.replaceChildren(...others.map((player) => { const option = document.createElement("option"); option.value = player.id; option.textContent = player.name; return option; }));
     if (others.some((player) => player.id === chosen)) kickTarget.value = chosen;
     startMatchButton.classList.toggle("hidden", !isHost || this.players.length < 2);
+    document.getElementById("add-courses").classList.toggle("hidden", !isHost || Editor.saved().length === 0);
     document.getElementById("test-match").classList.toggle("hidden", !isHost || this.players.length !== 1);
     if (!isHost) lobbyNote.textContent = "Waiting for the host to start";
     else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players, or try a Test Match by yourself";
@@ -990,7 +992,7 @@ const Game = {
     const courseRow = document.getElementById("test-course-row"), courseSelect = document.getElementById("test-course");
     courseRow.classList.toggle("hidden", !(hostInMatch && this.testMatch));
     if (hostInMatch && this.testMatch) {
-      courseSelect.replaceChildren(...LEVELS.map((level, index) => { const option = document.createElement("option"); option.value = index; option.textContent = level.name; return option; }));
+      courseSelect.replaceChildren(...(Level.list || LEVELS).map((level, index) => { const option = document.createElement("option"); option.value = index; option.textContent = level.name; return option; }));
       courseSelect.value = String(this.levelIndex);
     }
     settingsNote.textContent = hostInMatch ? "Ends the match for everyone and clears the scores." : this.inRoom ? "Only the host can end a match early." : "";
@@ -1062,14 +1064,16 @@ const Game = {
 
   // --- course vote ---
   buildMapButtons() {
-    LEVELS.forEach((level, index) => {
+    mapButtons.replaceChildren();
+    (Level.list || LEVELS).forEach((level, index) => {
+      const theme = typeof level.theme === "string" ? THEMES[level.theme] || THEMES.neon : level.theme;
       const button = document.createElement("button");
       button.type = "button";
       button.className = "map-btn";
       const chip = document.createElement("span");
       chip.className = "chip";
-      chip.style.background = level.theme.bg;
-      chip.style.borderBottomColor = level.theme.solidTop;
+      chip.style.background = theme.bg;
+      chip.style.borderBottomColor = theme.solidTop;
       const count = document.createElement("span");
       count.className = "count";
       button.append(chip, level.name, count);
@@ -1087,8 +1091,8 @@ const Game = {
     mapVote.classList.add("floating");
     if (mapVote.parentElement !== gameWrap) gameWrap.appendChild(mapVote);
     document.getElementById("map-vote-title").textContent = voting ? "Vote for the first course" : "Vote for the next course";
-    const counts = new Array(LEVELS.length).fill(0);
-    for (const level of Object.values(this.votes)) counts[level] += 1;
+    const counts = new Array((Level.list || LEVELS).length).fill(0);
+    for (const level of Object.values(this.votes)) if (counts[level] !== undefined) counts[level] += 1;
     [...mapButtons.children].forEach((button, index) => {
       button.querySelector(".count").textContent = counts[index] ? `×${counts[index]}` : "";
       button.classList.toggle("mine", this.votes[Network.id] === index);
@@ -1159,6 +1163,13 @@ const Game = {
   // The server sends the whole room whenever something big changes:
   // someone joins or leaves, or a new round begins.
   applyRoomState(message) {
+    // The room's course list: built-ins plus whatever custom courses the host added.
+    const custom = message.customLevels || [];
+    if (JSON.stringify(custom) !== JSON.stringify(this.customLevels || [])) {
+      this.customLevels = custom;
+      Level.list = LEVELS.concat(custom);
+      this.buildMapButtons();
+    }
     this.phase = message.phase;
     this.round = message.round;
     this.roundsPerLevel = message.roundsPerLevel;
@@ -1582,6 +1593,7 @@ const Game = {
   onPlayerFinished() {
     Sfx.finish();
     Confetti.burst(Player.x + Player.w / 2, Player.y + Player.h / 2, Player.color);
+    if (this.mode === "solo" && Editor.testing) { this.say("Course cleared! Back to the start for another go.", 2.5); this._resetTimer = 1.0; this._advanceLevel = false; return; }
     if (this.mode === "online") {
       Network.send({ type: "finished" });
       this.say("You made it! Waiting for the others...", 4);
@@ -2093,6 +2105,7 @@ const Game = {
     this.drawBalls();
     this.drawCarry();
     this.drawAimer();
+    if (this.mode === "editor") Editor.drawOverlay(ctx);
     if (this.mode === "online" && Player.alive) {
       const me = this.players.find((player) => player.id === Network.id);
       this.drawNametag(Player.x, Player.y, me ? me.name : "You", "#ffffff");
@@ -2105,7 +2118,7 @@ const Game = {
 
     // The round and course line only shows once a match is under way. On the menu (solo
     // mode) the HUD stays hidden; in the lobby and the vote it shows no course name.
-    hud.classList.toggle("hidden", this.mode === "solo");
+    hud.classList.toggle("hidden", this.mode === "solo" || this.mode === "editor");
     if (this.mode === "solo") buildHud.classList.add("hidden");   // never show a stale build box behind the menu
     // Touch buttons only while there is something to run: the title world, or an online run.
     const running = this.mode === "solo" || this.phase === "run";
@@ -2218,6 +2231,7 @@ document.getElementById("copy-code").addEventListener("click", async () => {
   setTimeout(() => { button.textContent = "Copy code"; }, 1500);
 });
 document.getElementById("test-course").addEventListener("change", (event) => { Network.send({ type: "test_course", level: Number(event.target.value) }); Game.hideSettings(); });
+document.getElementById("add-courses").addEventListener("click", () => Network.send({ type: "custom_levels", levels: Editor.saved() }));
 document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));
 document.getElementById("ban-button").addEventListener("click", () => Network.send({ type: "ban", playerId: document.getElementById("kick-target").value, minutes: document.getElementById("ban-length").value }));
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
@@ -2287,6 +2301,7 @@ Game.loadPreferences();
 let pointerHeld = false;
 let lastTap = { x: -1, y: -1, at: 0 };   // for double-tap placing
 canvas.addEventListener("pointerdown", (event) => {
+  if (Game.mode === "editor") { Editor.pointer(event, "down"); return; }
   pointerHeld = true;
   if (Game.beginStroke(event.clientX, event.clientY)) return;   // pencil in hand during a run
   // Tap a tile once to put the ghost there; tap the same tile again within 0.4 s to confirm.
@@ -2297,10 +2312,11 @@ canvas.addEventListener("pointerdown", (event) => {
   Game.setPending(event.clientX, event.clientY); Game.placeTrap(event.clientX, event.clientY);
 });
 canvas.addEventListener("pointermove", (event) => {
+  if (Game.mode === "editor") { Editor.pointer(event, "move"); return; }
   if (pointerHeld && Game._stroke) Game.extendStroke(event.clientX, event.clientY);
   else if (pointerHeld && Game.pending) Game.setPending(event.clientX, event.clientY);
 });
-window.addEventListener("pointerup", () => { pointerHeld = false; Game.endStroke(); });
+window.addEventListener("pointerup", (event) => { if (Game.mode === "editor") { Editor.pointer(event, "up"); return; } pointerHeld = false; Game.endStroke(); });
 document.getElementById("place-ok").addEventListener("click", () => Game.confirmPlacement());
 document.getElementById("place-left").addEventListener("click", () => Game.rotateItem(-1));
 document.getElementById("place-right").addEventListener("click", () => Game.rotateItem(1));

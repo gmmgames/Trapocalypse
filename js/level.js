@@ -373,13 +373,15 @@ const Level = {
   movers: [],           // the course's moving platforms (current x,y plus baseX/baseY, dx, dy, period, prevX/prevY)
   moverEpoch: 0,        // performance.now() the movers' clock started; everyone resets it when a run starts
 
+  list: null,           // the room's course list (built-ins plus the host's custom courses); null = built-ins only
+
   load(index) {
     this.index = index;
-    const level = LEVELS[index];
+    const level = (this.list || LEVELS)[index] || LEVELS[0];
     this.w = (level.cols || 32) * TILE;
     this.h = (level.rows || 18) * TILE;
     this.name = level.name;
-    this.theme = level.theme;
+    this.theme = typeof level.theme === "string" ? THEMES[level.theme] || THEMES.neon : level.theme;   // custom courses name their theme
     this.solids = level.solids.map((solid) => ({ ...solid }));
     this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
     this.start = { ...level.start };
@@ -426,6 +428,21 @@ const Level = {
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     if (this.drawn.length) this.drawn = this.drawn.filter((block) => block.until > now);
     return this.drawn;
+  },
+
+  // A custom course from the editor (or a saved one): same shape as the built-ins, theme by name.
+  applyCustom(level) {
+    this.index = -2;
+    this.w = level.cols * TILE; this.h = level.rows * TILE;
+    this.name = level.name;
+    this.theme = THEMES[level.theme] || THEMES.neon;
+    this.solids = level.solids.map((solid) => ({ ...solid }));
+    this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
+    this.start = { ...level.start };
+    this.flag = { ...level.flag };
+    this.scenery = []; this.drawn = [];
+    this.movers = (level.movers || []).map((mover) => ({ ...mover, baseX: mover.x, baseY: mover.y, prevX: mover.x, prevY: mover.y }));
+    this.moverEpoch = typeof performance !== "undefined" ? performance.now() : Date.now();
   },
 
   // The title screen: a random little world to hop around in behind the menu.

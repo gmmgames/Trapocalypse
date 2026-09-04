@@ -120,6 +120,7 @@ function snapshot(room) {
     voteOpen: room.voteOpen,
     offer: room.offer || [],
     testMatch: Boolean(room.testMatch),
+    customLevels: room.customLevels || [],
     traps: room.traps,
     players: playerList(room),
   };
@@ -131,7 +132,7 @@ function publicRoomList() {
     .filter((room) => room.settings.isPublic && room.players.size < (room.settings.maxPlayers || MAX_PLAYERS) && room.players.size > 0)
     .map((room) => {
       const host = room.players.get(room.hostId);
-      return { code: room.code, host: host ? host.name : "?", players: room.players.size, max: room.settings.maxPlayers || MAX_PLAYERS, phase: room.phase, level: LEVELS[room.levelIndex].name };
+      return { code: room.code, host: host ? host.name : "?", players: room.players.size, max: room.settings.maxPlayers || MAX_PLAYERS, phase: room.phase, level: levelsOf(room)[room.levelIndex].name };
     });
 }
 
@@ -146,13 +147,42 @@ function makeUserId() {
 // A trap may not sit on the flag or on any player. During build everyone
 // stands at the start, so the start box covers every runner.
 // A course's size in world pixels (most are 32 x 18 tiles; big ones say otherwise).
+// The room's course list: the built-ins plus any custom courses the host added.
+function levelsOf(room) { return LEVELS.concat(room.customLevels || []); }
+
+// A custom course from a browser: same checks as the editor, returns the cleaned course or null.
+const CUSTOM_SIZES = [[32, 18], [48, 27]];
+const CUSTOM_THEMES = ["neon", "rust", "dusk", "grotto", "ash", "meadow", "frost"];
+function cleanCustomLevel(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const name = String(raw.name || "").slice(0, 24).trim();
+  if (!name || !ChatFilter.isClean(name)) return null;
+  const cols = Number(raw.cols), rows = Number(raw.rows);
+  if (!CUSTOM_SIZES.some(([c, r]) => c === cols && r === rows)) return null;
+  const theme = CUSTOM_THEMES.includes(raw.theme) ? raw.theme : "neon";
+  const W = cols * TILE, H = rows * TILE;
+  const rect = (r) => ({ x: Math.round(Number(r.x)), y: Math.round(Number(r.y)), w: Math.round(Number(r.w)), h: Math.round(Number(r.h)) });
+  const inside = (r) => [r.x, r.y, r.w, r.h].every(Number.isFinite) && r.w > 0 && r.h > 0 && r.x >= 0 && r.y >= 0 && r.x + r.w <= W && r.y + r.h <= H;
+  const solids = (Array.isArray(raw.solids) ? raw.solids : []).map(rect);
+  const hazards = (Array.isArray(raw.hazards) ? raw.hazards : []).map(rect);
+  const movers = (Array.isArray(raw.movers) ? raw.movers : []).map((m) => ({ ...rect(m), dx: Math.round(Number(m.dx) || 0), dy: Math.round(Number(m.dy) || 0), period: Math.min(10, Math.max(1, Number(m.period) || 3)) }));
+  const flag = raw.flag ? rect(raw.flag) : null;
+  const start = raw.start ? { x: Math.round(Number(raw.start.x)), y: Math.round(Number(raw.start.y)) } : null;
+  if (!flag || !start || !inside(flag) || !Number.isFinite(start.x) || !Number.isFinite(start.y)) return null;
+  if (![...solids, ...hazards].every(inside)) return null;
+  if (!movers.every((m) => inside(m) && inside({ x: m.x + m.dx, y: m.y + m.dy, w: m.w, h: m.h }))) return null;
+  const tiles = solids.reduce((n, s) => n + (s.w / TILE) * (s.h / TILE), 0) + hazards.length + movers.length;
+  if (tiles > 900 || !solids.length) return null;
+  return { name, theme, cols, rows, solids, hazards, movers, start, flag, custom: true };
+}
+
 function courseSize(room) {
-  const level = LEVELS[room.levelIndex];
+  const level = levelsOf(room)[room.levelIndex];
   return { W: (level.cols || 32) * TILE, H: (level.rows || 18) * TILE };
 }
 
 function trapBlocked(room, trap) {
-  const level = LEVELS[room.levelIndex];
+  const level = levelsOf(room)[room.levelIndex];
   const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
   // Nothing within two tiles of the flag, so the finish can never be walled off.
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
@@ -384,8 +414,8 @@ function checkRoundOver(room) {
 
 // The course with the most votes. Ties are settled at random; no votes means `fallback`.
 function pickVotedLevel(room, fallback) {
-  const counts = new Array(LEVELS.length).fill(0);
-  for (const level of Object.values(room.votes)) counts[level] += 1;
+  const counts = new Array(levelsOf(room).length).fill(0);
+  for (const level of Object.values(room.votes)) if (counts[level] !== undefined) counts[level] += 1;
   const top = Math.max(...counts);
   if (top === 0) return fallback;
   const tied = counts.map((count, index) => (count === top ? index : -1)).filter((index) => index >= 0);
@@ -520,7 +550,7 @@ function startNextRound(room) {
   room.round += 1;
   if ((room.round - 1) % ROUNDS_PER_LEVEL === 0) {
     // The voted course, or simply the next one in the list if nobody voted.
-    room.levelIndex = pickVotedLevel(room, (room.levelIndex + 1) % LEVELS.length);
+    room.levelIndex = pickVotedLevel(room, (room.levelIndex + 1) % levelsOf(room).length);
     room.traps = [];
     for (const player of room.players.values()) player.erasers = ERASERS_PER_COURSE;   // fresh course, fresh eraser
   }
@@ -627,11 +657,21 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "leave_room") { removePlayer(socket); return; }
 
+    // The host adds this browser's saved custom courses to the room (lobby only, up to 8).
+    if (message.type === "custom_levels") {
+      if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can add courses." }); return; }
+      if (room.phase !== "lobby") { send(socket, { type: "error", message: "Courses can be added in the lobby." }); return; }
+      const levels = (Array.isArray(message.levels) ? message.levels : []).slice(0, 8).map(cleanCustomLevel).filter(Boolean);
+      room.customLevels = levels;
+      broadcast(room, snapshot(room));
+      broadcast(room, { type: "notice", message: levels.length ? `${levels.length} custom course${levels.length === 1 ? "" : "s"} added to the vote.` : "No valid custom courses to add." });
+      return;
+    }
     // Test Match only: the host jumps straight to another course, fresh round, no traps.
     if (message.type === "test_course") {
       const level = Number(message.level);
       if (player.id !== room.hostId || !room.testMatch || room.phase === "lobby" || room.phase === "winner") return;
-      if (!Number.isInteger(level) || level < 0 || level >= LEVELS.length) return;
+      if (!Number.isInteger(level) || level < 0 || level >= levelsOf(room).length) return;
       clearTimeout(room.timer); clearTimeout(room.runTimer); room.timer = null; room.runTimer = null;
       room.levelIndex = level; room.traps = []; room.finishOrder = []; room.round += 1;
       room.votes = {}; room.voteOpen = false; room.finalBattle = null;
@@ -729,7 +769,7 @@ webSocketServer.on("connection", (socket) => {
         const x = Math.round((Number(message.x) || 0) / TILE) * TILE;
         const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
         const trap = { x, y, w: TILE, h: TILE, owner: player.id, kind: "spike" };
-        const level = LEVELS[room.levelIndex];
+        const level = levelsOf(room)[room.levelIndex];
         const { W, H } = courseSize(room);
         const inBounds = x >= 0 && x + TILE <= W && y >= 0 && y + TILE <= H;
         if (!inBounds || overlaps(trap, level.flag) || room.traps.some((item) => overlaps(item, trap))) return;
@@ -761,7 +801,7 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "vote_map") {
       const level = Number(message.level);
       const open = room.phase === "vote" || (room.phase === "results" && room.voteOpen);
-      if (open && Number.isInteger(level) && level >= 0 && level < LEVELS.length) {
+      if (open && Number.isInteger(level) && level >= 0 && level < levelsOf(room).length) {
         room.votes[player.id] = level;
         broadcast(room, { type: "votes", votes: room.votes });
       }
