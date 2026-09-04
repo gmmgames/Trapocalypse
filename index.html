@@ -116,10 +116,12 @@
   </div>
 
   <section id="online-panel" aria-label="Main menu">
-    <strong id="menu-title">TRAPOCALYPSE</strong>
+    <!-- Drop a file named logo.png into the project folder and it shows here; until then the text title does. -->
+    <img id="menu-logo" src="logo.png" alt="Trapocalypse" onerror="this.classList.add('hidden'); document.getElementById('menu-title').classList.remove('hidden');">
+    <strong id="menu-title" class="hidden">TRAPOCALYPSE</strong>
     <input id="player-name" maxlength="18" placeholder="Your name" aria-label="Your name">
     <input id="room-code" maxlength="6" placeholder="Room code" aria-label="Room code">
-    <div>
+    <div id="menu-buttons">
       <button id="create-room" type="button">Create Room</button>
       <button id="join-room" type="button">Join Room</button>
     </div>

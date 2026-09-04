@@ -67,20 +67,46 @@ body {
   pointer-events: none;          /* clicks go through it to the canvas */
 }
 
+/* The main menu sits in the middle of the screen with the logo above it */
 #online-panel {
   position: fixed;
-  top: 18px;
-  right: 18px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: grid;
-  gap: 8px;
-  width: 220px;
-  padding: 12px;
+  gap: 10px;
+  width: min(92vw, 380px);
+  max-height: 94vh;
+  overflow-y: auto;
+  padding: 18px;
   border: 1px solid #ffd23c;
-  border-radius: 6px;
+  border-radius: 8px;
   background: rgba(22, 22, 37, 0.94);
   color: #ffd23c;
   font: inherit;
+  text-align: center;
   z-index: 2;
+  box-shadow: 0 0 40px rgba(255, 60, 120, 0.25);
+}
+
+#menu-logo {
+  display: block;
+  max-width: 100%;
+  max-height: 26vh;
+  margin: 0 auto 4px;
+  object-fit: contain;
+  animation: float 3.2s ease-in-out infinite;
+}
+
+#menu-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+#menu-buttons button {
+  flex: 1;
+  padding: 12px 10px;            /* a size up from the How to Play button */
+  font-size: 17px;
 }
 
 #online-panel input {
@@ -111,22 +137,64 @@ body {
 #menu-title {
   font-family: "Bangers", "Fredoka", "Segoe UI", system-ui, sans-serif;
   font-weight: 400;
-  font-size: 30px;
-  letter-spacing: 2px;
+  font-size: 46px;
+  letter-spacing: 3px;
   text-align: center;
   color: #ff3c78;
   text-shadow: 0 0 12px rgba(255, 60, 120, 0.7);
+  animation: float 3.2s ease-in-out infinite;
 }
 
 #menu-help {
-  padding: 7px 8px;
+  padding: 8px 10px;
   border: 1px solid #ffd23c;
   border-radius: 4px;
   background: transparent;
   color: #ffd23c;
   font: inherit;
+  font-size: 14px;
   font-weight: 700;
 }
+
+/* ---------------- Motion ---------------- */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Panels pop in when they appear (the animation restarts each time .hidden is removed) */
+@keyframes pop-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#online-panel, #lobby, #build-hud:not(.hidden), #color-picker:not(#lobby #color-picker) { animation: pop-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+#map-vote.floating, #weapon-pick, #winner-hud { animation: rise-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+#help-box, #settings-box, .chat-line, #lobby-players li { animation: fade-in 0.22s ease-out both; }
+
+/* Buttons lift when hovered and squash when pressed */
+button {
+  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+}
+button:hover:not(:disabled) { transform: translateY(-1px) scale(1.03); filter: brightness(1.08); }
+button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95); }
+
+/* Swatches and course cards bounce a little more */
+.swatch:hover:not(:disabled), .map-btn:hover, .weapon-card:hover { transform: scale(1.08); }
+.swatch.mine { transform: scale(1.1); }
+.trap-kind.selected, .map-btn.mine, .weapon-card.mine { animation: fade-in 0.2s ease-out both; }
+
+/* The HUD message line nudges in when it changes */
+#hud { transition: opacity 0.2s ease; }
 
 /* Host match settings: three dropdowns, each with an optional custom number box */
 #match-settings {
@@ -294,6 +362,10 @@ body {
   border-radius: 4px;
   cursor: pointer;
   padding: 0;
+}
+
+.swatch {
+  transition: transform 0.12s ease, border-color 0.12s ease;
 }
 
 .swatch:hover:not(:disabled) {

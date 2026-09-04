@@ -223,6 +223,7 @@ const Game = {
     this._chartX = {};
     Level.load(0);
     Player.spawn();
+    this.message = "";   // drop any leftover solo message (like the course name) before the room HUD shows
     buildHud.classList.add("hidden");
     lobby.classList.add("hidden");
     onlineStatus.textContent = "Connecting to room...";
@@ -1167,6 +1168,9 @@ const Game = {
 
     if (this.mode === "online" && (this.phase === "results" || this.phase === "winner")) this.drawScoreboard();
 
+    // The round and course line only shows once a match is under way. On the menu (solo
+    // mode) the HUD stays hidden; in the lobby and the vote it shows no course name.
+    hud.classList.toggle("hidden", this.mode === "solo");
     if (this.mode === "online" && this.phase === "lobby") {
       hud.textContent = `ROOM ${roomCodeInput.value}  •  ${this.message}`;
     } else if (this.mode === "online" && this.phase === "vote") {
