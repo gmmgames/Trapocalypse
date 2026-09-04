@@ -172,7 +172,9 @@ function startRun(room) {
   room.runTimer = null;
   const timeLimit = room.settings.timeLimit;
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
-  broadcast(room, { type: "phase", phase: "run", timeLimit, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [], weapons: room.finalBattle ? room.finalBattle.weapons || {} : {} });
+  // Some rounds get a twist. Never in a Final Battle. FORCE_EVENT=<name> is a test hook.
+  room.event = process.env.FORCE_EVENT || (!room.finalBattle && Math.random() < EVENT_CHANCE ? EVENTS[Math.floor(Math.random() * EVENTS.length)] : null);
+  broadcast(room, { type: "phase", phase: "run", timeLimit, event: room.event, finalBattleIds: room.finalBattle ? room.finalBattle.ids : [], weapons: room.finalBattle ? room.finalBattle.weapons || {} : {} });
 }
 
 // How long the results screen stays. The bars grow one point source at a time (the client
@@ -440,7 +442,10 @@ function removePlayer(socket) {
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
 const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7, longspike: 0.35, mirror: 0.4, bat: 0.4, buckler: 0.4, heart: 0.1 };
-const CARRY_ITEMS = ["bat", "buckler"];   // picked in the build phase, used during the run (like the pencil)
+const CARRY_ITEMS = ["bat", "buckler"];
+const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
+const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
+const EVENT_CHANCE = 0.3;          // chance a normal round gets one   // picked in the build phase, used during the run (like the pencil)
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
@@ -452,6 +457,7 @@ function drawItem() {
 function dealItems(room) {
   const count = Math.min(8, Math.max(2, room.players.size + 1));
   room.offer = Array.from({ length: count }, drawItem);
+  room.countdown = false; clearTimeout(room.countdownTimer);   // a new round: any pending GO is off
   if (process.env.FORCE_ITEM) room.offer[0] = process.env.FORCE_ITEM;   // test hook: FORCE_ITEM=pencil node server.js
   for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = false; }
 }
@@ -476,7 +482,13 @@ function canPick(room, player, slot) {
 
 // After a trap is placed or an eraser used: once everyone has used their item, the run starts.
 function maybeStartRun(room) {
-  if (room.phase === "build" && room.players.size >= (room.testMatch ? 1 : 2) && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
+  if (room.phase === "build" && !room.countdown && room.players.size >= (room.testMatch ? 1 : 2) && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) {
+    // Everyone has placed: three seconds of countdown, then GO.
+    room.countdown = true;
+    broadcast(room, { type: "countdown", seconds: GO_COUNTDOWN });
+    clearTimeout(room.countdownTimer);
+    room.countdownTimer = setTimeout(() => { room.countdown = false; if (room.phase === "build") startRun(room); }, GO_COUNTDOWN * 1000);
+  }
 }
 
 // The course vote is over: reset everyone and start round 1 on the winning course.

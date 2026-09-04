@@ -113,15 +113,17 @@ const Player = {
 
     // 1. Sideways movement straight from input
     this.vx = 0;
-    if (Input.left)  { this.vx = -this.RUN_SPEED; this.facing = -1; }
-    if (Input.right) { this.vx =  this.RUN_SPEED; this.facing =  1; }
+    const event = typeof Game !== "undefined" ? Game.event : null;   // this round's random event, if any
+    const speed = this.RUN_SPEED * (event === "haste" ? 1.4 : 1);
+    if (Input.left)  { this.vx = -speed; this.facing = -1; }
+    if (Input.right) { this.vx =  speed; this.facing =  1; }
 
     // Glue: wading through it is slow, and you cannot jump out of it.
     const inGlue = Level.hazards.some((h) => h.kind === "glue" && Physics.overlaps(this, h));
     if (inGlue) this.vx *= this.GLUE_FACTOR;
 
     // Ice: your speed only drifts toward what you press, so you slide on after letting go.
-    const onIce = this.onGround && Level.hazards.some((h) => h.kind === "ice" && Physics.overlaps(this, h));
+    const onIce = this.onGround && (event === "iceage" || Level.hazards.some((h) => h.kind === "ice" && Physics.overlaps(this, h)));
     if (onIce) { this._iceVx += (this.vx - this._iceVx) * Math.min(1, dt * this.ICE_GRIP); this.vx = this._iceVx; }
     else this._iceVx = this.vx;
 
@@ -187,7 +189,7 @@ const Player = {
     const solids = Level.solids.concat(Level.drawnSolids(), Level.movingSolids(), Level.solidHazards(), Level.hazards.filter((h) => h.kind === "crumble" && !h._gone));
     if (this._dash > 0) this.gravityScale = 0;   // a dash flies level
     Physics.moveAndCollide(this, solids, dt);
-    if (this._dash <= 0) this.gravityScale = this.weapon === "feather" ? 0.55 : 1;
+    if (this._dash <= 0) this.gravityScale = (this.weapon === "feather" ? 0.55 : 1) * (event === "lowgravity" ? 0.5 : 1);
 
     // Wall slide: in the air, falling, pushing into a wall -> ease down it slowly,
     // and remember the wall for a moment so a wall jump still works just after letting go.

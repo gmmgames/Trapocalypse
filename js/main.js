@@ -116,6 +116,14 @@ const BURST_STYLE = {
 };
 const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart" };
 const BAT_REACH = 46;   // how far in front of you a swing reaches
+// Random round events: a title for the warning and one line on what changes.
+const EVENT_INFO = {
+  lowgravity: { title: "LOW GRAVITY!", text: "Jumps go higher and everyone falls slower." },
+  iceage:     { title: "ICE AGE!",     text: "Every floor is slippery." },
+  blackout:   { title: "BLACKOUT!",    text: "You only see what is near you." },
+  haste:      { title: "HASTE!",       text: "Everyone runs 40% faster." },
+  quake:      { title: "EARTHQUAKE!",  text: "The ground will not stop shaking." },
+};
 const BUCKLER_HEALTH = 2;
 const THROW_CHARGE_SECONDS = 0.9;   // holding USE this long gives a full-power throw
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
@@ -266,6 +274,10 @@ const Game = {
   _swing: 0,            // seconds left of the current swing
   buckler: 0,           // Shield item health left this run
   revive: false,        // holding a Revive Heart
+  event: null,          // this round's random event (see EVENT_INFO), or null
+  _eventBanner: 0,      // seconds left of the event warning
+  _goTimer: 0,          // seconds left of the big GO!
+  _countdownEnds: 0,    // performance.now() when the pre-run countdown hits zero (0 = none)
   _balls: [],           // teleport balls in flight: { x, y, vx, vy, by, color, trail }
   _stroke: null,        // the stroke you are drawing right now: { blocks: [{x, y}] }
 
@@ -474,7 +486,7 @@ const Game = {
       Level.drawItemIcon(icon.getContext("2d"), item);
       const name = document.createElement("span");
       name.className = "item-name";
-      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : TRAP_NAMES[item];
+      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : (TRAP_NAMES[item] || item);   // never a blank label, even for an item this script does not know yet
       const taker = document.createElement("span");
       taker.className = "item-taker";
       const takerId = Object.keys(this.picks).find((id) => this.picks[id] === slot && id !== Network.id);
@@ -519,6 +531,62 @@ const Game = {
       if (i % 3 === 0) dots.push({ x, y });
     }
     return dots;
+  },
+  // Blackout: darkness everywhere except a soft circle of light around you.
+  drawBlackout() {
+    const cx = Player.x + Player.w / 2, cy = Player.y + Player.h / 2;
+    const glow = ctx.createRadialGradient(cx, cy, 40, cx, cy, 170);
+    glow.addColorStop(0, "rgba(0, 0, 0, 0)");
+    glow.addColorStop(0.6, "rgba(0, 0, 0, 0.75)");
+    glow.addColorStop(1, "rgba(0, 0, 0, 0.97)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, LEVEL_W, LEVEL_H);
+  },
+  // The 3-2-1 before a run, the big shaky GO!, and the event warning under it.
+  drawCountdownAndGo() {
+    if (this.mode !== "online") return;
+    ctx.save();
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (this._countdownEnds && this.phase === "build") {
+      const left = (this._countdownEnds - performance.now()) / 1000;
+      if (left > 0) {
+        const frac = left % 1;                                   // 1 -> 0 inside each second
+        ctx.font = `${90 + frac * 40}px ${DISPLAY_FONT}`;
+        ctx.fillStyle = "#ffd23c"; ctx.shadowColor = "#ffd23c"; ctx.shadowBlur = 24;
+        ctx.globalAlpha = 0.35 + frac * 0.65;
+        ctx.fillText(String(Math.ceil(left)), LEVEL_W / 2, LEVEL_H / 2 - 40);
+      }
+    }
+    if (this._goTimer > 0 && this.phase === "run") {
+      const t = 1.0 - this._goTimer;                             // 0 -> 1 over the second
+      const shake = t < 0.6 ? Math.sin(t * 90) * 7 * (0.6 - t) / 0.6 : 0;
+      const scale = t < 0.15 ? 0.4 + (t / 0.15) * 0.8 : 1.2 - Math.min(0.2, (t - 0.15) * 0.5);
+      ctx.translate(LEVEL_W / 2 + shake, LEVEL_H / 2 - 40 + shake * 0.6);
+      ctx.rotate(shake * 0.01);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = t > 0.8 ? (1 - t) / 0.2 : 1;
+      ctx.font = `bold 120px ${DISPLAY_FONT}`;
+      ctx.lineWidth = 10; ctx.strokeStyle = "#0b0b14"; ctx.strokeText("GO!", 0, 0);
+      ctx.fillStyle = "#5cf05a"; ctx.shadowColor = "#5cf05a"; ctx.shadowBlur = 30;
+      ctx.fillText("GO!", 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    if (this._eventBanner > 0 && this.event && this.phase === "run") {
+      const info = EVENT_INFO[this.event];
+      const a = Math.min(1, this._eventBanner / 0.5);           // fades out at the end
+      const pulse = 1 + Math.sin(performance.now() / 90) * 0.04;
+      ctx.globalAlpha = a; ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(11, 11, 20, 0.8)";
+      ctx.fillRect(LEVEL_W / 2 - 250, LEVEL_H / 2 + 20, 500, 74);
+      ctx.strokeStyle = "#ff5a3c"; ctx.lineWidth = 3; ctx.strokeRect(LEVEL_W / 2 - 250, LEVEL_H / 2 + 20, 500, 74);
+      ctx.font = `bold ${30 * pulse}px ${DISPLAY_FONT}`;
+      ctx.fillStyle = "#ff5a3c";
+      ctx.fillText(`⚠ ${info.title}`, LEVEL_W / 2, LEVEL_H / 2 + 44);
+      ctx.font = `15px ${FONT}`;
+      ctx.fillStyle = "#e8e8ff";
+      ctx.fillText(info.text, LEVEL_W / 2, LEVEL_H / 2 + 74);
+    }
+    ctx.restore();
   },
   swingBat() {
     if (!this.bat || this.phase !== "run" || !Player.alive || Player.finished || this._swing > 0) return;
@@ -1178,6 +1246,7 @@ const Game = {
       }
     }
     if (message.type === "round_start") {
+      this.event = null; this._eventBanner = 0; this._goTimer = 0; this._countdownEnds = 0;
       this.applyRoomState(message);
       Player.spawn();
       this._bannerTimer = 0; this._bursts = [];
@@ -1280,8 +1349,18 @@ const Game = {
       else this.say(`${this.nameOf(message.by)} erased ${owner}'s trap.`, 1.5);
       this.renderItems();
     }
+    if (message.type === "countdown") {
+      this._countdownEnds = performance.now() + message.seconds * 1000;
+      this._lastCount = null;
+    }
     if (message.type === "phase" && message.phase === "run") {
       this.phase = "run";
+      this._countdownEnds = 0;
+      this._goTimer = 1.0;
+      this.event = message.event || null;
+      this._eventBanner = this.event ? 3.2 : 0;
+      Sfx.milestone();
+      if (this.event) setTimeout(() => Sfx.timeUp(), 700);
       buildHud.classList.add("hidden");
       colorPicker.classList.add("hidden");
       onlinePanel.classList.add("hidden");   // the room UI goes away once the round starts
@@ -1527,10 +1606,16 @@ const Game = {
   update(dt) {
     Input.update();
     Dust.update(dt);
+    if (this._countdownEnds) {
+      const left = Math.ceil((this._countdownEnds - performance.now()) / 1000);
+      if (left !== this._lastCount && left > 0) { this._lastCount = left; Sfx.tick(); }
+    }
     Level.updateMovers();   // platforms slide before the runners move, so riders are carried
     if (this.phase === "run" && !this.complete) {
       Player.update(dt);
       if (this.mode === "online") {
+        if (this._goTimer > 0) this._goTimer -= dt;
+        if (this._eventBanner > 0) this._eventBanner -= dt;
         if (this._swing > 0) this._swing -= dt;
         this.updateBalls(dt);
         // Touch a Teleport Ball orb to claim it (the server decides who was first).
@@ -1974,6 +2059,8 @@ const Game = {
   draw() {
     // Wipe the whole canvas, then redraw the scene from scratch.
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    if (this.event === "quake" && this.phase === "run") ctx.translate((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);   // the earthquake
     Level.draw(ctx);
     Dust.draw(ctx);   // under the runners, over the ground
 
@@ -2010,6 +2097,9 @@ const Game = {
       this.drawNametag(Player.x, Player.y, me ? me.name : "You", "#ffffff");
     }
 
+    if (this.event === "blackout" && this.phase === "run" && this.mode === "online") this.drawBlackout();
+    ctx.restore();
+    this.drawCountdownAndGo();
     if (this.mode === "online" && (this.phase === "results" || this.phase === "winner")) this.drawScoreboard();
 
     // The round and course line only shows once a match is under way. On the menu (solo
@@ -2036,7 +2126,8 @@ const Game = {
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
       const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
       const portal = this.portal ? "  •  🔮 Teleport Ball: hold X / Shift to aim, let go to throw" : "";
-      const carry = (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? "  •  💗 Revive ready" : "");
+      const twist = this.event && this.phase === "run" ? `  •  ⚠ ${EVENT_INFO[this.event].title}` : "";
+      const carry = twist + (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? "  •  💗 Revive ready" : "");
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
@@ -2052,7 +2143,7 @@ const Game = {
       buildInstructions.textContent = `${this.placements[this.builder]}/2 traps placed`;
     }
     if (this.mode === "online" && this.phase === "build") {
-      buildTitle.textContent = `ROUND ${this.round} BUILD`;
+      buildTitle.textContent = `ROUND ${this.round} BUILD`;   // the box itself is hidden; the text goes into the HUD line below
       const waiting = this.players.filter((player) => player.trapCount < this.trapsPerRound && player.status !== "out").length;
       if (this.players.length < 2) {
         buildInstructions.textContent = `Waiting for another player. Share room code ${roomCodeInput.value}.`;
@@ -2068,6 +2159,7 @@ const Game = {
       } else {
         buildInstructions.textContent = `Tap the course to set your ${TRAP_NAMES[this.pick]} down, move it if you like, then confirm.`;
       }
+      hudTail.textContent = `  •  ${buildInstructions.textContent}${this.message ? "  •  " + this.message : ""}`;
     }
   },
 

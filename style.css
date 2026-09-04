@@ -332,6 +332,10 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 }
 
 /* Item cards inside the build box: a picture, a name, and who took it */
+/* The build box is just the cards now: its title and instructions show in the HUD line. */
+#build-title, #build-instructions, #start-run { display: none !important; }
+#build-hud { background: transparent; border: 0; box-shadow: none; }
+
 #item-cards {
   display: flex;
   flex-wrap: wrap;
