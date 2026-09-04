@@ -218,7 +218,7 @@
         <li>Everyone votes on a course from three choices. Red <b>H</b> courses are harder; <b>C</b> are made by players; <b>EE</b> are event courses</li>
         <li>Each round you take one item and place it, then everyone runs at once with a single life</li>
         <li>20 seconds to take an item, then 20 to place it. Slower than that and you lose the turn</li>
-        <li>Traps stay for five rounds, then the room votes on a new course</li>
+        <li>Traps stay until the course changes, then the room votes on a new one. The host sets how often that is, or turns it off for one course all match</li>
         <li>Now and then a round has a twist: low gravity, an ice age, haste, an earthquake, or rarely a blackout</li>
         <li>First to the points target wins. Tie at the top and they settle it in a Final Battle</li>
       </ul>
@@ -281,6 +281,7 @@
       <ul class="help-list">
         <li><b>Time limit</b> how long a run may last</li>
         <li><b>Pick time</b> and <b>Place time</b> the two clocks in a round</li>
+        <li><b>Rounds per course</b> how often the course changes, or one course all match</li>
         <li><b>Points to win</b> and <b>Round cap</b> when the match ends</li>
         <li><b>Point values</b> what a win, a trap kill, a trailblazer and an autonomous finish are worth</li>
         <li><b>Max players</b> and <b>Listed</b> room size, and whether strangers can find it</li>
@@ -341,6 +342,14 @@
           <option value="custom">Custom…</option>
         </select>
         <input id="set-place-custom" type="number" min="5" max="180" step="1" placeholder="5–180" class="hidden">
+      </label>
+      <label>Rounds per course
+        <select id="set-course-rounds">
+          <option value="3">3</option><option value="5" selected>5</option><option value="8">8</option>
+          <option value="10">10</option><option value="null">One course all match</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <input id="set-course-rounds-custom" type="number" min="1" max="30" step="1" placeholder="1–30" class="hidden">
       </label>
       <label>Points to win
         <select id="set-points">

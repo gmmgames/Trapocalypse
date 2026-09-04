@@ -23,7 +23,13 @@ const TRAPS_PER_ROUND = 1;     // traps each player places before a run
 const ROUNDS_PER_LEVEL = Number(process.env.ROUNDS_PER_LEVEL) || 5;    // rounds on one course before rotating to the next (a course can say otherwise)
 const LAVA_EVENT_CHANCE = 0.15;   // at a course change, the chance the room is sent to the Rising Lava course instead
 // How many rounds the current course runs for.
-function roundsFor(room) { const level = levelsOf(room)[room.levelIndex]; return (level && level.rounds) || ROUNDS_PER_LEVEL; }
+function roundsFor(room) {
+  const level = levelsOf(room)[room.levelIndex];
+  if (level && level.rounds) return level.rounds;                       // the event course sets its own
+  const chosen = room.settings ? room.settings.roundsPerCourse : undefined;
+  if (chosen === null) return Infinity;                                 // the host wants one course all match
+  return chosen || ROUNDS_PER_LEVEL;
+}
 const RESULTS_WAIT = 5;        // seconds the scoreboard stays AFTER all points have landed (10 when a course vote is up)
 const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
@@ -68,8 +74,8 @@ const FORCED_CLOCKS = Boolean(process.env.PICK_SECONDS || process.env.PLACE_SECO
 function pickSecondsFor(room) { return FORCED_CLOCKS ? PICK_SECONDS : room.settings.pickSeconds || PICK_SECONDS; }
 function placeSecondsFor(room) { return FORCED_CLOCKS ? PLACE_SECONDS : room.settings.placeSeconds || PLACE_SECONDS; }
 
-const SETTING_LIMITS = { timeLimit: [30, 600], pickSeconds: [5, 120], placeSeconds: [5, 180], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10], autonomousPoints: [0, 10], maxPlayers: [2, MAX_PLAYERS] };
-const SETTING_DEFAULTS = { timeLimit: 60, pickSeconds: PICK_SECONDS, placeSeconds: PLACE_SECONDS, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, maxPlayers: MAX_PLAYERS, isPublic: true };
+const SETTING_LIMITS = { timeLimit: [30, 600], roundsPerCourse: [1, 30], pickSeconds: [5, 120], placeSeconds: [5, 180], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10], autonomousPoints: [0, 10], maxPlayers: [2, MAX_PLAYERS] };
+const SETTING_DEFAULTS = { timeLimit: 60, roundsPerCourse: ROUNDS_PER_LEVEL, pickSeconds: PICK_SECONDS, placeSeconds: PLACE_SECONDS, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, maxPlayers: MAX_PLAYERS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
 // Ban lengths the host can pick, in minutes. The room forgets its bans when it empties.
@@ -78,7 +84,7 @@ function banLength(minutes) { return minutes >= 1440 ? "24 hours" : minutes >= 6
 function banLeft(until) { const minutes = Math.ceil((until - Date.now()) / 60000); return minutes >= 60 ? `${Math.ceil(minutes / 60)} hour${minutes >= 120 ? "s" : ""}` : `${minutes} minute${minutes === 1 ? "" : "s"}`; }
 const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "frog", "penguin", "alien", "duck", "bear", "slime", "steamboat"];   // character models (drawn in js/player.js)
 const SECRET_AVATARS = { steamboat: (name) => /mouse/i.test(name || "") };   // easter egg: needs "mouse" in your name
-const SETTING_LABELS = { timeLimit: "Time limit", pickSeconds: "Pick time", placeSeconds: "Place time", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points", maxPlayers: "Max players" };
+const SETTING_LABELS = { timeLimit: "Time limit", roundsPerCourse: "Rounds per course", pickSeconds: "Pick time", placeSeconds: "Place time", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points", maxPlayers: "Max players" };
 
 function roomCode() {
   let code;
@@ -89,6 +95,8 @@ function roomCode() {
 
 // Check the settings a host sent. A missing value means "use the default".
 // Anything outside the limits is refused with a message, never silently changed.
+const NULLABLE_SETTINGS = ["timeLimit", "roundsPerCourse"];   // may be left open: no limit, no course change
+
 function validateSettings(raw) {
   const settings = {};
   // isPublic is a simple yes/no: listed in the room list, or private (join by code only).
@@ -97,7 +105,7 @@ function validateSettings(raw) {
     const [min, max] = SETTING_LIMITS[key];
     const value = raw ? raw[key] : undefined;
     if (value === undefined) { settings[key] = SETTING_DEFAULTS[key]; continue; }
-    if (key === "timeLimit" && value === null) { settings[key] = null; continue; }   // Infinite
+    if (NULLABLE_SETTINGS.includes(key) && value === null) { settings[key] = null; continue; }   // Infinite, or never
     const n = Number(value);
     if (!Number.isInteger(n) || n < min || n > max) {
       return { ok: false, message: `${SETTING_LABELS[key]} must be between ${min} and ${max}.` };
@@ -144,7 +152,7 @@ function snapshot(room) {
     voteOptions: room.voteOptions || null,
     courseEvent: Number.isInteger(room.courseEvent) ? levelsOf(room)[room.courseEvent].name : null,
     courseRound: room.courseRound || 1,
-    courseRounds: roundsFor(room),
+    courseRounds: Number.isFinite(roundsFor(room)) ? roundsFor(room) : null,   // null: this course stays all match
     offer: room.offer || [],
     testMatch: Boolean(room.testMatch),
     customLevels: room.customLevels || [],
@@ -467,7 +475,7 @@ function checkRoundOver(room) {
     voteOptions: room.voteOptions || null,
     courseEvent: Number.isInteger(room.courseEvent) ? levelsOf(room)[room.courseEvent].name : null,
     courseRound: room.courseRound || 1,
-    courseRounds: roundsFor(room),
+    courseRounds: Number.isFinite(roundsFor(room)) ? roundsFor(room) : null,   // null: this course stays all match
     weaponOffers,
   });
   const delay = timing.total * 1000;

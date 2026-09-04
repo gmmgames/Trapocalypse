@@ -154,6 +154,7 @@ const gainText = (label) => GAIN_TEXT[label] || GAIN_TEXT[label.replace(/ ×\d+$
 // The point values are plain number boxes ("input") with no presets.
 const SETTING_FIELDS = {
   timeLimit:   { select: "set-time",   custom: "set-time-custom",   min: 30, max: 600, label: "Time limit" },
+  roundsPerCourse: { select: "set-course-rounds", custom: "set-course-rounds-custom", min: 1, max: 30, label: "Rounds per course" },
   pickSeconds:  { select: "set-pick",  custom: "set-pick-custom",  min: 5, max: 120, label: "Pick time" },
   placeSeconds: { select: "set-place", custom: "set-place-custom", min: 5, max: 180, label: "Place time" },
   pointsToWin: { select: "set-points", custom: "set-points-custom", min: 15, max: 600, label: "Points to win" },
@@ -403,7 +404,7 @@ const Game = {
     if (this.phase !== "lobby") return;
     const s = this.settings || {};
     lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
-    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds  •  Pick ${s.pickSeconds ?? 20}s  •  Place ${s.placeSeconds ?? 20}s\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}  •  Autonomous ${s.autonomousPoints ?? 3}  •  Up to ${s.maxPlayers ?? 30} players  •  ${s.isPublic === false ? "Private room" : "Listed room"}`;
+    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds  •  ${s.roundsPerCourse === null ? "One course all match" : (s.roundsPerCourse ?? 5) + " rounds per course"}  •  Pick ${s.pickSeconds ?? 20}s  •  Place ${s.placeSeconds ?? 20}s\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}  •  Autonomous ${s.autonomousPoints ?? 3}  •  Up to ${s.maxPlayers ?? 30} players  •  ${s.isPublic === false ? "Private room" : "Listed room"}`;
     lobbyPlayers.replaceChildren(...this.players.map((player) => {
       const item = document.createElement("li");
       const dot = document.createElement("span");
@@ -1405,7 +1406,7 @@ const Game = {
     this.voteOpen = Boolean(message.voteOpen);
     this.voteOptions = message.voteOptions || null;
     this.courseEvent = message.courseEvent || null;
-    this.courseRound = message.courseRound || 1; this.courseRounds = message.courseRounds || this.roundsPerLevel;
+    this.courseRound = message.courseRound || 1; this.courseRounds = message.courseRounds === undefined ? this.roundsPerLevel : message.courseRounds;   // null: this course stays all match
     this.testMatch = Boolean(message.testMatch);
     this.levelIndex = message.levelIndex;
     this.players = message.players;
@@ -1778,7 +1779,7 @@ const Game = {
       this.voteOpen = Boolean(message.voteOpen);
     this.voteOptions = message.voteOptions || null;
     this.courseEvent = message.courseEvent || null;
-    this.courseRound = message.courseRound || 1; this.courseRounds = message.courseRounds || this.roundsPerLevel;
+    this.courseRound = message.courseRound || 1; this.courseRounds = message.courseRounds === undefined ? this.roundsPerLevel : message.courseRounds;   // null: this course stays all match
       this.renderVote();
       this.renderWeaponPick();
       const iFinished = message.finishers.includes(Network.id);
