@@ -50,7 +50,8 @@ const INVITE_COOLDOWN_MS = 5000;                  // between invites from one pl
 const BAN_LENGTHS = { "5": 5, "30": 30, "120": 120, "1440": 1440, "forever": Infinity };
 function banLength(minutes) { return minutes >= 1440 ? "24 hours" : minutes >= 60 ? `${minutes / 60} hours` : `${minutes} minutes`; }
 function banLeft(until) { const minutes = Math.ceil((until - Date.now()) / 60000); return minutes >= 60 ? `${Math.ceil(minutes / 60)} hour${minutes >= 120 ? "s" : ""}` : `${minutes} minute${minutes === 1 ? "" : "s"}`; }
-const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot"];   // character models (drawn in js/player.js)
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "steamboat"];   // character models (drawn in js/player.js)
+const SECRET_AVATARS = { steamboat: (name) => /mouse/i.test(name || "") };   // easter egg: needs "mouse" in your name
 const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points" };
 
 function roomCode() {
@@ -611,6 +612,7 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "choose_avatar") {
       if (room.phase !== "lobby") { send(socket, { type: "error", message: "You can change your character in the lobby." }); return; }
       if (!AVATARS.includes(message.avatar)) return;
+      if (SECRET_AVATARS[message.avatar] && !SECRET_AVATARS[message.avatar](player.name)) { send(socket, { type: "error", message: "That shape is a secret. Something in your name unlocks it..." }); return; }
       player.avatar = message.avatar;
       broadcast(room, { type: "avatar", playerId: player.id, avatar: player.avatar });
       return;

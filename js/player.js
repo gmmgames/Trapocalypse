@@ -307,7 +307,10 @@ const Player = {
 // Every runner is the same 22x26 box for the physics; the avatar only changes how the
 // box is painted. Shared by your own runner and everyone else's.
 // Every shape uses the same 22x26 hitbox; ears, horns and tails are just paint.
-const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot"];
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "steamboat"];
+// "steamboat" is a secret: a 1928-style black-and-white cartoon mouse (the old public-domain
+// Steamboat Willie look), only for players who typed "mouse" into their name.
+const SECRET_AVATARS = { steamboat: (name) => /mouse/i.test(name || "") };
 function drawAvatar(ctx, x, y, w, h, color, facing, avatar) {
   ctx.save();
   // Draw everything as if facing right, then mirror the whole thing when facing left.
@@ -379,6 +382,26 @@ function drawAvatar(ctx, x, y, w, h, color, facing, avatar) {
     ctx.fillStyle = INK; ctx.fillRect(x + 3, y + 8, w - 6, 6);        // visor
     ctx.fillStyle = "#7dffb3"; ctx.fillRect(x + 6, y + 10, 3, 2); ctx.fillRect(x + 13, y + 10, 3, 2);   // glowing eyes
     ctx.fillStyle = INK; for (let i = 0; i < 4; i++) ctx.fillRect(x + 4 + i * 4, y + 18, 2, 3);        // teeth
+  } else if (avatar === "steamboat") {
+    // Old-film cartoon mouse in black and white; your color only shows in the glow.
+    const PAPER = "#f4f1e0";
+    // All the ink in one path and one fill, so the colored glow sits under it, never on it.
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.moveTo(cx - 2, y + 4); ctx.arc(cx - 7, y + 4, 5, 0, Math.PI * 2);                    // ears
+    ctx.moveTo(cx + 12, y + 4); ctx.arc(cx + 7, y + 4, 5, 0, Math.PI * 2);
+    ctx.moveTo(cx + 8.5, y + 11); ctx.arc(cx, y + 11, 8.5, 0, Math.PI * 2);                 // head
+    ctx.moveTo(cx + 14, y + 14); ctx.ellipse(cx + 9, y + 14, 5, 3, 0, 0, Math.PI * 2);      // snout
+    ctx.rect(cx - 5, y + 18, 10, h - 18);                                                    // body
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = PAPER;
+    ctx.beginPath(); ctx.ellipse(cx + 2, y + 12, 6, 5, 0, 0, Math.PI * 2); ctx.fill();                                    // face
+    ctx.fillRect(cx - 3, y + 21, 2, 2); ctx.fillRect(cx + 1, y + 21, 2, 2);                                                // shorts buttons
+    ctx.fillStyle = INK;
+    ctx.beginPath(); ctx.ellipse(cx, y + 10, 1.4, 2.2, 0, 0, Math.PI * 2); ctx.ellipse(cx + 4, y + 10, 1.4, 2.2, 0, 0, Math.PI * 2); ctx.fill();   // pie eyes
+    ctx.beginPath(); ctx.arc(cx + 13, y + 13, 1.6, 0, Math.PI * 2); ctx.fill();                                           // nose
+    ctx.fillRect(cx + 1, y + 15, 7, 1);                                                                                    // smile
   } else {
     ctx.rect(x, y, w, h);   // the classic cube
     ctx.fill(); ctx.shadowBlur = 0; eyes(y + 7, x + 13);

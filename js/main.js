@@ -803,7 +803,9 @@ const Game = {
     const row = document.getElementById("avatar-picker");
     if (!row) return;
     const color = this.myColor === null ? "#c0c0d8" : PALETTE[this.myColor];
-    row.replaceChildren(...AVATARS.map((avatar) => {
+    const me = this.players.find((player) => player.id === Network.id);
+    const unlocked = AVATARS.filter((avatar) => !SECRET_AVATARS[avatar] || SECRET_AVATARS[avatar](me && me.name));
+    row.replaceChildren(...unlocked.map((avatar) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "avatar-btn" + (Player.avatar === avatar ? " mine" : "");
@@ -887,7 +889,9 @@ const Game = {
     Player.color = this.myColor === null ? "#ff3c78" : PALETTE[this.myColor];
     Player.avatar = me && me.avatar ? me.avatar : "cube";
     // First time in this room: ask for the shape you used last time.
-    if (!this.inRoom && me && this.phase === "lobby" && savedAvatar() !== me.avatar) Network.send({ type: "choose_avatar", avatar: savedAvatar() });
+    const wanted = savedAvatar();
+    const allowed = !SECRET_AVATARS[wanted] || SECRET_AVATARS[wanted](me && me.name);
+    if (!this.inRoom && me && this.phase === "lobby" && wanted !== me.avatar && allowed) Network.send({ type: "choose_avatar", avatar: wanted });
     this.renderAvatars();
     roomCodeInput.value = message.code;
     this.inRoom = true;
