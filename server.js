@@ -148,6 +148,8 @@ function makeUserId() {
 function trapBlocked(room, trap) {
   const level = LEVELS[room.levelIndex];
   const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
+  // Nothing within two tiles of the flag, so the finish can never be walled off.
+  const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
   const inWall = ["crumble", "portal", "mover", "glue", "plank"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
   // Glue must touch a block on some side (top, bottom, left or right).
@@ -156,7 +158,7 @@ function trapBlocked(room, trap) {
   // Ice sits on top of a block: never inside one, and there must be a block right under it.
   const below = { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 };
   const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !level.solids.some((solid) => overlaps(solid, below)));
-  return inWall || looseGlue || badIce || overlaps(trap, level.flag) || overlaps(trap, startBox) ||
+  return inWall || looseGlue || badIce || overlaps(trap, flagZone) || overlaps(trap, startBox) ||
     room.traps.some((item) => overlaps(item, trap));
 }
 
@@ -437,7 +439,7 @@ function removePlayer(socket) {
 // picks one; while any offered item is still free, two players cannot pick the same one.
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
-const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7 };
+const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7, longspike: 0.35 };
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
@@ -522,7 +524,8 @@ const server = http.createServer((request, response) => {
   }
   fs.readFile(filePath, (error, data) => {
     if (error) { response.writeHead(404); response.end("Not found"); return; }
-    response.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
+    // No caching: after a deploy every player must get the new scripts, not a stale copy.
+    response.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream", "Cache-Control": "no-cache" });
     response.end(data);
   });
 });
@@ -810,7 +813,7 @@ webSocketServer.on("connection", (socket) => {
       const x = Math.round((Number(message.x) || 0) / TILE) * TILE;
       const y = Math.round((Number(message.y) || 0) / TILE) * TILE;
       const kind = player.pick;   // the item you picked this round; the browser's claim is ignored
-      const trap = { x, y, w: kind === "plank" ? TILE * PLANK_TILES : TILE, h: TILE, owner: player.id, kind };
+      const trap = { x, y, w: kind === "plank" || kind === "longspike" ? TILE * PLANK_TILES : TILE, h: TILE, owner: player.id, kind };
       const inBounds = x >= 2 * TILE && x + trap.w <= LEVEL_W - TILE && y >= 0 && y + TILE <= LEVEL_H;
       if (inBounds && !trapBlocked(room, trap)) {
         room.traps.push(trap); player.trapCount += 1;

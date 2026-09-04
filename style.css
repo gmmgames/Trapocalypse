@@ -336,7 +336,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 14px 12px;
+  padding: 8px 0 14px;
   pointer-events: auto;
 }
 
@@ -352,6 +353,7 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   color: #e8e8ff;
   font: inherit;
   font-size: 12px;
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--tilt, 0deg));   /* set per card by main.js */
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
 
@@ -359,7 +361,7 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 .item-card .item-name { font-weight: 700; }
 .item-card .item-taker { font-size: 11px; color: #c0c0d8; min-height: 1.2em; display: flex; align-items: center; gap: 4px; }
 .item-card .item-taker .dot { width: 9px; height: 9px; border-radius: 2px; }
-.item-card:hover:not(:disabled) { border-color: #ffd23c; transform: scale(1.05); }
+.item-card:hover:not(:disabled) { border-color: #ffd23c; transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--tilt, 0deg)) scale(1.06); }
 .item-card.mine { border-color: #ffffff; background: #1c1c2e; }
 .item-card:disabled { opacity: 0.45; cursor: not-allowed; }
 

@@ -114,7 +114,7 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes" };
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
@@ -444,6 +444,11 @@ const Game = {
       card.className = "item-card" + (mineSlot === slot ? " mine" : "");
       card.dataset.item = item;
       card.dataset.slot = slot;
+      // Scattered, like cards tossed on a table: a tilt and a nudge that depend on the card and the round.
+      const seed = (slot * 7 + this.round * 3) % 11;
+      card.style.setProperty("--tilt", `${((seed % 5) - 2) * 3.5}deg`);
+      card.style.setProperty("--dx", `${((seed * 3) % 7) - 3}px`);
+      card.style.setProperty("--dy", `${((seed * 5) % 9) - 4 + (slot % 2 ? 6 : -6)}px`);
       const icon = document.createElement("canvas");
       icon.width = TILE; icon.height = TILE;
       Level.drawItemIcon(icon.getContext("2d"), item);
@@ -563,13 +568,15 @@ const Game = {
 
   // Why can't a trap go here? null means it can.
   placementProblem(x, y) {
-    const trap = { x, y, w: this.pick === "plank" ? TILE * PLANK_TILES : TILE, h: TILE, kind: this.pick };
+    const trap = { x, y, w: this.pick === "plank" || this.pick === "longspike" ? TILE * PLANK_TILES : TILE, h: TILE, kind: this.pick };
     if (this.pick === "eraser") return Level.hazards.some((hazard) => hazard.x === x && hazard.y === y) ? null : "Put the eraser on a trap.";
     const onSomeone = Physics.overlaps(trap, Player) ||
       Object.values(this.remotePlayers).some((remote) => Physics.overlaps(trap, { x: remote.x, y: remote.y, w: Player.w, h: Player.h }));
     if (x < 2 * TILE || x + trap.w > LEVEL_W - TILE || y < 0 || y + TILE > LEVEL_H) return "That's off the course.";
     if (Level.hazards.some((hazard) => Physics.overlaps(trap, hazard))) return "There's already a trap there.";
-    if (Physics.overlaps(trap, Level.flag) || onSomeone) return "Not on a runner or the flag.";
+    const flagZone = { x: Level.flag.x - 2 * TILE, y: Level.flag.y - 2 * TILE, w: Level.flag.w + 4 * TILE, h: Level.flag.h + 3 * TILE };
+    if (Physics.overlaps(trap, flagZone)) return "Too close to the flag.";
+    if (onSomeone) return "Not on a runner.";
     if (this.pick === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A crumbler needs open air, not a wall.";
     if (this.pick === "portal" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The ball has to hang in open air.";
     if (this.pick === "mover" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mover needs open air to slide in.";
@@ -634,9 +641,10 @@ const Game = {
       ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 23, y + 23); ctx.moveTo(x + 23, y + 7); ctx.lineTo(x + 7, y + 23); ctx.stroke();
     } else {
       if (this.pick === "plank") Level.drawPlank(ctx, { x, y, w: TILE * PLANK_TILES, h: TILE }, Level.theme);   // full size, not the card icon
+      else if (this.pick === "longspike") Level.drawSpikes(ctx, { x, y, w: TILE * PLANK_TILES, h: TILE }, Level.theme);
       else { ctx.translate(x, y); Level.drawItemIcon(ctx, this.pick); ctx.translate(-x, -y); }
     }
-    const ghostW = this.pick === "plank" ? TILE * PLANK_TILES : TILE;
+    const ghostW = this.pick === "plank" || this.pick === "longspike" ? TILE * PLANK_TILES : TILE;
     ctx.globalAlpha = 1;
     ctx.setLineDash([4, 3]);
     ctx.strokeStyle = problem ? "#ff5a3c" : "#5cf05a";
@@ -1821,6 +1829,7 @@ const Game = {
     // The round and course line only shows once a match is under way. On the menu (solo
     // mode) the HUD stays hidden; in the lobby and the vote it shows no course name.
     hud.classList.toggle("hidden", this.mode === "solo");
+    if (this.mode === "solo") buildHud.classList.add("hidden");   // never show a stale build box behind the menu
     // Touch buttons only while there is something to run: the title world, or an online run.
     const running = this.mode === "solo" || this.phase === "run";
     document.body.classList.toggle("in-run", running);

@@ -577,6 +577,7 @@ const Level = {
     if (item === "portal") { this.drawPortal(ctx, box); return; }
     if (item === "mover") { this.drawMover(ctx, box, t, true); return; }
     if (item === "plank") { this.drawPlank(ctx, { x: 2, y: 11, w: 26, h: 8 }, t); return; }
+    if (item === "longspike") { this.drawSpikes(ctx, { x: 1, y: 14, w: 28, h: 16 }, t, 7); return; }
     if (item === "eraser") {
       ctx.fillStyle = "#ff3c78";
       ctx.fillRect(3, 8, 24, 16);
@@ -696,6 +697,21 @@ const Level = {
     ctx.fillStyle = "#ffd23c";
     ctx.fillRect(s.x + 3, s.y + s.h - 4, s.w - 6, 4);
     ctx.restore();
+  },
+
+  // A row of spikes across any width (the course's own spikes use the same look, see draw()).
+  drawSpikes(ctx, s, t, spikeWidth = 12) {
+    ctx.fillStyle = t.spike;
+    for (let x = s.x; x < s.x + s.w; x += spikeWidth) {
+      ctx.beginPath();
+      ctx.moveTo(x, s.y + s.h);
+      ctx.lineTo(x + spikeWidth / 2, s.y);
+      ctx.lineTo(x + spikeWidth, s.y + s.h);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = t.spikeBase;
+    ctx.fillRect(s.x, s.y + s.h - 3, s.w, 3);
   },
 
   // A Plank: a long solid block in the course colors with a yellow top edge and wood-grain lines.

@@ -201,7 +201,7 @@ const Player = {
     // The deadly box is a little smaller than the drawn tile (a "hitbox" is the
     // invisible rectangle used for touching), so near misses feel fair.
     for (const hazard of Level.hazards) {
-      if (hazard.kind && hazard.kind !== "spike") continue;   // only spikes kill
+      if (hazard.kind && hazard.kind !== "spike" && hazard.kind !== "longspike") continue;   // only spikes kill
       if (this._immune > 0) break;
       const deadly = {
         x: hazard.x + this.SPIKE_INSET_SIDE,
