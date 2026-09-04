@@ -76,6 +76,10 @@ Tap jump early before you land and it still counts. Let go of jump early for a s
 
 - **Day 10:** Fun fonts, How to Play, chat with a filter and a settings gear, sounds, three new trap kinds, the eraser, Final Battle weapons, then a reshuffle: a bare menu, host settings and the color picker inside the lobby, a ten-second course vote after Start, random trap per round, eraser as your item, angled bumpers, click-through chat, and a bubbly cursor.
 
+- **Day 11:** Your logo on a centered menu, permanent 6-character player IDs with invites and a public room list, a stricter name filter, and the item draft: each round the room is dealt a handful of item cards, everyone picks one, then places it as a ghost and confirms.
+
+- **Day 12:** Shapes. Ten character models (cube, ball, wedge, ghost, diamond, dino, unicorn, cat, bunny, robot) picked in the lobby and remembered, plus a secret black-and-white 1928-style mouse for anyone with "mouse" in their name. The title screen is a random little world you can hop around in. Two rare items: the Pencil (sketch blocks to stand on, mid-run) and the Teleport Ball (throw it, appear where it lands). Autonomous and Curiosity bursts on the results screen, a podium finale with a disco ball and dancing shapes, springs that squash and stretch, a grabbable chat scroll strip, finished runners still visible at the flag, cards dealt as independent draws with a rarer eraser, Autonomous points in the host settings, ice only on top of blocks, random colors for anyone who forgot to pick, host Kick and Ban tools, a solo Test Match, the game filling the whole window, and five new courses (three built around wall jumps): Chimney Climb, Tower Hop, The Well, Skyline, Hedge Maze.
+
 Coming up: polish and the parked bug list.
 
 ## What each file does
@@ -83,14 +87,14 @@ Coming up: polish and the parked bug list.
 | File | Job |
 |---|---|
 | `index.html` | The page: canvas, message box, touch buttons, loads the scripts in order |
-| `style.css` | Dark background, keeps the 16:9 shape, shows touch buttons only on touch screens |
+| `style.css` | Dark theme, fills the whole window, shows touch buttons only on touch screens |
 | `js/input.js` | Turns keys and touch buttons into `left`, `right`, `jump` |
 | `js/physics.js` | Gravity and rectangle collision, moves a body and pushes it out of walls |
-| `js/level.js` | Seven tile-grid courses with their color themes, ground, platforms, traps, start points, and flags |
+| `js/level.js` | Twelve tile-grid courses with their color themes, the random title world, trap and item drawing |
 | `js/dust.js` | The puffs under runners' feet, visual only |
 | `js/audio.js` | Sound effects synthesized in the browser, no sound files |
 | `js/chatfilter.js` | The word list and the bleeping for the chat filter |
-| `js/player.js` | The runner: speed, jump height, coyote time, dying, finishing |
+| `js/player.js` | The runner: speed, jump height, wall slide and wall jump, dying, finishing, and `drawAvatar` for every shape |
 | `js/main.js` | The game loop, online room UI, synchronization, and rendering |
 | `js/network.js` | WebSocket client for rooms and real-time game events |
 | `server.js` | Static file server and WebSocket room server |
@@ -114,7 +118,10 @@ Open `server.js` for the round rules, then restart the server:
 - `NEXT_ROUND_DELAY` (10) is also how long the bars have to grow; `BANNER_SECONDS` at the top of `js/main.js` is how long the Trailblazer burst stays.
 - Courses and their themes live in `LEVELS` and `THEMES` at the top of `js/level.js`. Add a course there and it shows up in the vote automatically.
 - `FINAL_BONUSES` (5, 3, 1) for the podium in a Final Battle, `FINAL_BATTLE_MAX_RUNS` (3) before a tie is shared
-- `SETTING_LIMITS` and `SETTING_DEFAULTS` for what the host may pick: time limit 30-600 s or Infinite (default 60), points to win 15-99 (default 45), round cap 3-60 (default 30). The dropdown presets live in `index.html`.
+- `SETTING_LIMITS` and `SETTING_DEFAULTS` for what the host may pick: time limit 30-600 s or Infinite (default 60), points to win 15-600 (default 45), round cap 3-60 (default 30), and the point values Win 1-20, Kill 0-10, Trailblazer 0-10, Autonomous 0-10. The dropdown presets live in `index.html`.
+- `ITEM_WEIGHTS` is how often each item card turns up: traps 1 each, eraser 0.5, pencil 0.2, teleport ball 0.08. `PENCIL_CHARGES` (3) strokes per pencil, `PENCIL_MAX_BLOCKS` (8) squares per stroke.
+- `BAN_LENGTHS` are the host's ban options (5 min, 30 min, 2 h, 24 h, forever). Bans are per room and vanish when the room empties.
+- `AVATARS` lists the shapes; `SECRET_AVATARS` says what unlocks a hidden one. The drawings live in `drawAvatar` in `js/player.js`.
 - `MAX_PLAYERS` room size (24, one per palette color)
 
 The 24 swatch colors live in `PALETTE` at the top of `js/main.js`.
