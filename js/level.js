@@ -578,7 +578,7 @@ const Level = {
       return;
     }
     if (item === "crumble") { this.drawCrumbler(ctx, { ...box, kind: "crumble" }, t); return; }
-    if (item === "glue") { this.drawGlue(ctx, box); return; }
+    if (item === "glue") { this.drawGlue(ctx, box, ["bottom"]); return; }
     if (item === "bumper") { this.drawBumper(ctx, box); return; }
     if (item === "spring") { this.drawSpring(ctx, box); return; }
     if (item === "ice") { this.drawIce(ctx, box); return; }
@@ -613,20 +613,47 @@ const Level = {
   },
 
   // A green blob with drips over the top edge of the tile.
-  drawGlue(ctx, g) {
-    ctx.fillStyle = "rgba(140, 255, 60, 0.85)";
-    ctx.beginPath();
-    ctx.moveTo(g.x, g.y + g.h);
-    ctx.lineTo(g.x, g.y + 14);
-    ctx.quadraticCurveTo(g.x + 5, g.y + 2, g.x + 10, g.y + 12);
-    ctx.quadraticCurveTo(g.x + 15, g.y - 2, g.x + 20, g.y + 10);
-    ctx.quadraticCurveTo(g.x + 25, g.y + 4, g.x + g.w, g.y + 16);
-    ctx.lineTo(g.x + g.w, g.y + g.h);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "rgba(60, 160, 20, 0.9)";
-    ctx.fillRect(g.x + 8, g.y + 18, 3, 8);
-    ctx.fillRect(g.x + 19, g.y + 20, 3, 6);
+  // Which sides of this tile touch a block: "bottom", "top", "left", "right". Gum is drawn
+  // hugging each of them. (Kind stays "glue" inside the code; players see "Gum".)
+  stuckSides(g) {
+    const probes = {
+      top: { x: g.x + 2, y: g.y - 2, w: g.w - 4, h: 2 }, bottom: { x: g.x + 2, y: g.y + g.h, w: g.w - 4, h: 2 },
+      left: { x: g.x - 2, y: g.y + 2, w: 2, h: g.h - 4 }, right: { x: g.x + g.w, y: g.y + 2, w: 2, h: g.h - 4 },
+    };
+    const touch = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    return Object.keys(probes).filter((side) => this.solids.some((solid) => touch(probes[side], solid)));
+  },
+
+  // Pink chewing gum, splatted against every surface it touches, with a wobbly blob and a
+  // stretchy drip on the floor variant. One blob per stuck side; a free tile (older data or
+  // the item card) shows the floor blob.
+  drawGlue(ctx, g, sides) {
+    const stuck = sides || (this.solids.length ? this.stuckSides(g) : []);
+    const list = stuck.length ? stuck : ["bottom"];
+    const cx = g.x + g.w / 2, cy = g.y + g.h / 2;
+    const rotation = { bottom: 0, left: Math.PI / 2, top: Math.PI, right: -Math.PI / 2 };
+    for (const side of list) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation[side]);
+      // Drawn as the floor blob (surface at the bottom), then rotated to the real side.
+      const half = g.w / 2, floor = g.h / 2;
+      ctx.fillStyle = "#ff6fb5";
+      ctx.beginPath();
+      ctx.moveTo(-half, floor);
+      ctx.quadraticCurveTo(-half + 2, floor - 12, -half + 9, floor - 14);
+      ctx.quadraticCurveTo(-2, floor - 22, 6, floor - 13);
+      ctx.quadraticCurveTo(half - 2, floor - 10, half, floor);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#ffb3d9";                                    // shine
+      ctx.beginPath(); ctx.ellipse(-4, floor - 12, 4, 2.2, -0.4, 0, Math.PI * 2); ctx.fill();
+      if (list.length === 1 && side === "bottom") {                 // a stringy bit pulled up off the floor
+        ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(8, floor - 12); ctx.quadraticCurveTo(12, floor - 22, 9, floor - 26); ctx.stroke();
+      }
+      ctx.restore();
+    }
   },
 
   // A yellow launch pad: a coil with a plate on top.

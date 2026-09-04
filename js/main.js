@@ -114,7 +114,7 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover" };
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
@@ -567,11 +567,11 @@ const Game = {
     if (this.pick === "portal" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The ball has to hang in open air.";
     if (this.pick === "mover" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mover needs open air to slide in.";
     if (this.pick === "glue") {
-      // Glue sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
-      if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Glue goes on a block, not inside it.";
+      // Gum sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
+      if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Gum goes on a block, not inside it.";
       // Four thin probes, one per side; corners alone do not count.
       const sides = [{ x: x + 2, y: y - 2, w: TILE - 4, h: 2 }, { x: x + 2, y: y + TILE, w: TILE - 4, h: 2 }, { x: x - 2, y: y + 2, w: 2, h: TILE - 4 }, { x: x + TILE, y: y + 2, w: 2, h: TILE - 4 }];
-      if (!sides.some((probe) => Level.solids.some((solid) => Physics.overlaps(probe, solid)))) return "Glue has to stick to something: put it against a block.";
+      if (!sides.some((probe) => Level.solids.some((solid) => Physics.overlaps(probe, solid)))) return "Gum has to stick to something: put it against a block.";
     }
     if (this.pick === "ice") {
       // Ice is a coating: it sits on top of a block, never inside one, beside one or under one.
