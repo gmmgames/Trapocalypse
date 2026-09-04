@@ -114,7 +114,7 @@ const Player = {
     // 1. Sideways movement straight from input
     this.vx = 0;
     const event = typeof Game !== "undefined" ? Game.event : null;   // this round's random event, if any
-    const speed = this.RUN_SPEED * (event === "haste" ? 1.4 : 1);
+    const speed = this.RUN_SPEED * (event === "haste" ? 1.4 : 1) * (typeof Game !== "undefined" && Game.speedshoes ? 1.35 : 1);
     if (Input.left)  { this.vx = -speed; this.facing = -1; }
     if (Input.right) { this.vx =  speed; this.facing =  1; }
 
@@ -173,7 +173,7 @@ const Player = {
       Dust.spawn(this.x + this.w / 2, this.y + this.h, 8, 20);
       Sfx.boots();
     }
-    if (this.onGround && this.weapon === "boots") this._boots = true;   // the extra jump comes back when you land
+    if (this.onGround && (this.weapon === "boots" || (typeof Game !== "undefined" && Game.boots))) this._boots = true;   // the extra jump comes back when you land
 
     // Let go of jump early = shorter hop. Feels much better than fixed jumps.
     if (this._shortHop && !Input.jump && this.vy < -200 && this._dash <= 0) this.vy = -200;
@@ -181,6 +181,16 @@ const Player = {
     // 3. Move and bump into things. Crumblers count as solid until they give way.
     const wasOnGround = this.onGround;   // remembered so we can tell a landing from standing still
     // Standing on a moving platform? It carries you along before anything else moves.
+    for (const belt of Level.hazards) {
+      if (belt.kind !== "belt") continue;
+      const onBelt = this.onGround && Math.abs(this.y + this.h - belt.y) < 3 && this.x + this.w > belt.x && this.x < belt.x + belt.w;
+      if (onBelt) this.vx += ((belt.rot || 0) >= 2 ? -1 : 1) * BELT_SPEED;
+    }
+    for (const fan of Level.hazards) {
+      if (fan.kind !== "fan") continue;
+      const draft = { x: fan.x + 2, y: fan.y - FAN_LIFT, w: fan.w - 4, h: FAN_LIFT };
+      if (Physics.overlaps(this, draft)) { this.vy -= 3600 * dt; if (this.vy < -330) this.vy = -330; }
+    }
     const movers = Level.movingSolids();
     const walls = Level.solids.concat(Level.drawnSolids(), Level.solidHazards());
     for (const mover of movers) {
@@ -196,7 +206,7 @@ const Player = {
     const solids = Level.solids.concat(Level.drawnSolids(), Level.movingSolids(), Level.solidHazards(), Level.hazards.filter((h) => h.kind === "crumble" && !h._gone));
     if (this._dash > 0) this.gravityScale = 0;   // a dash flies level
     Physics.moveAndCollide(this, solids, dt);
-    if (this._dash <= 0) this.gravityScale = (this.weapon === "feather" ? 0.55 : 1) * (event === "lowgravity" ? 0.5 : 1);
+    if (this._dash <= 0) this.gravityScale = (this.weapon === "feather" || (typeof Game !== "undefined" && Game.feather) ? 0.55 : 1) * (event === "lowgravity" ? 0.5 : 1);
 
     // Wall slide: in the air, falling, pushing into a wall -> ease down it slowly,
     // and remember the wall for a moment so a wall jump still works just after letting go.

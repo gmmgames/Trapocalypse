@@ -188,7 +188,7 @@ function trapBlocked(room, trap) {
   // Nothing within two tiles of the flag, so the finish can never be walled off.
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
-  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "bat", "buckler", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
+  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "bat", "buckler", "boots", "feather", "speedshoes", "bigblock", "belt", "fan", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
   // Spikes need a block behind their base (the side they point away from).
   let looseSpikes = false;
   if (trap.kind === "spike" || trap.kind === "longspike" || trap.kind === "decoy") {
@@ -493,8 +493,13 @@ function removePlayer(socket) {
 // picks one; while any offered item is still free, two players cannot pick the same one.
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
-const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7, longspike: 0.35, mirror: 0.4, bat: 0.4, buckler: 0.4, heart: 0.1 };
-const PICKUP_KINDS = ["portal", "heart", "bat", "buckler"];   // placed in the build phase, collected by touch during the run
+// Traps are the everyday cards; blocks a bit rarer; pickups (collected during the run) rare.
+const ITEM_WEIGHTS = {
+  spike: 1.2, crumble: 1.2, glue: 1.2, bumper: 1.2, spring: 1.2, ice: 1.2, decoy: 1, longspike: 0.4,
+  plank: 0.5, bigblock: 0.45, mover: 0.4, mirror: 0.3, belt: 0.35, fan: 0.3, eraser: 0.5, pencil: 0.15,
+  bat: 0.12, buckler: 0.12, boots: 0.1, feather: 0.1, speedshoes: 0.1, heart: 0.06, portal: 0.05,
+};
+const PICKUP_KINDS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // placed in the build phase, collected by touch during the run
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
 const BUILD_SECONDS = Number(process.env.BUILD_SECONDS) || 45;   // time to pick and place; anyone slower loses their turn
 const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
@@ -732,6 +737,17 @@ webSocketServer.on("connection", (socket) => {
       broadcast(room, { ...snapshot(room), type: "round_start" });
       return;
     }
+    // Reset the room: everyone's score to zero, settings back to the defaults (private stays private).
+    if (message.type === "reset_room") {
+      if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can reset the room." }); return; }
+      if (room.phase !== "lobby") { send(socket, { type: "error", message: "Reset works in the lobby." }); return; }
+      room.settings = { ...validateSettings({}).settings, isPublic: room.settings.isPublic };
+      for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; }
+      room.round = 1; room.roundsPlayed = 0; room.votes = {}; room.nextLevel = null; room.traps = [];
+      broadcast(room, snapshot(room));
+      broadcast(room, { type: "notice", message: "The host reset the room: scores cleared, settings back to normal." });
+      return;
+    }
     // Host tools: throw someone out (kick), or throw them out and keep them out (ban).
     if (message.type === "kick" || message.type === "ban") {
       if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can do that." }); return; }
@@ -926,8 +942,8 @@ webSocketServer.on("connection", (socket) => {
       const kind = player.pick;   // the item you picked this round; the browser's claim is ignored
       // Quarter turns from the placer: long items stand up on odd turns; spikes point up/right/down/left; movers slide along the turn.
       const rot = [1, 2, 3].includes(Number(message.rot)) ? Number(message.rot) : 0;
-      const long = kind === "plank" || kind === "longspike";
-      const trap = { x, y, w: long && rot % 2 === 0 ? TILE * PLANK_TILES : TILE, h: long && rot % 2 === 1 ? TILE * PLANK_TILES : TILE, owner: player.id, kind, rot };
+      const long = kind === "plank" || kind === "longspike", big = kind === "bigblock";
+      const trap = { x, y, w: big ? TILE * 2 : long && rot % 2 === 0 ? TILE * PLANK_TILES : TILE, h: big ? TILE * 2 : long && rot % 2 === 1 ? TILE * PLANK_TILES : TILE, owner: player.id, kind, rot };
       const { W, H } = courseSize(room);
       const inBounds = x >= 2 * TILE && x + trap.w <= W - TILE && y >= 0 && y + trap.h <= H;
       if (inBounds && !trapBlocked(room, trap)) {

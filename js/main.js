@@ -114,7 +114,8 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart", boots: "Rocket Boots", feather: "Feather", speedshoes: "Speed Shoes", bigblock: "Big Block", belt: "Conveyor Belt", fan: "Fan" };
+const PICKUPS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // collected by touch during the run
 const BAT_REACH = 46;   // how far in front of you a swing reaches
 // Random round events: a title for the warning and one line on what changes.
 const EVENT_INFO = {
@@ -274,6 +275,9 @@ const Game = {
   _swing: 0,            // seconds left of the current swing
   buckler: 0,           // Shield item health left this run
   revive: false,        // holding a Revive Heart
+  boots: false,         // Rocket Boots this run: one extra jump in mid-air
+  feather: false,       // Feather this run: floaty gravity
+  speedshoes: false,    // Speed Shoes this run: 35% faster
   event: null,          // this round's random event (see EVENT_INFO), or null
   _eventBanner: 0,      // seconds left of the event warning
   _goTimer: 0,          // seconds left of the big GO!
@@ -409,6 +413,7 @@ const Game = {
     if (others.some((player) => player.id === chosen)) kickTarget.value = chosen;
     startMatchButton.classList.toggle("hidden", !isHost || this.players.length < 2);
     document.getElementById("add-courses").classList.toggle("hidden", !isHost || Editor.saved().length === 0);
+    document.getElementById("reset-room").classList.toggle("hidden", !isHost);
     document.getElementById("test-match").classList.toggle("hidden", !isHost || this.players.length !== 1);
     if (!isHost) lobbyNote.textContent = "Waiting for the host to start";
     else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players, or try a Test Match by yourself";
@@ -489,7 +494,7 @@ const Game = {
       const name = document.createElement("span");
       name.className = "item-name";
       name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : (TRAP_NAMES[item] || item);
-      if (["portal", "heart", "bat", "buckler"].includes(item)) name.textContent += " (pickup)";   // never a blank label, even for an item this script does not know yet
+      if (PICKUPS.includes(item)) name.textContent += " (pickup)";   // never a blank label, even for an item this script does not know yet
       const taker = document.createElement("span");
       taker.className = "item-taker";
       const takerId = Object.keys(this.picks).find((id) => this.picks[id] === slot && id !== Network.id);
@@ -600,7 +605,7 @@ const Game = {
   // on your arm with its health pips, the heart over your head. Everyone sees everyone's.
   drawCarry() {
     if (this.phase !== "run" || !Player.alive) return;
-    this.drawCarryFor(Player.x, Player.y, Player.facing, { portal: this.portal, bat: this.bat, buckler: this.buckler, revive: this.revive }, this._swing);
+    this.drawCarryFor(Player.x, Player.y, Player.facing, { portal: this.portal, bat: this.bat, buckler: this.buckler, revive: this.revive, boots: this.boots, feather: this.feather, speedshoes: this.speedshoes }, this._swing);
   },
   drawCarryFor(x, y, facing, carry, swingLeft = 0) {
     const handX = x + (facing === 1 ? Player.w - 2 : 2), handY = y + 14;
@@ -630,6 +635,9 @@ const Game = {
       ctx.restore();
     }
     if (carry.revive) Level.drawHeart(ctx, { x: x + Player.w / 2 - 15, y: y - 44, w: 30, h: 30 });
+    if (carry.boots) { ctx.save(); ctx.translate(x + Player.w / 2, y + Player.h + 2); ctx.scale(0.6, 0.6); Level.drawBoots(ctx, 0, -4); ctx.restore(); }
+    if (carry.speedshoes) { ctx.save(); ctx.translate(x + Player.w / 2, y + Player.h - 2); ctx.scale(0.6, 0.6); Level.drawShoes(ctx, 0, -4); ctx.restore(); }
+    if (carry.feather) { ctx.save(); ctx.translate(x + Player.w / 2 + facing * 10, y - 8); ctx.scale(0.7, 0.7); Level.drawFeather(ctx, 0, 0); ctx.restore(); }
   },
   drawAimer() {
     if (!this.portal || this._charge <= 0 || this.phase !== "run") return;
@@ -782,7 +790,8 @@ const Game = {
     if (this.pick === "plank" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A plank needs open air.";
     if (this.pick === "mirror" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mirror needs open air.";
     if (this.pick === "heart" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The heart has to float in open air.";
-    if ((this.pick === "bat" || this.pick === "buckler") && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Pickups have to float in open air.";
+    if (["bat", "buckler", "boots", "feather", "speedshoes"].includes(this.pick) && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Pickups have to float in open air.";
+    if (["bigblock", "belt", "fan"].includes(this.pick) && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "That block needs open air.";
     if (this.pick === "glue") {
       // Gum sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Gum goes on a block, not inside it.";
@@ -835,6 +844,7 @@ const Game = {
   },
   // The footprint of the item being placed, given its rotation.
   itemSize() {
+    if (this.pick === "bigblock") return { w: TILE * 2, h: TILE * 2 };
     const long = this.pick === "plank" || this.pick === "longspike";
     return { w: long && this.rotation % 2 === 0 ? TILE * PLANK_TILES : TILE, h: long && this.rotation % 2 === 1 ? TILE * PLANK_TILES : TILE };
   },
@@ -864,7 +874,7 @@ const Game = {
       ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 23, y + 23); ctx.moveTo(x + 23, y + 7); ctx.lineTo(x + 7, y + 23); ctx.stroke();
     } else {
       const size = this.itemSize();
-      if (this.pick === "plank") Level.drawPlank(ctx, { x, y, ...size }, Level.theme);   // full size, not the card icon
+      if (this.pick === "plank" || this.pick === "bigblock") Level.drawPlank(ctx, { x, y, ...size }, Level.theme);   // full size, not the card icon
       else if (this.pick === "longspike" || this.pick === "spike" || this.pick === "decoy") Level.drawSpikesRotated(ctx, { x, y, ...size, rot: this.rotation }, Level.theme);
       else {
         // Other icons turn with the rotation too (a mover's chevrons show which way it will slide).
@@ -1388,13 +1398,16 @@ const Game = {
       this.renderAvatars();
     }
     if (message.type === "picked_up") {
-      const orb = Level.hazards.find((hazard) => ["portal", "heart", "bat", "buckler"].includes(hazard.kind) && hazard.x === message.x && hazard.y === message.y);
+      const orb = Level.hazards.find((hazard) => PICKUPS.includes(hazard.kind) && hazard.x === message.x && hazard.y === message.y);
       if (orb) orb.taken = true;
       const kind = message.kind || "portal";
       if (message.by === Network.id) {
         if (kind === "heart") { this.revive = true; this.say("Revive Heart! If you die this run, you get one more go from the start.", 4); }
         else if (kind === "bat") { this.bat = true; this.say("Baseball Bat! Press X / Shift (or USE) to knock thrown balls away.", 4); }
         else if (kind === "buckler") { this.buckler = BUCKLER_HEALTH; this.say("Shield! It soaks two hits this run: spikes, or balls thrown at you.", 4); }
+        else if (kind === "boots") { this.boots = true; this.say("Rocket Boots! Jump again in mid-air, once per landing.", 4); }
+        else if (kind === "feather") { this.feather = true; this.say("Feather! You float: slower falls and longer jumps this run.", 4); }
+        else if (kind === "speedshoes") { this.speedshoes = true; this.say("Speed Shoes! You run 35% faster this run.", 4); }
         else { this.portal = true; this.say("Teleport Ball! Hold X / Shift (or USE) to aim and charge, let go to throw. You appear where it lands.", 4); }
       } else this.say(`${this.nameOf(message.by)} grabbed the ${TRAP_NAMES[kind] || kind}!`, 2);
       Sfx.pickup();
@@ -1479,7 +1492,7 @@ const Game = {
       this.rotation = 0;
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
       this.portal = false; this._balls = []; this._charge = 0;
-      this.bat = false; this._swing = 0; this.buckler = 0; this.revive = false;
+      this.bat = false; this._swing = 0; this.buckler = 0; this.revive = false; this.boots = false; this.feather = false; this.speedshoes = false;
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
       this.finalBattleIds = message.finalBattleIds || [];
@@ -1729,7 +1742,7 @@ const Game = {
         this.updateBalls(dt);
         // Touch a Teleport Ball orb to claim it (the server decides who was first).
         for (const orb of Level.hazards) {
-          if (["portal", "heart", "bat", "buckler"].includes(orb.kind) && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
+          if (PICKUPS.includes(orb.kind) && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
             orb._claimed = true;
             Network.send({ type: "pickup", x: orb.x, y: orb.y });
           }
@@ -1739,7 +1752,7 @@ const Game = {
         this._networkTimer -= dt;
         if (this._networkTimer <= 0) {
           this._networkTimer = 0.05;
-          Network.send({ type: "player_update", x: Player.x, y: Player.y, alive: Player.alive, finished: Player.finished, carry: { portal: this.portal, bat: this.bat, buckler: this.buckler, revive: this.revive, swing: this._swing > 0 } });
+          Network.send({ type: "player_update", x: Player.x, y: Player.y, alive: Player.alive, finished: Player.finished, carry: { portal: this.portal, bat: this.bat, buckler: this.buckler, revive: this.revive, swing: this._swing > 0, boots: this.boots, feather: this.feather, speedshoes: this.speedshoes } });
         }
       }
     }
@@ -2242,7 +2255,7 @@ const Game = {
       const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
       const portal = this.portal ? "  •  🔮 Teleport Ball: hold X / Shift to aim, let go to throw" : "";
       const twist = this.event && this.phase === "run" ? `  •  ⚠ ${EVENT_INFO[this.event].title}` : "";
-      const carry = twist + (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? "  •  💗 Revive ready" : "");
+      const carry = twist + (this.boots ? "  •  🚀 Boots" : "") + (this.feather ? "  •  🪶 Feather" : "") + (this.speedshoes ? "  •  👟 Speed Shoes" : "") + (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? "  •  💗 Revive ready" : "");
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
@@ -2339,6 +2352,7 @@ document.getElementById("copy-code").addEventListener("click", async () => {
   setTimeout(() => { button.textContent = "Copy code"; }, 1500);
 });
 document.getElementById("test-course").addEventListener("change", (event) => { Network.send({ type: "test_course", level: Number(event.target.value) }); Game.hideSettings(); });
+document.getElementById("reset-room").addEventListener("click", () => { if (window.confirm("Reset the room? Everyone's score goes to zero and the settings go back to normal.")) Network.send({ type: "reset_room" }); });
 document.getElementById("add-courses").addEventListener("click", () => Network.send({ type: "custom_levels", levels: Editor.saved() }));
 document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));
 document.getElementById("ban-button").addEventListener("click", () => Network.send({ type: "ban", playerId: document.getElementById("kick-target").value, minutes: document.getElementById("ban-length").value }));

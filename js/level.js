@@ -50,6 +50,8 @@ const THEMES = {
 const MOVER_DX = 60;
 const MOVER_PERIOD = 3;
 const SPRING_COOLDOWN = 2;   // seconds a spring rests after launching someone
+const BELT_SPEED = 130;      // how fast a Conveyor Belt carries you (px/s)
+const FAN_LIFT = 4 * 30;     // how high a Fan's updraft reaches (px)
 const PLANK_TILES = 3;   // a placed Plank is three tiles wide
 
 const LEVELS = [
@@ -416,7 +418,7 @@ const Level = {
   },
   // Player-placed blocks that are simply solid (planks).
   solidHazards() {
-    return this.hazards.filter((hazard) => hazard.kind === "plank" || hazard.kind === "mirror");
+    return this.hazards.filter((hazard) => ["plank", "mirror", "bigblock", "belt", "fan"].includes(hazard.kind));
   },
   // Every moving platform, course-built or player-placed, as a box the physics can use.
   movingSolids() {
@@ -590,7 +592,10 @@ const Level = {
       if (hazard.kind === "ice") { this.drawIce(ctx, hazard); continue; }
       if (hazard.kind === "portal") { if (!hazard.taken) this.drawPortal(ctx, hazard); continue; }
       if (hazard.kind === "heart") { if (!hazard.taken) this.drawHeart(ctx, hazard); continue; }
-      if (hazard.kind === "bat" || hazard.kind === "buckler") { if (!hazard.taken) this.drawPickup(ctx, hazard); continue; }
+      if (["bat", "buckler", "boots", "feather", "speedshoes"].includes(hazard.kind)) { if (!hazard.taken) this.drawPickup(ctx, hazard); continue; }
+      if (hazard.kind === "bigblock") { this.drawPlank(ctx, hazard, t); continue; }
+      if (hazard.kind === "belt") { this.drawBelt(ctx, hazard, t); continue; }
+      if (hazard.kind === "fan") { this.drawFan(ctx, hazard, t); continue; }
       if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
       if (hazard.kind === "plank") { this.drawPlank(ctx, hazard, t); continue; }
       if (hazard.kind === "mirror") { this.drawMirror(ctx, hazard); continue; }
@@ -637,6 +642,12 @@ const Level = {
     if (item === "longspike") { this.drawSpikes(ctx, { x: 1, y: 14, w: 28, h: 16 }, t, 7); return; }
     if (item === "mirror") { this.drawMirror(ctx, box); return; }
     if (item === "heart") { this.drawHeart(ctx, box); return; }
+    if (item === "boots") { this.drawBoots(ctx, 15, 15); return; }
+    if (item === "feather") { this.drawFeather(ctx, 15, 15); return; }
+    if (item === "speedshoes") { this.drawShoes(ctx, 15, 15); return; }
+    if (item === "bigblock") { this.drawPlank(ctx, { x: 4, y: 4, w: 22, h: 22 }, t); return; }
+    if (item === "belt") { this.drawBelt(ctx, { ...box, rot: 0 }, t); return; }
+    if (item === "fan") { this.drawFan(ctx, box, t); return; }
     if (item === "bat") { this.drawBat(ctx, 8, 24, -Math.PI / 4); return; }
     if (item === "buckler") { this.drawBuckler(ctx, 15, 15, 11); return; }
     if (item === "eraser") {
@@ -831,9 +842,71 @@ const Level = {
     ctx.beginPath(); ctx.arc(p.x + p.w / 2, p.y + p.h / 2 + bob, 13, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
     ctx.translate(p.x, p.y + bob);
-    if (p.kind === "bat") this.drawBat(ctx, 8, 24, -Math.PI / 4); else this.drawBuckler(ctx, 15, 15, 11);
+    if (p.kind === "bat") this.drawBat(ctx, 8, 24, -Math.PI / 4);
+    else if (p.kind === "buckler") this.drawBuckler(ctx, 15, 15, 11);
+    else if (p.kind === "boots") this.drawBoots(ctx, 15, 15);
+    else if (p.kind === "feather") this.drawFeather(ctx, 15, 15);
+    else if (p.kind === "speedshoes") this.drawShoes(ctx, 15, 15);
     ctx.restore();
   },
+  // Rocket Boots: a chunky boot with a little flame.
+  drawBoots(ctx, cx, cy) {
+    ctx.save();
+    ctx.fillStyle = "#ff5a3c";
+    ctx.fillRect(cx - 7, cy - 9, 8, 12); ctx.fillRect(cx - 7, cy + 1, 15, 6);
+    ctx.fillStyle = "#ffd23c"; ctx.fillRect(cx - 7, cy - 9, 8, 3);
+    ctx.fillStyle = "#4df0ff"; ctx.beginPath(); ctx.moveTo(cx - 6, cy + 7); ctx.lineTo(cx - 3, cy + 13); ctx.lineTo(cx, cy + 7); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  },
+  // Feather: a soft white plume on a slant.
+  drawFeather(ctx, cx, cy) {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(-Math.PI / 5);
+    ctx.fillStyle = "#f4f4ff"; ctx.beginPath(); ctx.ellipse(0, 0, 5, 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#c0c0d8"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -11); ctx.lineTo(0, 13); ctx.stroke();
+    ctx.restore();
+  },
+  // Speed Shoes: a sneaker with a wing.
+  drawShoes(ctx, cx, cy) {
+    ctx.save();
+    ctx.fillStyle = "#5cf05a"; ctx.fillRect(cx - 9, cy, 18, 7); ctx.fillRect(cx - 9, cy - 7, 8, 8);
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(cx - 9, cy + 5, 18, 2);
+    ctx.fillStyle = "#4df0ff"; ctx.beginPath(); ctx.moveTo(cx + 1, cy - 2); ctx.lineTo(cx + 11, cy - 8); ctx.lineTo(cx + 4, cy - 1); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  },
+  // Conveyor Belt: a dark block with arrows crawling the way it pushes (right, or left when turned).
+  drawBelt(ctx, b, t) {
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    const dir = (b.rot || 0) >= 2 ? -1 : 1;
+    ctx.fillStyle = "#2a2a3a"; ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = "#ffd23c"; ctx.fillRect(b.x, b.y, b.w, 3);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(b.x, b.y + 4, b.w, b.h - 4); ctx.clip();
+    ctx.strokeStyle = "rgba(255, 210, 60, 0.8)"; ctx.lineWidth = 2;
+    const shift = (now * 40 * dir) % 10;
+    for (let x = b.x - 10 + shift; x < b.x + b.w + 10; x += 10) {
+      ctx.beginPath(); ctx.moveTo(x, b.y + 8); ctx.lineTo(x + 4 * dir, b.y + b.h / 2 + 2); ctx.lineTo(x, b.y + b.h - 4); ctx.stroke();
+    }
+    ctx.restore();
+  },
+  // Fan: a grille with spinning blades, and a faint updraft above it.
+  drawFan(ctx, f, t) {
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+    ctx.fillStyle = t.solid; ctx.fillRect(f.x, f.y, f.w, f.h);
+    ctx.strokeStyle = "#c0c0d8"; ctx.lineWidth = 2; ctx.strokeRect(f.x + 1, f.y + 1, f.w - 2, f.h - 2);
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(now * 12);
+    ctx.fillStyle = "#e8e8ff";
+    for (let i = 0; i < 3; i++) { ctx.rotate((Math.PI * 2) / 3); ctx.beginPath(); ctx.ellipse(6, 0, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = 0.18 + 0.08 * Math.sin(now * 9);
+    ctx.fillStyle = "#a8e8ff";
+    ctx.fillRect(f.x + 4, f.y - FAN_LIFT, f.w - 8, FAN_LIFT);
+    ctx.restore();
+  },
+
   // A baseball bat: handle at (x, y), pointing along angle.
   drawBat(ctx, x, y, angle, length = 22) {
     ctx.save();
