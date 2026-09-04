@@ -146,7 +146,7 @@ function trapBlocked(room, trap) {
   const level = LEVELS[room.levelIndex];
   const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
-  const inWall = trap.kind === "crumble" && level.solids.some((solid) => overlaps(solid, trap));
+  const inWall = (trap.kind === "crumble" || trap.kind === "portal") && level.solids.some((solid) => overlaps(solid, trap));
   // Ice sits on top of a block: never inside one, and there must be a block right under it.
   const below = { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 };
   const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !level.solids.some((solid) => overlaps(solid, below)));
@@ -426,7 +426,7 @@ function removePlayer(socket) {
 // picks one; while any offered item is still free, two players cannot pick the same one.
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
-const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2 };
+const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08 };
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
 function drawItem() {
@@ -438,7 +438,7 @@ function dealItems(room) {
   const count = Math.min(8, Math.max(2, room.players.size + 1));
   room.offer = Array.from({ length: count }, drawItem);
   if (process.env.FORCE_ITEM) room.offer[0] = process.env.FORCE_ITEM;   // test hook: FORCE_ITEM=pencil node server.js
-  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; }
+  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = false; }
 }
 
 // Who holds which card (by card number, since two cards can show the same item).
@@ -787,6 +787,22 @@ webSocketServer.on("connection", (socket) => {
       } else {
         send(socket, { type: "trap_rejected", message: "You can't place a trap there." });
       }
+    }
+    // Teleport Ball: run into the placed orb to pick it up (first come, first served)...
+    if (message.type === "pickup" && room.phase === "run" && player.status === "running") {
+      const orb = room.traps.find((trap) => trap.kind === "portal" && !trap.taken && trap.x === Number(message.x) && trap.y === Number(message.y));
+      if (!orb) return;
+      orb.taken = true; player.portal = true;
+      broadcast(room, { type: "picked_up", x: orb.x, y: orb.y, by: player.id });
+      return;
+    }
+    // ...then throw it. Everyone gets the same throw and simulates the same arc; the thrower
+    // appears wherever it lands.
+    if (message.type === "portal_throw" && room.phase === "run" && player.status === "running" && player.portal) {
+      player.portal = false;
+      const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number(value) || 0));
+      broadcast(room, { type: "portal_ball", by: player.id, x: clamp(message.x, 0, LEVEL_W), y: clamp(message.y, 0, LEVEL_H), vx: clamp(message.vx, -600, 600), vy: clamp(message.vy, -700, 700) });
+      return;
     }
     // Pencil: sketch a few short-lived blocks to stand on, mid-run. The browser sends the
     // squares it drew; the server trims, bounds-checks, spends a charge and tells everyone.

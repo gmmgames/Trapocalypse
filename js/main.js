@@ -107,7 +107,7 @@ const BURST_STYLE = {
   Autonomous:  { scale: 0.78, text: "Autonomous!" },
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball" };
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
@@ -244,6 +244,8 @@ const Game = {
   _runTimeLeft: null,   // seconds left, shown in the HUD
   _voteEndsAt: 0,       // wall-clock time the course vote closes
   pencil: 0,            // pencil strokes you have left this run
+  portal: false,        // holding a picked-up Teleport Ball
+  _balls: [],           // teleport balls in flight: { x, y, vx, vy, by, color, trail }
   _stroke: null,        // the stroke you are drawing right now: { blocks: [{x, y}] }
 
   start() {
@@ -443,6 +445,59 @@ const Game = {
     }));
   },
 
+  // --- Teleport Ball: grab the orb by touching it, throw it, appear where it lands ---
+  throwPortal() {
+    if (!this.portal || this.phase !== "run" || !Player.alive || Player.finished) return;
+    this.portal = false;   // the server confirms with a portal_ball for everyone
+    Network.send({ type: "portal_throw", x: Player.x + Player.w / 2, y: Player.y + 6, vx: Player.facing * 520, vy: -420 });
+  },
+  updateBalls(dt) {
+    const solids = Level.solids.concat(Level.drawnSolids());
+    for (const ball of this._balls) {
+      const before = { x: ball.x, y: ball.y };
+      ball.vy += Physics.GRAVITY * dt;
+      ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+      ball.trail.push(before); if (ball.trail.length > 8) ball.trail.shift();
+      let landing = null;
+      const hit = solids.find((solid) => ball.x >= solid.x && ball.x <= solid.x + solid.w && ball.y >= solid.y && ball.y <= solid.y + solid.h);
+      if (hit) {
+        // Came down onto its top: stand there. Anything else: appear where the ball last was.
+        landing = ball.vy > 0 && before.y <= hit.y ? { x: ball.x - Player.w / 2, y: hit.y - Player.h } : { x: before.x - Player.w / 2, y: before.y - Player.h / 2 };
+      } else if (ball.x < 0 || ball.x > LEVEL_W || ball.y < 0) {
+        landing = { x: before.x - Player.w / 2, y: before.y - Player.h / 2 };
+      } else if (ball.y > LEVEL_H) {
+        ball.done = true;   // fell out of the world: no teleport
+        if (ball.by === Network.id) this.say("The ball fell out of the world!", 2);
+      }
+      if (landing) {
+        ball.done = true;
+        if (ball.by === Network.id && Player.alive && !Player.finished) {
+          Player.x = Math.max(0, Math.min(LEVEL_W - Player.w, landing.x));
+          Player.y = Math.max(0, Math.min(LEVEL_H - Player.h, landing.y));
+          Player.vx = 0; Player.vy = 0;
+          Dust.spawn(Player.x + Player.w / 2, Player.y + Player.h, 12, 20);
+          Sfx.boots();
+        }
+      }
+    }
+    this._balls = this._balls.filter((ball) => !ball.done);
+  },
+  drawBalls() {
+    for (const ball of this._balls) {
+      ctx.save();
+      ctx.strokeStyle = ball.color; ctx.globalAlpha = 0.35; ctx.lineWidth = 3;
+      ctx.beginPath(); for (const [i, p] of ball.trail.entries()) i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); ctx.lineTo(ball.x, ball.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = "#c98bff"; ctx.shadowBlur = 16;
+      ctx.fillStyle = "#7b3fe4";
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#e6d5ff";
+      ctx.beginPath(); ctx.arc(ball.x - 2, ball.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  },
+
   // --- pencil: hold the pointer during the run to sketch a short line of blocks ---
   levelPoint(clientX, clientY) {
     const bounds = canvas.getBoundingClientRect();
@@ -498,6 +553,7 @@ const Game = {
     if (Level.hazards.some((hazard) => Physics.overlaps(trap, hazard))) return "There's already a trap there.";
     if (Physics.overlaps(trap, Level.flag) || onSomeone) return "Not on a runner or the flag.";
     if (this.pick === "crumble" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A crumbler needs open air, not a wall.";
+    if (this.pick === "portal" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The ball has to hang in open air.";
     if (this.pick === "ice") {
       // Ice is a coating: it sits on top of a block, never inside one, beside one or under one.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Ice goes on top of a block, not inside it.";
@@ -982,6 +1038,18 @@ const Game = {
       }
       this.renderAvatars();
     }
+    if (message.type === "picked_up") {
+      const orb = Level.hazards.find((hazard) => hazard.kind === "portal" && hazard.x === message.x && hazard.y === message.y);
+      if (orb) orb.taken = true;
+      if (message.by === Network.id) { this.portal = true; this.say("Teleport Ball! Press X / Shift (or USE) to throw it and appear where it lands.", 4); }
+      else this.say(`${this.nameOf(message.by)} grabbed the Teleport Ball!`, 2);
+      Sfx.pickup();
+    }
+    if (message.type === "portal_ball") {
+      this._balls.push({ x: message.x, y: message.y, vx: message.vx, vy: message.vy, by: message.by, color: this.colorOf(message.by), trail: [] });
+      if (message.by === Network.id) this.portal = false;
+      Sfx.dash();
+    }
     if (message.type === "pencil_taken") {
       const who = this.players.find((player) => player.id === message.playerId);
       if (who) who.trapCount = this.trapsPerRound;
@@ -1032,6 +1100,7 @@ const Game = {
       this.renderVote();
       Player.spawn();
       Level.drawn = []; this._stroke = null;   // last run's pencil sketches are gone
+      this.portal = false; this._balls = [];
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
       this.finalBattleIds = message.finalBattleIds || [];
@@ -1268,6 +1337,16 @@ const Game = {
     Dust.update(dt);
     if (this.phase === "run" && !this.complete) {
       Player.update(dt);
+      if (this.mode === "online") {
+        this.updateBalls(dt);
+        // Touch a Teleport Ball orb to claim it (the server decides who was first).
+        for (const orb of Level.hazards) {
+          if (orb.kind === "portal" && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
+            orb._claimed = true;
+            Network.send({ type: "pickup", x: orb.x, y: orb.y });
+          }
+        }
+      }
       if (this.mode === "online") {
         this._networkTimer -= dt;
         if (this._networkTimer <= 0) {
@@ -1687,6 +1766,7 @@ const Game = {
     Confetti.draw(ctx);
     this.drawPending();
     this.drawStroke();
+    this.drawBalls();
     if (this.mode === "online" && Player.alive) {
       const me = this.players.find((player) => player.id === Network.id);
       this.drawNametag(Player.x, Player.y, me ? me.name : "You", "#ffffff");
@@ -1712,11 +1792,12 @@ const Game = {
       const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
       const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
+      const portal = this.portal ? "  •  🔮 Teleport Ball: X / Shift to throw" : "";
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
       hudClock.classList.toggle("urgent", showClock && this._runTimeLeft <= 15);
-      hudTail.textContent = `${weapon}${pencil}  •  ${this.message}`;
+      hudTail.textContent = `${weapon}${pencil}${portal}  •  ${this.message}`;
     } else {
       const progress = `LEVEL ${this.levelIndex + 1}/${LEVELS.length}  ${Level.name}`;
       hudText.textContent = this.complete ? `${progress}  •  COMPLETE` : `${progress}  •  ${this.message}`;

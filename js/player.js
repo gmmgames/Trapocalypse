@@ -129,6 +129,7 @@ const Player = {
     if (this._wallLock > 0) { this._wallLock -= dt; this.vx = this._wallLockVx; }
 
     // Weapon button: dash, or ask the server to freeze / drop a bomb.
+    if (Input.usePressed && typeof Game !== "undefined" && Game.portal) Game.throwPortal();   // the Teleport Ball
     if (Input.usePressed && this.weapon) {
       if (this.weapon === "dash" && this._dashCooldown <= 0) { this._dash = 0.15; this._dashCooldown = 1.5; Sfx.dash(); }
       if ((this.weapon === "freeze" || this.weapon === "bomb") && !this.weaponUsed) Game.useWeapon();

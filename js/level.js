@@ -420,6 +420,7 @@ const Level = {
       if (hazard.kind === "bumper") { this.drawBumper(ctx, hazard); continue; }
       if (hazard.kind === "spring") { this.drawSpring(ctx, hazard); continue; }
       if (hazard.kind === "ice") { this.drawIce(ctx, hazard); continue; }
+      if (hazard.kind === "portal") { if (!hazard.taken) this.drawPortal(ctx, hazard); continue; }
       // spikes and decoys draw the same; the owner of a decoy gets a faint dashed outline
       if (hazard.kind === "decoy" && typeof Network !== "undefined" && hazard.owner === Network.id) {
         ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
@@ -468,6 +469,7 @@ const Level = {
       ctx.restore();
       return;
     }
+    if (item === "portal") { this.drawPortal(ctx, box); return; }
     if (item === "eraser") {
       ctx.fillStyle = "#ff3c78";
       ctx.fillRect(3, 8, 24, 16);
@@ -559,6 +561,22 @@ const Level = {
     ctx.fillRect(s.x + 3, s.y + 6, s.w - 6, 5);
     ctx.fillStyle = "#ffd23c";
     ctx.fillRect(s.x + 3, s.y + s.h - 4, s.w - 6, 4);
+    ctx.restore();
+  },
+
+  // The Teleport Ball pickup: a swirling violet orb with a slow-turning ring.
+  drawPortal(ctx, p) {
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+    ctx.save();
+    ctx.shadowColor = "#c98bff"; ctx.shadowBlur = 14;
+    ctx.fillStyle = "#7b3fe4";
+    ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#e6d5ff";
+    ctx.beginPath(); ctx.arc(cx - 2.5, cy - 2.5, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#c98bff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 12, 4.5, now * 1.5, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   },
 
