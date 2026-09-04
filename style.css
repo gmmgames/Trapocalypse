@@ -1384,3 +1384,8 @@ body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto
 
 /* How to Play: a point's slogan sits right after its name, in its own quieter voice. */
 .point-slogan { color: #c0c0d8; font-style: italic; }
+
+/* How to Play: every section is a list read down the left, one short line per thing. */
+.help-list { margin: 6px 0 10px; padding-left: 18px; list-style: disc; }
+.help-list li { margin: 3px 0; line-height: 1.4; text-align: left; }
+.help-list li b { color: #ffd23c; }
