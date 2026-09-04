@@ -29,8 +29,8 @@ const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
 const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
 const FINAL_BONUSES = [5, 3, 1];   // Final Battle: 1st, 2nd, 3rd to the flag. Everyone else 0.
-const CONDOLENCE_POINTS = 4;       // "Condolence": a win after trailing everyone by CONDOLENCE_GAP or more
-const CONDOLENCE_GAP = 10;
+const CONDOLENCE_POINTS = 3;       // "Condolence": a win after trailing everyone by CONDOLENCE_GAP or more
+const CONDOLENCE_GAP = 15;
 const AUTONOMOUS_BONUS = 1;        // "Autonomous": the only one to reach the flag when 2+ ran
 const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no decision, the tie is shared
 const NAME_MAX_LENGTH = 26;    // longest player name; the browser's box has the same limit
@@ -1178,4 +1178,4 @@ webSocketServer.on("connection", (socket) => {
 
 // Started directly, it plays host. Loaded by a test, it just hands over the pieces worth checking.
 if (require.main === module) server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));
-module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE };
+module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE, CONDOLENCE_POINTS, CONDOLENCE_GAP };
