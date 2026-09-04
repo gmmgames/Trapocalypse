@@ -118,6 +118,9 @@ const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: 
 const THROW_CHARGE_SECONDS = 0.9;   // holding USE this long gives a full-power throw
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
+// A color for each kind of point, used wherever its name is written.
+const POINT_COLORS = { Win: "#ffd23c", Trailblazer: "#4df0ff", Autonomous: "#c98bff", Curiosity: "#ff3c78", Condolence: "#ff8c1a", "Final Battle": "#c9d1e0" };
+
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
 const GAIN_TEXT = {
   "Win": "They never believed in me... look at where I stand now",
@@ -412,16 +415,24 @@ const Game = {
   showHelp() {
     const s = this.settings || { winPoints: 4, killPoints: 1, firstPoints: 2, pointsToWin: 45, roundCap: 30, timeLimit: 60 };
     const time = s.timeLimit === null ? "no time limit" : `${s.timeLimit} seconds per run`;
+    // [name, color, rest of the line]. The name is drawn bold, italic and in its own color.
     const lines = [
-      `Win, ${s.winPoints} point${s.winPoints === 1 ? "" : "s"}: reaching the flag. "${GAIN_TEXT.Win}"`,
-      `Trailblazer, ${s.firstPoints} more: first to the flag when 3 or more run and 2 or more finish. "${GAIN_TEXT.Trailblazer}"`,
-      `Autonomous, ${s.autonomousPoints ?? 1} more: the only one to make it when 2 or more ran. "${GAIN_TEXT.Autonomous}"`,
-      `Curiosity, ${s.killPoints} each: your trap kills someone, paid at the end of the round only if you reach the flag too. "${GAIN_TEXT.Curiosity}"`,
-      `Condolence, 4 more: you were at least 10 points behind everyone, and then you finally won a round. "${GAIN_TEXT.Condolence}"`,
-      `Final Battle: 1st Place 5, 2nd Place 3, 3rd Place 1. Nothing else pays in a Final Battle.`,
-      `${this.settings ? "This match" : "Default"}: first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`,
+      ["Win", POINT_COLORS.Win, `, ${s.winPoints} point${s.winPoints === 1 ? "" : "s"}: reaching the flag. "${GAIN_TEXT.Win}"`],
+      ["Trailblazer", POINT_COLORS.Trailblazer, `, ${s.firstPoints} more: first to the flag when 3 or more run and 2 or more finish. "${GAIN_TEXT.Trailblazer}"`],
+      ["Autonomous", POINT_COLORS.Autonomous, `, ${s.autonomousPoints ?? 1} more: the only one to make it when 2 or more ran. "${GAIN_TEXT.Autonomous}"`],
+      ["Curiosity", POINT_COLORS.Curiosity, `, ${s.killPoints} each: your trap kills someone, paid at the end of the round only if you reach the flag too. "${GAIN_TEXT.Curiosity}"`],
+      ["Condolence", POINT_COLORS.Condolence, `, 4 more: you were at least 10 points behind everyone, and then you finally won a round. "${GAIN_TEXT.Condolence}"`],
+      ["Final Battle", POINT_COLORS["Final Battle"], `: 1st Place 5, 2nd Place 3, 3rd Place 1. Nothing else pays in a Final Battle.`],
+      [this.settings ? "This match" : "Default", "#e8e8ff", `: first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`],
     ];
-    helpPoints.replaceChildren(...lines.map((text) => { const li = document.createElement("li"); li.textContent = text; return li; }));
+    helpPoints.replaceChildren(...lines.map(([name, color, rest]) => {
+      const li = document.createElement("li");
+      const b = document.createElement("b"), i = document.createElement("i");
+      i.textContent = name; i.style.color = color; i.className = "point-name";
+      b.appendChild(i);
+      li.append(b, rest);
+      return li;
+    }));
     helpPanel.classList.remove("hidden");
   },
 
@@ -1684,6 +1695,40 @@ const Game = {
     }
   },
 
+  // A bar that is not a perfect rectangle: the sides wobble a little and the top is a row of
+  // small ridges. The wobble is fixed per column so it does not jitter frame to frame.
+  drawWonkyBar(x, baseline, w, h, seed) {
+    const top = baseline - h;
+    ctx.beginPath();
+    ctx.moveTo(x, baseline);
+    for (let y = baseline; y > top; y -= 10) ctx.lineTo(x + Math.sin(y * 0.09 + seed) * 2.2, Math.max(top, y));   // left side up
+    const teeth = Math.max(2, Math.round(w / 12));
+    for (let i = 0; i <= teeth; i++) {                                                                         // ridged top
+      const tx = x + (w * i) / teeth;
+      ctx.lineTo(tx, top + (i % 2 ? 4 : 0) + Math.sin(i * 1.7 + seed) * 1.2);
+    }
+    for (let y = top; y < baseline; y += 10) ctx.lineTo(x + w + Math.sin(y * 0.11 + seed * 2) * 2.2, y);      // right side down
+    ctx.lineTo(x + w, baseline);
+    ctx.closePath();
+    ctx.fill();
+  },
+
+  // The goal line: dashed across the chart at the points-to-win mark, labelled at the right.
+  drawGoalLine(leftX, totalW, baseline, maxBarH, goal, scaleMax) {
+    const y = baseline - 8 - (goal / scaleMax) * maxBarH;
+    ctx.save();
+    ctx.setLineDash([8, 6]);
+    ctx.strokeStyle = "rgba(255, 210, 60, 0.85)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(leftX - 30, y); ctx.lineTo(leftX + totalW + 30, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `bold 13px ${FONT}`;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffd23c";
+    ctx.fillText(`GOAL ${goal}`, leftX + totalW + 36, y);
+    ctx.restore();
+  },
+
   // End-of-round scoreboard: one bar per player, tallest score on the left,
   // the player's color at the foot of each bar, their name across the top.
   drawScoreboard() {
@@ -1702,6 +1747,11 @@ const Game = {
     const totalW = sorted.length * barW + (sorted.length - 1) * gap;
     const leftX = (LEVEL_W - totalW) / 2;
     const topScore = Math.max(1, ...sorted.map((player) => player.score));
+    // The chart is scaled to the points needed to win, so everyone can see how far there is to go.
+    // Once someone passes the goal the scale stretches to fit them.
+    const goal = this.settings ? this.settings.pointsToWin : 45;
+    const scaleMax = Math.max(goal, topScore);
+    if (this.phase === "results") this.drawGoalLine(leftX, totalW, baseline, maxBarH, goal, scaleMax);
 
     ctx.font = `36px ${DISPLAY_FONT}`;
     ctx.textAlign = "center";
@@ -1749,12 +1799,12 @@ const Game = {
       const isMe = player.id === Network.id;
       const color = player.color !== null ? PALETTE[player.color] : "#4df0ff";
       const { shown, labels } = animate ? this.animatedScore(player) : { shown: player.score, labels: [] };
-      const barH = 8 + (shown / topScore) * maxBarH;
+      const barH = 8 + (shown / scaleMax) * maxBarH;
 
-      // The bar
+      // The bar: hand-drawn looking, with wobbly sides and a ridged top.
       ctx.fillStyle = color;
       ctx.globalAlpha = 0.85;
-      ctx.fillRect(x, baseline - barH, barW, barH);
+      this.drawWonkyBar(x, baseline, barW, barH, rank);
       ctx.globalAlpha = 1;
 
       // The player's color block at the foot of the column

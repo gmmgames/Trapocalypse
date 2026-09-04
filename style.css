@@ -1000,6 +1000,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   font-weight: 700;
 }
 
+#help-points .point-name { font-style: italic; font-weight: 800; letter-spacing: 0.3px; text-shadow: 0 0 6px currentColor; }
+
 /* ---------------- Host tools (kick / ban) ---------------- */
 
 #host-tools {
