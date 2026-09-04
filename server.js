@@ -600,6 +600,20 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "leave_room") { removePlayer(socket); return; }
 
+    // Test Match only: the host jumps straight to another course, fresh round, no traps.
+    if (message.type === "test_course") {
+      const level = Number(message.level);
+      if (player.id !== room.hostId || !room.testMatch || room.phase === "lobby" || room.phase === "winner") return;
+      if (!Number.isInteger(level) || level < 0 || level >= LEVELS.length) return;
+      clearTimeout(room.timer); clearTimeout(room.runTimer); room.timer = null; room.runTimer = null;
+      room.levelIndex = level; room.traps = []; room.finishOrder = []; room.round += 1;
+      room.votes = {}; room.voteOpen = false; room.finalBattle = null;
+      for (const item of room.players.values()) { item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
+      dealItems(room);
+      room.phase = "build";
+      broadcast(room, { ...snapshot(room), type: "round_start" });
+      return;
+    }
     // Host tools: throw someone out (kick), or throw them out and keep them out (ban).
     if (message.type === "kick" || message.type === "ban") {
       if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can do that." }); return; }
@@ -657,6 +671,8 @@ webSocketServer.on("connection", (socket) => {
         item.color = free[Math.floor(Math.random() * free.length)] ?? 0;
         broadcast(room, { type: "color", playerId: item.id, color: item.color });
       }
+      // A Test Match skips the vote: the host is alone, so it starts on the spot.
+      if (room.testMatch) { room.phase = "vote"; room.votes = {}; room.voteOpen = false; clearTimeout(room.timer); beginMatch(room); return; }
       // First, everyone votes on the course for VOTE_SECONDS. Then the match begins.
       room.phase = "vote"; room.votes = {}; room.voteOpen = true;
       for (const item of room.players.values()) item.status = "waiting";

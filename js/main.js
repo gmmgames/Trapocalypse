@@ -758,6 +758,13 @@ const Game = {
     // The Kick/Ban row lives in the lobby panel; during a match it moves in here so the host
     // can still deal with a troll. renderRoom() puts it back when the lobby returns.
     if (hostInMatch) settingsBackToLobby.before(document.getElementById("host-tools"));
+    // Test Match: a course dropdown, so the host can try any course without waiting.
+    const courseRow = document.getElementById("test-course-row"), courseSelect = document.getElementById("test-course");
+    courseRow.classList.toggle("hidden", !(hostInMatch && this.testMatch));
+    if (hostInMatch && this.testMatch) {
+      courseSelect.replaceChildren(...LEVELS.map((level, index) => { const option = document.createElement("option"); option.value = index; option.textContent = level.name; return option; }));
+      courseSelect.value = String(this.levelIndex);
+    }
     settingsNote.textContent = hostInMatch ? "Ends the match for everyone and clears the scores." : this.inRoom ? "Only the host can end a match early." : "";
     settingsPanel.classList.remove("hidden");
   },
@@ -1028,6 +1035,7 @@ const Game = {
       if (message.playerId === Network.id) {
         this.myColor = message.color;
         Player.color = PALETTE[message.color];
+        this.renderAvatars();   // the shape previews (and the mouse's eyes) take the new color
         this.hideColorPicker();
         this.say(this.phase === "lobby" ? "Color picked. You can still change it before the start." : "Now tap the level to place your trap.", 3);
       }
@@ -1883,6 +1891,7 @@ startRunButton.addEventListener("click", () => {
 startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
 document.getElementById("test-match").addEventListener("click", () => Network.send({ type: "start_match", test: true }));
 leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
+document.getElementById("test-course").addEventListener("change", (event) => { Network.send({ type: "test_course", level: Number(event.target.value) }); Game.hideSettings(); });
 document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));
 document.getElementById("ban-button").addEventListener("click", () => Network.send({ type: "ban", playerId: document.getElementById("kick-target").value, minutes: document.getElementById("ban-length").value }));
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));

@@ -994,7 +994,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   font-size: 13px;
 }
 
-#host-tools select {
+#test-course-row { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #e8e8ff; }
+#test-course-row select, #host-tools select {
   padding: 5px 6px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
