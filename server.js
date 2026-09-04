@@ -121,6 +121,7 @@ function snapshot(room) {
     offer: room.offer || [],
     testMatch: Boolean(room.testMatch),
     customLevels: room.customLevels || [],
+    buildSecondsLeft: room.phase === "build" && room.buildEndsAt ? Math.max(0, (room.buildEndsAt - Date.now()) / 1000) : null,
     traps: room.traps,
     players: playerList(room),
   };
@@ -218,6 +219,7 @@ function startRun(room) {
   // The host's time limit: when it runs out, anyone still running is out.
   clearTimeout(room.runTimer);
   room.runTimer = null;
+  clearTimeout(room.buildTimer); room.buildTimer = null; room.buildEndsAt = null;
   const timeLimit = room.settings.timeLimit;
   if (timeLimit !== null) room.runTimer = setTimeout(() => timeUp(room), timeLimit * 1000);
   // Some rounds get a twist. Never in a Final Battle. FORCE_EVENT=<name> is a test hook.
@@ -439,6 +441,7 @@ function toLobby(room, { resetScores }) {
   clearTimeout(room.timer); clearTimeout(room.runTimer);
   room.timer = null; room.runTimer = null;
   room.testMatch = false;   // back from a solo Test Match: the room can be listed again
+  clearTimeout(room.buildTimer); room.buildTimer = null; room.buildEndsAt = null;
   room.phase = "lobby"; room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0;
   room.traps = []; room.finishOrder = []; room.finalBattle = null; room.winnerIds = [];
   room.votes = {}; room.voteOpen = false;
@@ -493,6 +496,7 @@ function removePlayer(socket) {
 const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7, longspike: 0.35, mirror: 0.4, bat: 0.4, buckler: 0.4, heart: 0.1 };
 const PICKUP_KINDS = ["portal", "heart", "bat", "buckler"];   // placed in the build phase, collected by touch during the run
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
+const BUILD_SECONDS = Number(process.env.BUILD_SECONDS) || 45;   // time to pick and place; anyone slower loses their turn
 const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
 const EVENT_CHANCE = 0.3;          // chance a normal round gets one   // picked in the build phase, used during the run (like the pencil)
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
@@ -507,6 +511,10 @@ function dealItems(room) {
   const count = Math.min(8, Math.max(2, room.players.size + 1));
   room.offer = Array.from({ length: count }, drawItem);
   room.countdown = false; clearTimeout(room.countdownTimer);   // a new round: any pending GO is off
+  // The build clock: when it runs out, anyone who has not placed loses their turn and the run starts.
+  clearTimeout(room.buildTimer);
+  room.buildEndsAt = Date.now() + BUILD_SECONDS * 1000;
+  room.buildTimer = setTimeout(() => buildTimeUp(room), BUILD_SECONDS * 1000);
   if (process.env.FORCE_ITEM) room.offer[0] = process.env.FORCE_ITEM;   // test hook: FORCE_ITEM=pencil node server.js
   for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = false; }
 }
@@ -530,6 +538,16 @@ function canPick(room, player, slot) {
 }
 
 // After a trap is placed or an eraser used: once everyone has used their item, the run starts.
+function buildTimeUp(room) {
+  room.buildTimer = null;
+  if (room.phase !== "build") return;
+  const slow = [...room.players.values()].filter((player) => player.status !== "out" && player.trapCount < TRAPS_PER_ROUND);
+  for (const player of slow) player.trapCount = TRAPS_PER_ROUND;
+  if (slow.length) broadcast(room, { type: "notice", message: `Time's up for placing: ${slow.map((player) => player.name).join(", ")} lost the turn.` });
+  broadcast(room, snapshot(room));
+  maybeStartRun(room);
+}
+
 function maybeStartRun(room) {
   if (room.phase === "build" && !room.countdown && room.players.size >= (room.testMatch ? 1 : 2) && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) {
     // Everyone has placed: three seconds of countdown, then GO.

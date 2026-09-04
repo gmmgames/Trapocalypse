@@ -1263,6 +1263,7 @@ const Game = {
       this.buildMapButtons();
     }
     this.phase = message.phase;
+    this._buildEndsAt = message.buildSecondsLeft != null ? performance.now() + message.buildSecondsLeft * 1000 : 0;
     this.round = message.round;
     this.roundsPerLevel = message.roundsPerLevel;
     this.trapsPerRound = message.trapsPerRound;
@@ -2219,6 +2220,7 @@ const Game = {
     // mode) the HUD stays hidden; in the lobby and the vote it shows no course name.
     hud.classList.toggle("hidden", this.mode === "solo" || this.mode === "editor");
     if (this.mode === "solo") buildHud.classList.add("hidden");   // never show a stale build box behind the menu
+    document.getElementById("settings-button").classList.toggle("hidden", this.mode === "editor");   // the editor bar covers that corner
     // Touch buttons only while there is something to run: the title world, or an online run.
     const running = this.mode === "solo" || this.phase === "run";
     document.body.classList.toggle("in-run", running);
@@ -2258,6 +2260,12 @@ const Game = {
     if (this.mode === "online" && this.phase === "build") {
       buildTitle.textContent = `ROUND ${this.round} BUILD`;   // the box itself is hidden; the text goes into the HUD line below
       const waiting = this.players.filter((player) => player.trapCount < this.trapsPerRound && player.status !== "out").length;
+      // The build clock, red for the last ten seconds.
+      if (this._buildEndsAt) {
+        const left = Math.max(0, Math.ceil((this._buildEndsAt - performance.now()) / 1000));
+        hudClock.textContent = `⏱ ${left}s`;
+        hudClock.classList.toggle("urgent", left <= 10);
+      }
       if (this.players.length < 2) {
         buildInstructions.textContent = `Waiting for another player. Share room code ${roomCodeInput.value}.`;
       } else if (this.placements[0] >= this.trapsPerRound) {
@@ -2284,9 +2292,9 @@ const Game = {
   loop(now) {
     let dt = (now - this._last) / 1000;
     this._last = now;
-    if (dt > 0.05) dt = 0.05;   // if the tab was hidden, do not let one huge step break things
-
-    this.update(dt);
+    if (dt > 0.1) dt = 0.1;   // if the tab was hidden, do not let one huge step break things
+    // Slow frames are split into small physics steps, so a fast fall cannot skip through a thin platform.
+    while (dt > 0) { const step = Math.min(dt, 1 / 60); this.update(step); dt -= step; }
     this.draw();
     requestAnimationFrame(this.loop.bind(this));
   },
