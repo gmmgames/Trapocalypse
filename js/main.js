@@ -1292,6 +1292,7 @@ const Game = {
         this.myColor = message.color;
         Player.color = PALETTE[message.color];
         this.renderAvatars();   // the shape previews (and the mouse's eyes) take the new color
+        Sfx.paint();   // splosh: the bucket tips over
         this.hideColorPicker();
         this.say(this.phase === "lobby" ? "Color picked. You can still change it before the start." : "Now tap the level to place your trap.", 3);
       }

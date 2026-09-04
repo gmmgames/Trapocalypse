@@ -69,6 +69,16 @@ const Sfx = {
   },
 
   // Splat: a burst of static and a low thud.
+  // Picking a color: a paint bucket splosh. A short splash of noise, a wet "glup" that
+  // drops in pitch, and a bright little drip at the end.
+  paint() {
+    this.noise(0.3, 0.16);
+    this.tone(320, 0, 0.14, "sine", 0.2);
+    this.tone(180, 0.06, 0.2, "sine", 0.22);
+    this.tone(120, 0.14, 0.24, "triangle", 0.16);
+    this.tone(1400, 0.26, 0.06, "sine", 0.08);   // the drip
+  },
+
   splat() {
     this.noise(0.22, 0.22);
     this.tone(110, 0, 0.18, "sawtooth", 0.18);
