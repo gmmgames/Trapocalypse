@@ -2518,5 +2518,5 @@ Game.start();
   const skip = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const finish = () => document.body.classList.remove("intro");
   if (skip) finish();
-  else setTimeout(finish, 1300);   // 0.6s pop + a short hold, then the slide begins
+  else setTimeout(finish, 2400);   // 0.6s pop + a good look at the big logo, then the slide begins
 })();
