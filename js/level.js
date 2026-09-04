@@ -360,6 +360,45 @@ const LEVELS = [
     flag: tileRect(45, 23, 1, 2),
   },
   {
+    // NO FLOOR. Nothing but ledges over the void: every step is a jump, and a fall is the end.
+    name: "Void Hop",
+    theme: THEMES.midnight,
+    solids: [
+      tileRect(0, 14, 3, 1), tileRect(5, 13, 2, 1), tileRect(9, 11, 2, 1), tileRect(13, 13, 3, 1),
+      tileRect(18, 10, 2, 1), tileRect(22, 12, 2, 1), tileRect(26, 9, 2, 1), tileRect(29, 11, 3, 1),
+    ],
+    hazards: [tileRect(14, 12, 1, 1), tileRect(23, 11, 1, 1)],
+    start: { x: 1 * TILE, y: 14 * TILE - 26 },
+    flag: tileRect(30, 9, 1, 2),
+  },
+  {
+    // NO FLOOR. Puffs of cloud over the sea, a sliding one in the middle.
+    name: "Cloud Steps",
+    theme: THEMES.ocean,
+    solids: [
+      tileRect(0, 15, 3, 1), tileRect(4, 12, 2, 1), tileRect(8, 14, 2, 1), tileRect(12, 11, 2, 1),
+      tileRect(15, 13, 2, 1), tileRect(19, 11, 3, 1), tileRect(24, 8, 2, 1), tileRect(27, 11, 2, 1), tileRect(30, 9, 2, 1),
+    ],
+    hazards: [tileRect(20, 10, 1, 1), tileRect(9, 13, 1, 1)],
+    movers: [{ ...tileRect(15, 8, 2, 1), dx: 90, dy: 0, period: 3 }],
+    start: { x: 1 * TILE, y: 15 * TILE - 26 },
+    flag: tileRect(30, 7, 1, 2),
+  },
+  {
+    // NO FLOOR, BIG (48 x 27). A long chain of star-lit ledges across the dark; miss one and you are gone.
+    name: "Star Leap",
+    theme: THEMES.dusk,
+    cols: 48, rows: 27,
+    solids: [
+      tileRect(0, 20, 3, 1), tileRect(5, 18, 2, 1), tileRect(9, 16, 2, 1), tileRect(13, 19, 3, 1), tileRect(18, 16, 2, 1),
+      tileRect(22, 13, 2, 1), tileRect(26, 16, 3, 1), tileRect(31, 13, 2, 1), tileRect(35, 14, 2, 1), tileRect(39, 11, 2, 1), tileRect(43, 13, 3, 1),
+    ],
+    hazards: [tileRect(14, 18, 1, 1), tileRect(27, 15, 1, 1), tileRect(36, 13, 1, 1)],
+    movers: [{ ...tileRect(28, 9, 2, 1), dx: 120, dy: 0, period: 4 }],
+    start: { x: 1 * TILE, y: 20 * TILE - 26 },
+    flag: tileRect(44, 11, 1, 2),
+  },
+  {
     // EVENT-EXCLUSIVE course (64 x 36 tiles, drawn at half size). Only reached through the
     // "Rising Lava" course event. Lava climbs from the floor during every run: keep going up.
     // Ten rounds instead of five.
