@@ -1157,11 +1157,31 @@ const Level = {
     ctx.fillStyle = "#e8e8ff";
     for (let i = 0; i < 3; i++) { ctx.rotate((Math.PI * 2) / 3); ctx.beginPath(); ctx.ellipse(6, 0, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
+    // The updraft: two wavy arrows drifting upward, drawn in whichever ink shows against this
+    // course's sky (dark on a bright sky, light on a dark one), with arrowheads at the top.
+    const reach = FAN_LIFT;
     ctx.save();
-    ctx.globalAlpha = 0.18 + 0.08 * Math.sin(now * 9);
-    ctx.fillStyle = "#a8e8ff";
-    ctx.fillRect(f.x + 4, f.y - FAN_LIFT, f.w - 8, FAN_LIFT);
+    ctx.strokeStyle = this.inkFor(t.bg);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    for (const dx of [f.w * 0.3, f.w * 0.7]) {
+      const x0 = f.x + dx, phase = now * 6 + dx;
+      ctx.beginPath();
+      for (let k = 0; k <= reach; k += 3) {
+        const y = f.y - k, wobble = Math.sin(k / 9 + phase) * 3.5;
+        if (k === 0) ctx.moveTo(x0 + wobble, y); else ctx.lineTo(x0 + wobble, y);
+      }
+      ctx.stroke();
+      const tipX = x0 + Math.sin(reach / 9 + phase) * 3.5, tipY = f.y - reach;
+      ctx.beginPath(); ctx.moveTo(tipX - 5, tipY + 6); ctx.lineTo(tipX, tipY); ctx.lineTo(tipX + 5, tipY + 6); ctx.stroke();
+    }
     ctx.restore();
+  },
+  // Dark or light ink for markings drawn over a course background (a #rrggbb colour).
+  inkFor(bg) {
+    const n = parseInt(String(bg).replace("#", ""), 16);
+    const brightness = ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114;
+    return brightness > 140 ? "rgba(20, 16, 40, 0.9)" : "rgba(255, 255, 255, 0.95)";
   },
 
   // A baseball bat: handle at (x, y), pointing along angle.
