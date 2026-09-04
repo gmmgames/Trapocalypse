@@ -189,6 +189,8 @@ function courseSize(room) {
   return { W: (level.cols || 32) * TILE, H: (level.rows || 18) * TILE };
 }
 
+const SOLID_ITEM_KINDS = ["plank", "mirror", "bigblock", "belt", "fan"];   // placed items that are solid blocks (see Level.solidHazards)
+
 function trapBlocked(room, trap) {
   const level = levelsOf(room)[room.levelIndex];
   // Every spawn spot stays clear (some courses spread players along the floor).
@@ -197,6 +199,9 @@ function trapBlocked(room, trap) {
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
   const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "bat", "buckler", "boots", "feather", "speedshoes", "bigblock", "belt", "fan", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
+  // Ground for spikes, gum and ice: the course's blocks plus the solid items already placed this
+  // course (planks, big blocks, mirrors, belts, fans). Movers slide, so they do not count.
+  const ground = level.solids.concat(room.traps.filter((item) => SOLID_ITEM_KINDS.includes(item.kind)));
   // Spikes need a block behind their base (the side they point away from).
   let looseSpikes = false;
   if (trap.kind === "spike" || trap.kind === "longspike" || trap.kind === "decoy") {
@@ -206,14 +211,14 @@ function trapBlocked(room, trap) {
       { x: trap.x + 2, y: trap.y - 2, w: trap.w - 4, h: 2 },            // pointing down: block above
       { x: trap.x + trap.w, y: trap.y + 2, w: 2, h: trap.h - 4 },         // pointing left: block on the right
     ][trap.rot || 0];
-    looseSpikes = !level.solids.some((solid) => overlaps(solid, base));
+    looseSpikes = !ground.some((solid) => overlaps(solid, base));
   }
   // Glue must touch a block on some side (top, bottom, left or right).
   const sides = [{ x: trap.x + 2, y: trap.y - 2, w: TILE - 4, h: 2 }, { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 }, { x: trap.x - 2, y: trap.y + 2, w: 2, h: TILE - 4 }, { x: trap.x + TILE, y: trap.y + 2, w: 2, h: TILE - 4 }];
-  const looseGlue = trap.kind === "glue" && !sides.some((probe) => level.solids.some((solid) => overlaps(solid, probe)));
+  const looseGlue = trap.kind === "glue" && !sides.some((probe) => ground.some((solid) => overlaps(solid, probe)));
   // Ice sits on top of a block: never inside one, and there must be a block right under it.
   const below = { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 };
-  const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !level.solids.some((solid) => overlaps(solid, below)));
+  const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !ground.some((solid) => overlaps(solid, below)));
   return inWall || looseSpikes || looseGlue || badIce || overlaps(trap, flagZone) || startBoxes.some((box) => overlaps(trap, box)) ||
     room.traps.some((item) => overlaps(item, trap));
 }
@@ -554,7 +559,7 @@ function dealItems(room) {
   clearTimeout(room.buildTimer);
   room.buildEndsAt = Date.now() + BUILD_SECONDS * 1000;
   room.buildTimer = setTimeout(() => buildTimeUp(room), BUILD_SECONDS * 1000);
-  if (process.env.FORCE_ITEM) room.offer[0] = process.env.FORCE_ITEM;   // test hook: FORCE_ITEM=pencil node server.js
+  if (process.env.FORCE_ITEM) process.env.FORCE_ITEM.split(",").forEach((kind, slot) => { if (slot < room.offer.length) room.offer[slot] = kind; });   // test hook: FORCE_ITEM=pencil (or plank,spike to pin the first cards in order)
   for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = false; }
 }
 
