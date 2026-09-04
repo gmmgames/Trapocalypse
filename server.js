@@ -26,6 +26,8 @@ const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
 const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
 const FINAL_BONUSES = [5, 3, 1];   // Final Battle: 1st, 2nd, 3rd to the flag. Everyone else 0.
+const CONDOLENCE_POINTS = 4;       // "Condolence": a win after trailing everyone by CONDOLENCE_GAP or more
+const CONDOLENCE_GAP = 10;
 const AUTONOMOUS_BONUS = 1;        // "Autonomous": the only one to reach the flag when 2+ ran
 const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no decision, the tie is shared
 const MAX_PLAYERS = 24;        // room size, one color each
@@ -293,11 +295,14 @@ function checkRoundOver(room) {
   let firstFinisher = null;
   const killBonus = {};   // playerId -> points earned from their trap's kills this round
   const gains = {};       // playerId -> [{ label, points }] so the scoreboard can show where points came from
+  const scoresBefore = new Map(players.map((player) => [player.id, player.score]));   // before this round's points
   const award = (player, label, points) => {
     if (points <= 0) return;
     player.score += points;
     (gains[player.id] = gains[player.id] || []).push({ label, points });
   };
+  // Trailing everyone else by CONDOLENCE_GAP or more coming into this round?
+  const farBehind = (player) => players.length >= 2 && players.every((other) => other === player || scoresBefore.get(other.id) - scoresBefore.get(player.id) >= CONDOLENCE_GAP);
   if (room.finalBattle) {
     // Final Battle: only the podium bonuses, in finishing order. Nothing else pays.
     const placeNames = ["1st Place", "2nd Place", "3rd Place"];
@@ -309,6 +314,8 @@ function checkRoundOver(room) {
     const { winPoints, killPoints, firstPoints, autonomousPoints } = room.settings;   // the host's values
     for (const player of finishers) {
       award(player, "Win", winPoints);
+      // "Condolence": a win at last, after falling far behind everyone.
+      if (farBehind(player)) award(player, "Condolence", CONDOLENCE_POINTS);
       // "Curiosity": trap kills only pay if you made it to the flag yourself.
       if (player.pendingKills > 0 && killPoints > 0) {
         killBonus[player.id] = player.pendingKills * killPoints;

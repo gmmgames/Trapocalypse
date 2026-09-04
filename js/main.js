@@ -106,6 +106,7 @@ const BURST_STYLE = {
   Trailblazer: { scale: 1, text: "Trailblazer!" },
   Autonomous:  { scale: 0.78, text: "Autonomous!" },
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
+  Condolence:  { scale: 0.85, text: "Condolence." },
 };
 const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball" };
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
@@ -116,6 +117,7 @@ const GAIN_TEXT = {
   "Trailblazer": "Turns out first isn't the worst",
   "Autonomous": "It's kinda lonely being at the top... oh well",
   "Curiosity": "Grabbed a tiger by its toe. I guess curiosity really does kill the cat.",
+  "Condolence": "With all of my losses, I could simply finish once. They would all cease to exist. That is called... mercy.",
   "1st Place": "Last one standing. Well, running.",
   "2nd Place": "So close you could taste it",
   "3rd Place": "Hey, a podium is a podium",
@@ -398,6 +400,7 @@ const Game = {
       `Trailblazer, ${s.firstPoints} more: first to the flag when 3 or more run and 2 or more finish. "${GAIN_TEXT.Trailblazer}"`,
       `Autonomous, ${s.autonomousPoints ?? 1} more: the only one to make it when 2 or more ran. "${GAIN_TEXT.Autonomous}"`,
       `Curiosity, ${s.killPoints} each: your trap kills someone, paid at the end of the round only if you reach the flag too. "${GAIN_TEXT.Curiosity}"`,
+      `Condolence, 4 more: you were at least 10 points behind everyone, and then you finally won a round. "${GAIN_TEXT.Condolence}"`,
       `Final Battle: 1st Place 5, 2nd Place 3, 3rd Place 1. Nothing else pays in a Final Battle.`,
       `${this.settings ? "This match" : "Default"}: first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`,
     ];
@@ -1938,9 +1941,15 @@ window.addEventListener("keydown", (event) => {
 Game.loadPreferences();
 // Tap the course to set your item down; drag to move it; ✓ or E to confirm; ✕ or Escape to cancel.
 let pointerHeld = false;
+let lastTap = { x: -1, y: -1, at: 0 };   // for double-tap placing
 canvas.addEventListener("pointerdown", (event) => {
   pointerHeld = true;
   if (Game.beginStroke(event.clientX, event.clientY)) return;   // pencil in hand during a run
+  // Tap a tile once to put the ghost there; tap the same tile again within 0.4 s to confirm.
+  const tile = Game.tileAt(event.clientX, event.clientY);
+  const twice = tile.x === lastTap.x && tile.y === lastTap.y && event.timeStamp - lastTap.at < 400;
+  lastTap = { x: tile.x, y: tile.y, at: event.timeStamp };
+  if (twice && Game.pending && Game.pending.x === tile.x && Game.pending.y === tile.y) { Game.confirmPlacement(); return; }
   Game.setPending(event.clientX, event.clientY); Game.placeTrap(event.clientX, event.clientY);
 });
 canvas.addEventListener("pointermove", (event) => {

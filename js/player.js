@@ -13,6 +13,7 @@ const Player = {
   SPIKE_INSET_SIDE: 4, // pixels shaved off each side of a spike's deadly area
   SPIKE_INSET_TOP: 6,  // pixels shaved off the top, so grazing the tips is not a death
   GLUE_FACTOR: 0.35,   // how much of your speed you keep inside glue
+  GLUE_JUMP: 0.45,     // how much of a jump you get while stuck in glue (a stubby hop)
   KNOCK_SPEED: 650,    // pixels per second a bumper throws you
   KNOCK_TIME: 0.3,     // seconds a bumper overrides your controls
   CRUMBLE_DELAY: 0.35, // seconds a crumbler holds after you land on it
@@ -139,10 +140,10 @@ const Player = {
     // 2. Jump forgiveness timers.
     //    Coyote time: a tiny grace period after leaving a ledge.
     //    Jump buffer: press slightly before landing and it still counts.
-    this._coyote = this.onGround && !inGlue ? this.COYOTE_TIME : this._coyote - dt;
+    this._coyote = this.onGround ? this.COYOTE_TIME : this._coyote - dt;
     this._buffer = Input.jumpPressed ? this.JUMP_BUFFER : this._buffer - dt;
     if (this._buffer > 0 && this._coyote > 0) {
-      this.vy = -this.JUMP_SPEED;   // negative Y is UP on a canvas
+      this.vy = -this.JUMP_SPEED * (inGlue ? this.GLUE_JUMP : 1);   // negative Y is UP on a canvas; glue allows only a stubby hop
       this._buffer = 0;
       this._coyote = 0;
       this._shortHop = true;        // this jump can be cut short by letting go
@@ -399,8 +400,10 @@ function drawAvatar(ctx, x, y, w, h, color, facing, avatar) {
     ctx.fillStyle = PAPER;
     ctx.beginPath(); ctx.ellipse(cx + 2, y + 12, 6, 5, 0, 0, Math.PI * 2); ctx.fill();                                    // face
     ctx.fillRect(cx - 3, y + 21, 2, 2); ctx.fillRect(cx + 1, y + 21, 2, 2);                                                // shorts buttons
+    ctx.fillStyle = color;   // the eyes are the one place your color shows on the mouse
+    ctx.beginPath(); ctx.ellipse(cx, y + 10, 1.4, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + 4, y + 10, 1.4, 2.2, 0, 0, Math.PI * 2); ctx.fill();   // pie eyes
     ctx.fillStyle = INK;
-    ctx.beginPath(); ctx.ellipse(cx, y + 10, 1.4, 2.2, 0, 0, Math.PI * 2); ctx.ellipse(cx + 4, y + 10, 1.4, 2.2, 0, 0, Math.PI * 2); ctx.fill();   // pie eyes
     ctx.beginPath(); ctx.arc(cx + 13, y + 13, 1.6, 0, Math.PI * 2); ctx.fill();                                           // nose
     ctx.fillRect(cx + 1, y + 15, 7, 1);                                                                                    // smile
   } else {

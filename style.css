@@ -1028,6 +1028,7 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 #avatar-picker {
   display: flex;
+  flex-wrap: wrap;               /* eleven shapes wrap onto two rows on a phone instead of running off the panel */
   justify-content: center;
   gap: 6px;
 }
