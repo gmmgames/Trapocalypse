@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { WebSocketServer } = require("ws");
-const { LEVELS, TILE, LEVEL_W, LEVEL_H } = require("./js/level.js");
+const { LEVELS, TILE, LEVEL_W, LEVEL_H, beltTiles, BELT_MIN_TILES, BELT_MAX_TILES } = require("./js/level.js");
 const ChatFilter = require("./js/chatfilter.js");   // the same word list the chat filter uses, for names
 
 const ROOT = __dirname;
@@ -1095,7 +1095,14 @@ webSocketServer.on("connection", (socket) => {
       // Quarter turns from the placer: long items stand up on odd turns; spikes point up/right/down/left; movers slide along the turn.
       const rot = [1, 2, 3].includes(Number(message.rot)) ? Number(message.rot) : 0;
       const long = kind === "plank" || kind === "longspike", big = kind === "bigblock";
-      const trap = { x, y, w: big ? TILE * 2 : long && rot % 2 === 0 ? TILE * PLANK_TILES : TILE, h: big ? TILE * 2 : long && rot % 2 === 1 ? TILE * PLANK_TILES : TILE, owner: player.id, kind, rot };
+      // A belt always lies flat, however it is turned: the turn only decides which way it carries.
+      const belt = kind === "belt" ? beltTiles(room.round, player.pickSlot) : 0;
+      const trap = {
+        x, y,
+        w: belt ? TILE * belt : big ? TILE * 2 : long && rot % 2 === 0 ? TILE * PLANK_TILES : TILE,
+        h: belt ? TILE : big ? TILE * 2 : long && rot % 2 === 1 ? TILE * PLANK_TILES : TILE,
+        owner: player.id, kind, rot,
+      };
       const { W, H } = courseSize(room);
       const inBounds = x >= 0 && x + trap.w <= W && y >= 0 && y + trap.h <= H;   // the edges are fine; past them is not
       if (inBounds && !trapBlocked(room, trap)) {
@@ -1182,4 +1189,4 @@ webSocketServer.on("connection", (socket) => {
 
 // Started directly, it plays host. Loaded by a test, it just hands over the pieces worth checking.
 if (require.main === module) server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));
-module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE, CONDOLENCE_POINTS, CONDOLENCE_GAP, MAX_CARRIED };
+module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE, CONDOLENCE_POINTS, CONDOLENCE_GAP, MAX_CARRIED, beltTiles, BELT_MIN_TILES, BELT_MAX_TILES };

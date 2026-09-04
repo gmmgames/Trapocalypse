@@ -77,6 +77,14 @@ const GENERATOR_ON = 3;      // seconds a Generator runs before it rests
 const GENERATOR_OFF = 2;     // seconds it rests before starting again
 const GENERATOR_MAX = 3;     // most Generators that can feed one fan or spring
 const PLANK_TILES = 3;   // a placed Plank is three tiles wide
+const BELT_MIN_TILES = 2, BELT_MAX_TILES = 5;   // a Conveyor Belt is somewhere between these
+// How long the belt on a given card is. Worked out from the round and the card's place on the
+// table, so every player's screen and the server all arrive at the same length with nothing sent.
+function beltTiles(round, slot) {
+  const span = BELT_MAX_TILES - BELT_MIN_TILES + 1;
+  const seed = (Number(round) || 1) * 7 + (Number(slot) || 0) * 3;
+  return BELT_MIN_TILES + (seed % span);
+}
 
 const LEVELS = [
   {
@@ -1442,4 +1450,4 @@ Level.load(0);
 
 // The server needs the same level data to check trap placement, so this file
 // is loaded by Node too. In the browser "module" does not exist and this line is skipped.
-if (typeof module !== "undefined") module.exports = { LEVELS, TILE, LEVEL_W, LEVEL_H };
+if (typeof module !== "undefined") module.exports = { LEVELS, TILE, LEVEL_W, LEVEL_H, beltTiles, BELT_MIN_TILES, BELT_MAX_TILES };

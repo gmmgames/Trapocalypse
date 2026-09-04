@@ -509,7 +509,7 @@ const Game = {
       Level.drawItemIcon(icon.getContext("2d"), item);
       const name = document.createElement("span");
       name.className = "item-name";
-      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : (TRAP_NAMES[item] || item);
+      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : item === "belt" ? `Conveyor Belt (${beltTiles(this.round, slot)} long)` : (TRAP_NAMES[item] || item);
       if (PICKUPS.includes(item)) name.textContent += " (pickup)";   // never a blank label, even for an item this script does not know yet
       const taker = document.createElement("span");
       taker.className = "item-taker";
@@ -896,6 +896,8 @@ const Game = {
   itemSize() {
     if (this.pick === "bigblock") return { w: TILE * 2, h: TILE * 2 };
     const long = this.pick === "plank" || this.pick === "longspike";
+    // A belt lies flat whichever way it is turned; the turn only decides which way it carries you.
+    if (this.pick === "belt") return { w: TILE * beltTiles(this.round, this.picks[Network.id]), h: TILE };
     return { w: long && this.rotation % 2 === 0 ? TILE * PLANK_TILES : TILE, h: long && this.rotation % 2 === 1 ? TILE * PLANK_TILES : TILE };
   },
   rotateItem(turns) {
@@ -924,7 +926,8 @@ const Game = {
       ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + 23, y + 23); ctx.moveTo(x + 23, y + 7); ctx.lineTo(x + 7, y + 23); ctx.stroke();
     } else {
       const size = this.itemSize();
-      if (this.pick === "plank" || this.pick === "bigblock") Level.drawPlank(ctx, { x, y, ...size }, Level.theme);   // full size, not the card icon
+      if (this.pick === "belt") Level.drawBelt(ctx, { x, y, ...size, rot: this.rotation }, Level.theme, 0);   // full length, not the card icon
+      else if (this.pick === "plank" || this.pick === "bigblock") Level.drawPlank(ctx, { x, y, ...size }, Level.theme);   // full size, not the card icon
       else if (this.pick === "longspike" || this.pick === "spike" || this.pick === "decoy") Level.drawSpikesRotated(ctx, { x, y, ...size, rot: this.rotation }, Level.theme);
       else {
         // Other icons turn with the rotation too (a mover's chevrons show which way it will slide).
