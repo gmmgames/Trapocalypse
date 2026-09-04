@@ -344,6 +344,7 @@ const Game = {
     this.winnerIds = [];
     this.finalBattleIds = [];
     this.customLevels = []; Level.list = null; this.buildMapButtons();
+    this.muted = new Set();
     Player.color = "#ff3c78";
     Player.avatar = titleAvatar();
     Music.play();        // back on the menu: tune back on (the click that got us here counts as the gesture)
@@ -1056,7 +1057,9 @@ const Game = {
     settingsPanel.classList.add("hidden");
   },
 
+  muted: new Set(),   // player ids whose chat I have hidden with /mute (my screen only)
   addChatLine(message) {
+    if (message.playerId && this.muted.has(message.playerId)) return;
     const line = document.createElement("div");
     line.className = "chat-line";
     const name = document.createElement("span");
@@ -1118,8 +1121,10 @@ const Game = {
     Network.send({ type: "chat", text });
   },
 
-  // Slash commands typed in the chat. /help is for everyone; the rest are the host's.
+  // Slash commands typed in the chat. /help, /mute and /unmute are for everyone; the rest are the host's.
   COMMANDS: [
+    ["/mute NAME", "hide that player's chat on your screen (anyone can)"],
+    ["/unmute NAME", "show their chat again"],
     ["/kick NAME", "throw a player out (they can rejoin)"],
     ["/ban NAME [5|30|120|1440|forever]", "throw a player out and keep them out (minutes; default 30)"],
     ["/changemap NAME", "in a Test Match: jump to that course now; otherwise: it becomes the next course"],
@@ -1133,11 +1138,19 @@ const Game = {
     const [word, ...rest] = line.trim().split(/\s+/);
     const command = (word || "").toLowerCase(), arg = rest.join(" ").trim();
     if (command === "help" || command === "") { for (const [usage, what] of this.COMMANDS) this.chatNote(`${usage}  —  ${what}`); return; }
-    if (Network.id !== this.hostId) { this.chatNote("Only the host can use / commands."); return; }
     const findPlayer = (name) => {
       const others = this.players.filter((player) => player.id !== Network.id), low = name.toLowerCase();
       return others.find((player) => player.name.toLowerCase() === low) || others.find((player) => player.name.toLowerCase().startsWith(low));
     };
+    if (command === "mute" || command === "unmute") {
+      if (!arg) { this.chatNote(`Who? Try /${command} NAME.`); return; }
+      const target = findPlayer(arg);
+      if (!target) { this.chatNote(`No player called "${arg}" here.`); return; }
+      if (command === "mute") { this.muted.add(target.id); this.chatNote(`${target.name} is muted for you. /unmute ${target.name} to undo.`); }
+      else { this.muted.delete(target.id); this.chatNote(`${target.name} is unmuted.`); }
+      return;
+    }
+    if (Network.id !== this.hostId) { this.chatNote("Only the host can use / commands."); return; }
     const findCourse = (name) => {
       const list = Level.list || LEVELS, low = name.toLowerCase();
       let index = list.findIndex((level) => level.name.toLowerCase() === low);
