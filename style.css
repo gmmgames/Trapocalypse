@@ -38,11 +38,12 @@ body {
   justify-content: center;
 }
 
-/* Wrapper keeps the 16:9 shape and scales to fit whatever screen we are on. */
+/* The game fills the whole window. The course is always 960x540 inside, so on a screen that
+   is not 16:9 it is stretched a little rather than leaving dead bars at the sides. */
 #game-wrap {
   position: relative;
-  width: min(100vw, calc(100vh * 16 / 9));
-  aspect-ratio: 16 / 9;
+  width: 100vw;
+  height: 100vh;
 }
 
 #game {
