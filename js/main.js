@@ -1043,6 +1043,7 @@ const Game = {
       if (message.status === "finished" && message.playerId !== Network.id) {
         const remote = this.remotePlayers[message.playerId];
         if (remote && remote.x !== undefined) Confetti.burst(remote.x + Player.w / 2, remote.y + Player.h / 2, this.colorOf(message.playerId));
+        if (remote) remote.finished = true;
       }
     }
     if (message.type === "round_over") {
@@ -1454,9 +1455,17 @@ const Game = {
 
     // Other runners first, so your own square is always drawn on top.
     for (const [id, remote] of Object.entries(this.remotePlayers)) {
-      if (!remote.alive || remote.finished) continue;
+      if (!remote.alive || remote.x === undefined) continue;
       const color = this.colorOf(id);
       const who = this.players.find((player) => player.id === id);
+      if (remote.finished) {
+        // Made it: they stay visible at the flag, faded, with a tick on their tag.
+        ctx.globalAlpha = 0.6;
+        drawAvatar(ctx, remote.x, remote.y, Player.w, Player.h, color, 1, who ? who.avatar : "cube");
+        ctx.globalAlpha = 1;
+        if (this.mode === "online") this.drawNametag(remote.x, remote.y, `✓ ${remote.name}`, color);
+        continue;
+      }
       drawAvatar(ctx, remote.x, remote.y, Player.w, Player.h, color, remote.x >= (remote._lastX ?? remote.x) ? 1 : -1, who ? who.avatar : "cube");
       remote._lastX = remote.x;
       if (remote.frozenUntil && remote.frozenUntil > performance.now()) {   // hit by a Freeze Ray

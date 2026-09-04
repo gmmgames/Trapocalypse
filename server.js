@@ -531,7 +531,7 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "create_room" || message.type === "join_room") {
       if (socket.room) { send(socket, { type: "error", message: "You're already in a room." }); return; }
-      const wantedName = String(message.name || "Runner").slice(0, 18).trim() || "Runner";
+      const wantedName = String(message.name || "Runner").slice(0, 26).trim() || "Runner";
       if (!ChatFilter.isClean(wantedName)) { send(socket, { type: "error", message: "That name isn't allowed here. Pick another.", fatal: true }); return; }
       const code = message.type === "create_room" ? roomCode() : String(message.code || "").toUpperCase();
       let room = rooms.get(code);
