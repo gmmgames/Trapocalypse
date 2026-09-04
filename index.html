@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <!-- This line makes the game fit phone screens instead of zooming out. -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Trapocalypse</title>
   <!-- Rounder, sillier fonts. If there is no internet the fallbacks in style.css are used. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -122,6 +122,8 @@
   <button id="editor-stop" type="button" class="hidden">Stop test (back to editor)</button>
 
   <!-- Shown whenever you are in a room. Takes you back to this page as it is on load. -->
+  <!-- Shown only when a phone is held upright. -->
+  <div id="rotate-hint">📱 Turn your phone sideways for a bigger view</div>
   <button id="leave-room" type="button" class="hidden">Leave Room</button>
   <!-- Stuck during a run? Back to the start, no questions asked. -->
   <button id="reset-me" type="button" class="hidden">Stuck? Reset (R) · counts as a death</button>

@@ -2263,6 +2263,8 @@ const Game = {
     // The round and course line only shows once a match is under way. On the menu (solo
     // mode) the HUD stays hidden; in the lobby and the vote it shows no course name.
     hud.classList.toggle("hidden", this.mode === "solo" || this.mode === "editor");
+    // The page around the course (visible on upright phones) takes the course's background colour.
+    if (this._pageBg !== Level.theme.bg) { this._pageBg = Level.theme.bg; document.body.style.background = Level.theme.bg; }
     if (this.mode === "solo") buildHud.classList.add("hidden");   // never show a stale build box behind the menu
     document.getElementById("settings-button").classList.toggle("hidden", this.mode === "editor");   // the editor bar covers that corner
     document.getElementById("reset-me").classList.toggle("hidden", !this.canResetMe());

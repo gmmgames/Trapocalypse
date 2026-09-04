@@ -1289,3 +1289,43 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 /* Panels with their own scrolling keep vertical panning on phones. */
 #lobby, #chat-log, #room-list-box, #help-box, #settings-box, #editor { touch-action: pan-y; }
+
+/* Phones zoom the page in when a text box smaller than 16px is tapped (iPhones ignore the
+   viewport setting for this). Keep every typing box at 16px on touch screens. */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
+/* Portrait phones: keep the course's 16:9 shape instead of stretching it tall. It sits in the
+   middle of the screen and the course's own background colour fills the rest (set by main.js). */
+@media (orientation: portrait) {
+  #game-wrap {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: calc(100vw * 9 / 16);
+    top: 50%;
+    margin-top: calc(-100vw * 9 / 32);
+  }
+}
+
+#rotate-hint {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 210, 60, 0.6);
+  border-radius: 6px;
+  background: rgba(11, 11, 20, 0.85);
+  color: #ffd23c;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+@media (orientation: portrait) {
+  #rotate-hint { display: block; }
+}
