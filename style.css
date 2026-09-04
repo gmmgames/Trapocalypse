@@ -26,7 +26,11 @@ html, body {
   color: #e8e8ff;
   font-family: "Fredoka", "Segoe UI", system-ui, sans-serif;
   overflow: hidden;              /* no scrollbars, ever */
-  touch-action: none;            /* stop phones from scrolling or zooming while playing */
+  position: fixed;               /* pinned to the visible screen: a phone's address bar can never stretch or shift the page */
+  inset: 0;
+  width: 100%;
+  overscroll-behavior: none;     /* no rubber-band bounce */
+  touch-action: pan-y;           /* no zooming (double-tap or pinch), no page panning; panels may still scroll inside themselves */
   -webkit-user-select: none;
   user-select: none;
 }
@@ -42,14 +46,15 @@ body {
    is not 16:9 it is stretched a little rather than leaving dead bars at the sides. */
 #game-wrap {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;                   /* the pinned body is exactly the visible screen */
+  height: 100%;
 }
 
 #game {
   display: block;
   width: 100%;
   height: 100%;
+  touch-action: none;            /* dragging on the course paints or places; it never scrolls */
   background: #0b0b14;
   image-rendering: pixelated;    /* crisp edges when scaled up */
   box-shadow: 0 0 40px rgba(255, 60, 120, 0.25);
@@ -1273,10 +1278,7 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   #touch-controls {
     display: flex;
   }
-  #game-wrap {
-    /* Leave room at the bottom so buttons do not cover the game */
-    width: min(100vw, calc((100vh - 110px) * 16 / 9));
-  }
+  #game-wrap { width: 100%; height: 100%; }   /* the course fills the screen; the touch buttons float over it */
   #chat { bottom: 120px; }       /* above the touch buttons */
   /* Outside a run the touch buttons are hidden (main.js adds .hidden), so the chat drops down
      to sit just above the ID badge, and the lobby panel is pinned to the top with room below it. */
@@ -1284,3 +1286,6 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   /* Transform-free centering (the pop-in keyframes own the transform, so a static one would be ignored). */
   #lobby { top: 62px; left: 0; right: 0; margin: 0 auto; width: fit-content; max-width: 96vw; transform: none; animation-name: pop-in-plain; max-height: calc(100vh - 222px); }   /* below the gear and Leave Room buttons */
 }
+
+/* Panels with their own scrolling keep vertical panning on phones. */
+#lobby, #chat-log, #room-list-box, #help-box, #settings-box, #editor { touch-action: pan-y; }
