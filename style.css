@@ -226,7 +226,7 @@ body {
 /* Trap picker inside the build box */
 #trap-kinds {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));   /* only the dealt trap and the eraser show */
   gap: 4px;
   pointer-events: auto;
 }

@@ -15,19 +15,23 @@ machine reachable by the other devices and have everyone open that machine's URL
 | Move | Arrow keys or A / D | Left and right buttons |
 | Jump | Up, W, or Space | JUMP button |
 
-Enter your name, pick the match settings (time limit per run, points to win, round cap;
-each dropdown has a Custom box for your own number inside the allowed range; plus what a
-win, a trap kill, and Trailblazer are worth), and create a room. Share the six-character
-room code, then other players join from their own browsers, up to 24 in a room. Everyone
-lands in a lobby that lists who is here and the settings, and votes on the first course.
-When you join you pick a color from the 24-color palette, and it's yours for the whole
-match. Only the host can press Start Trap Apocalypse, and only once at least two players
-are in and everyone has a color. Leave Room, top right, takes you back to this page at
-any time. If the host leaves, the longest-present player becomes host.
+Enter your name and create a room, or type a friend's six-character code and join. Up to
+24 can be in a room. Everyone lands in a lobby that lists who is here. The host sets the
+match rules there (time limit per run, points to win, round cap, and what a win, a trap
+kill, and Trailblazer are worth; dropdowns have a Custom box for your own number) and can
+change them until the start. Pick a color from the 24-color palette; you can change it
+until the start, then it's yours for the whole match. Only the host can press Start Trap
+Apocalypse, and only once at least two players are in and everyone has a color. Start
+opens a ten-second vote on the first course. Leave Room, top right, takes you back to
+the menu at any time. If the host leaves, the longest-present player becomes host. The
+gear, top left, has the chat filter, sounds, How to Play, and (for the host) an early
+Back to Lobby. Chat opens with / or T.
 
-Each round, every player places one trap. Once everyone has placed, everyone runs at once
-with a single life. Your own nametag is white; everyone else's shows in the color they
-picked. A clock counts down in the corner; when it hits zero, anyone still running is out.
+Each round, every player is dealt one random trap (Spikes, Crumbler, Glue, or Bumper)
+and places it, or spends their one-per-course Eraser on someone else's trap instead. Once
+everyone has used their item, everyone runs at once with a single life. Your own nametag
+is white; everyone else's shows in the color they picked. A clock counts down in the
+corner; when it hits zero, anyone still running is out.
 
 The round ends when every runner has reached the flag, died, or run out of time. Each
 finisher scores a win (4 by default). If everyone dies, or everyone makes it, nobody
@@ -46,8 +50,10 @@ the top score wins. If two or more players qualify in the same round, or tie on 
 the cap, they fight a Final Battle: one more run on the current course, no build phase,
 everyone else watching. First to the flag gets 5, second 3, third 1, nobody else scores.
 If nobody finishes it runs again; after three Final Battles with no decision the tie is
-shared. The winner screen shows the final chart and the winner's name. The host's Back to
-Lobby button resets the scores and keeps everyone's colors and settings.
+shared. Before a Final Battle each fighter is dealt three weapons and picks one: Rocket
+Boots, Dash, Shield, Freeze Ray, Trap Bomb, or Feather (X, Shift, or the USE button
+fires it). The winner screen shows the final chart and the winner's name. The host's Back
+to Lobby button resets the scores and keeps everyone's colors and settings.
 
 Tap jump early before you land and it still counts. Let go of jump early for a shorter hop.
 
@@ -64,7 +70,9 @@ Tap jump early before you land and it still counts. Let go of jump early for a s
 
 - **Day 9:** Seven courses with their own looks (only one of them neon), dust under runners' feet, map voting in the lobby and before each course change, host-set point values, the Trailblazer burst, and a ten-second results screen where the bars grow one point source at a time.
 
-Coming up: weapons in the Final Battle, trap variety, sounds, polish.
+- **Day 10:** Fun fonts, How to Play, chat with a filter and a settings gear, sounds, three new trap kinds, the eraser, Final Battle weapons, then a reshuffle: a bare menu, host settings and the color picker inside the lobby, a ten-second course vote after Start, random trap per round, eraser as your item, angled bumpers, click-through chat, and a bubbly cursor.
+
+Coming up: polish and the parked bug list.
 
 ## What each file does
 
@@ -76,6 +84,8 @@ Coming up: weapons in the Final Battle, trap variety, sounds, polish.
 | `js/physics.js` | Gravity and rectangle collision, moves a body and pushes it out of walls |
 | `js/level.js` | Seven tile-grid courses with their color themes, ground, platforms, traps, start points, and flags |
 | `js/dust.js` | The puffs under runners' feet, visual only |
+| `js/audio.js` | Sound effects synthesized in the browser, no sound files |
+| `js/chatfilter.js` | The word list and the bleeping for the chat filter |
 | `js/player.js` | The runner: speed, jump height, coyote time, dying, finishing |
 | `js/main.js` | The game loop, online room UI, synchronization, and rendering |
 | `js/network.js` | WebSocket client for rooms and real-time game events |
