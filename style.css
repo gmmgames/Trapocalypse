@@ -249,6 +249,7 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 #hud { transition: opacity 0.2s ease; }
 
 /* The run clock turns bright red and pulses for the last 15 seconds */
+#hud-clock:not(:empty) { margin-left: 8px; }   /* a breath between the course name and the clock */
 #hud-clock.urgent {
   color: #ff2222;
   text-shadow: 0 0 12px rgba(255, 40, 40, 0.9);
