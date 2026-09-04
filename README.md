@@ -18,10 +18,10 @@ machine reachable by the other devices and have everyone open that machine's URL
 Enter your name and create a room, or press Join Room to pick from the list of open rooms
 (or type a private room's six-character code at the top). You also have a permanent
 six-character player ID at the bottom of the screen: give it to a friend and they can
-invite you straight into their room. Up to 24 can be in a room. Everyone lands in a lobby that lists who is here. The host sets the
+invite you straight into their room. Up to 30 can be in a room (the host can set a smaller limit). Everyone lands in a lobby that lists who is here. The host sets the
 match rules there (time limit per run, points to win, round cap, and what a win, a trap
 kill, and Trailblazer are worth; dropdowns have a Custom box for your own number) and can
-change them until the start. Pick a color from the 24-color palette; you can change it
+change them until the start. Pick a color from the 30-color palette; you can change it
 until the start, then it's yours for the whole match. Only the host can press Start Trap
 Apocalypse, and only once at least two players are in and everyone has a color. Start
 opens a ten-second vote on the first course. Leave Room, top right, takes you back to
@@ -122,9 +122,9 @@ Open `server.js` for the round rules, then restart the server:
 - `ITEM_WEIGHTS` is how often each item card turns up: traps 1 each, eraser 0.5, pencil 0.2, teleport ball 0.08. `PENCIL_CHARGES` (3) strokes per pencil, `PENCIL_MAX_BLOCKS` (8) squares per stroke.
 - `BAN_LENGTHS` are the host's ban options (5 min, 30 min, 2 h, 24 h, forever). Bans are per room and vanish when the room empties.
 - `AVATARS` lists the shapes; `SECRET_AVATARS` says what unlocks a hidden one. The drawings live in `drawAvatar` in `js/player.js`.
-- `MAX_PLAYERS` room size (24, one per palette color)
+- `MAX_PLAYERS` room size (30, one per palette color); the host can lower it per room with the Max players box (2-30)
 
-The 24 swatch colors live in `PALETTE` at the top of `js/main.js`.
+The 30 swatch colors live in `PALETTE` at the top of `js/main.js`.
 
 ## Putting it online
 

@@ -428,8 +428,10 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 
 #swatches {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);   /* 4 rows x 6 columns = 24 colors */
-  gap: 6px;
+  grid-template-columns: repeat(6, auto);   /* 5 rows x 6 columns = 30 colors */
+  gap: 10px;
+  justify-content: center;                  /* the grid hugs its swatches and sits centered */
+  justify-items: center;
 }
 
 .swatch {
@@ -981,6 +983,18 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   color: #ffd23c;
   font-weight: 700;
   font-family: inherit;
+}
+
+#copy-code {
+  justify-self: center;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 210, 60, 0.6);
+  border-radius: 4px;
+  background: transparent;
+  color: #ffd23c;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* ---------------- Host tools (kick / ban) ---------------- */

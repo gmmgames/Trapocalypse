@@ -30,8 +30,8 @@ const CONDOLENCE_POINTS = 4;       // "Condolence": a win after trailing everyon
 const CONDOLENCE_GAP = 10;
 const AUTONOMOUS_BONUS = 1;        // "Autonomous": the only one to reach the flag when 2+ ran
 const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no decision, the tie is shared
-const MAX_PLAYERS = 24;        // room size, one color each
-const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
+const MAX_PLAYERS = 30;        // room size, one color each
+const PALETTE_SIZE = 30;       // colors in the picker (5 rows x 6 columns, defined in main.js)
 const PLAYER_W = 22, PLAYER_H = 26;
 const TRAP_KINDS = ["spike", "crumble", "glue", "bumper", "spring", "ice", "decoy"];   // what a player may place (see js/level.js for what each does)
 const ERASERS_PER_COURSE = 1;  // erasers each player gets on every new course, to remove someone else's trap
@@ -45,8 +45,8 @@ const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 // --- match settings the host picks when creating a room ---
 // timeLimit is seconds per run, or null for Infinite.
 // The host can also set how much each kind of point is worth (defaults from the constants above).
-const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10], autonomousPoints: [0, 10] };
-const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, isPublic: true };
+const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10], autonomousPoints: [0, 10], maxPlayers: [2, MAX_PLAYERS] };
+const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, maxPlayers: MAX_PLAYERS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
 // Ban lengths the host can pick, in minutes. The room forgets its bans when it empties.
@@ -55,7 +55,7 @@ function banLength(minutes) { return minutes >= 1440 ? "24 hours" : minutes >= 6
 function banLeft(until) { const minutes = Math.ceil((until - Date.now()) / 60000); return minutes >= 60 ? `${Math.ceil(minutes / 60)} hour${minutes >= 120 ? "s" : ""}` : `${minutes} minute${minutes === 1 ? "" : "s"}`; }
 const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "steamboat"];   // character models (drawn in js/player.js)
 const SECRET_AVATARS = { steamboat: (name) => /mouse/i.test(name || "") };   // easter egg: needs "mouse" in your name
-const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points" };
+const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points", maxPlayers: "Max players" };
 
 function roomCode() {
   let code;
@@ -128,10 +128,10 @@ function snapshot(room) {
 // The public rooms a player can browse and join: listed, not full, and not mid-match-over.
 function publicRoomList() {
   return [...rooms.values()]
-    .filter((room) => room.settings.isPublic && room.players.size < MAX_PLAYERS && room.players.size > 0)
+    .filter((room) => room.settings.isPublic && room.players.size < (room.settings.maxPlayers || MAX_PLAYERS) && room.players.size > 0)
     .map((room) => {
       const host = room.players.get(room.hostId);
-      return { code: room.code, host: host ? host.name : "?", players: room.players.size, max: MAX_PLAYERS, phase: room.phase, level: LEVELS[room.levelIndex].name };
+      return { code: room.code, host: host ? host.name : "?", players: room.players.size, max: room.settings.maxPlayers || MAX_PLAYERS, phase: room.phase, level: LEVELS[room.levelIndex].name };
     });
 }
 
@@ -584,7 +584,8 @@ webSocketServer.on("connection", (socket) => {
         return;
       }
       if (bannedUntil) room.bans.delete(socket.userId);
-      if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
+      const roomSize = room.settings.maxPlayers || MAX_PLAYERS;   // the host's limit
+      if (room.players.size >= roomSize) { send(socket, { type: "error", message: `That room is full (${roomSize} players).`, fatal: true }); return; }
       // In the lobby (or the course vote) you wait for the host. Joining mid-run means sitting this round out.
       const status = room.phase === "lobby" || room.phase === "vote" ? "waiting" : room.phase === "build" ? "building" : "out";
       const player = { id: crypto.randomUUID(), name: wantedName, socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };

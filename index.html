@@ -48,6 +48,8 @@
     <!-- The lobby: who is here, the match settings, and the host's start button. -->
     <div id="lobby" class="hidden">
       <strong id="lobby-title">ROOM ------</strong>
+      <!-- Copies the room code so it can be pasted to a friend. -->
+      <button id="copy-code" type="button">Copy code</button>
       <span id="lobby-settings"></span>
       <!-- The host's settings form and the color picker are moved in here by main.js while in the lobby. -->
       <div id="lobby-color"></div>
@@ -226,6 +228,7 @@
         <label>Kill <input id="set-kill" type="number" min="0" max="10" step="1" value="1"></label>
         <label>Trailblazer <input id="set-first" type="number" min="0" max="10" step="1" value="2"></label>
         <label>Autonomous <input id="set-autonomous" type="number" min="0" max="10" step="1" value="1"></label>
+        <label>Max players <input id="set-max-players" type="number" min="2" max="30" step="1" value="30"></label>
       </div>
       <label class="switch" id="public-row"><input id="set-public" type="checkbox" checked> Listed in the room list (untick for a private, code-only room)</label>
       <span id="settings-status"></span>

@@ -99,6 +99,7 @@ const PALETTE = [
   "#b4f03c", "#5cf05a", "#1fd68f", "#22e0c8", "#4df0ff", "#3cb4ff",
   "#4a7bff", "#6a5cff", "#9b5cff", "#c85cff", "#ff5cd6", "#ff7aa8",
   "#ffd6a8", "#c8ff9e", "#a8e8ff", "#d9b8ff", "#c0c0d8", "#8a6a4a",
+  "#f4f4ff", "#9aa83a", "#b3213f", "#2f4fa0", "#2e8b57", "#d2691e",   // row 5: white, olive, maroon, navy, forest, copper
 ];
 
 // Canvas text uses the same fonts as the page (see index.html). Bangers is for big shouty titles.
@@ -141,6 +142,7 @@ const SETTING_FIELDS = {
   killPoints:  { input: "set-kill",  min: 0, max: 10, label: "Trap kill points" },
   firstPoints: { input: "set-first", min: 0, max: 10, label: "Trailblazer points" },
   autonomousPoints: { input: "set-autonomous", min: 0, max: 10, label: "Autonomous points" },
+  maxPlayers:  { input: "set-max-players", min: 2, max: 30, label: "Max players" },
   isPublic:    { checkbox: "set-public", label: "Listed in the room list" },
 };
 for (const field of Object.values(SETTING_FIELDS)) {
@@ -356,7 +358,7 @@ const Game = {
     if (this.phase !== "lobby") return;
     const s = this.settings || {};
     lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
-    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}  •  Autonomous ${s.autonomousPoints ?? 1}  •  ${s.isPublic === false ? "Private room" : "Listed room"}`;
+    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}  •  Autonomous ${s.autonomousPoints ?? 1}  •  Up to ${s.maxPlayers ?? 30} players  •  ${s.isPublic === false ? "Private room" : "Listed room"}`;
     lobbyPlayers.replaceChildren(...this.players.map((player) => {
       const item = document.createElement("li");
       const dot = document.createElement("span");
@@ -1906,6 +1908,17 @@ startRunButton.addEventListener("click", () => {
 startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
 document.getElementById("test-match").addEventListener("click", () => Network.send({ type: "start_match", test: true }));
 leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
+// Copy the room code to the clipboard (with a fallback for browsers that refuse the clipboard API).
+document.getElementById("copy-code").addEventListener("click", async () => {
+  const button = document.getElementById("copy-code"), code = roomCodeInput.value;
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch (error) {
+    roomCodeInput.hidden = false; roomCodeInput.select(); document.execCommand("copy"); roomCodeInput.blur();
+  }
+  button.textContent = "Copied!";
+  setTimeout(() => { button.textContent = "Copy code"; }, 1500);
+});
 document.getElementById("test-course").addEventListener("change", (event) => { Network.send({ type: "test_course", level: Number(event.target.value) }); Game.hideSettings(); });
 document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));
 document.getElementById("ban-button").addEventListener("click", () => Network.send({ type: "ban", playerId: document.getElementById("kick-target").value, minutes: document.getElementById("ban-length").value }));
