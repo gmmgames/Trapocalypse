@@ -90,7 +90,7 @@ function overlaps(a, b) {
 
 function playerList(room) {
   return [...room.players.values()].map((player) => ({
-    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, pick: player.pick || null, pickSlot: player.pick ? player.pickSlot : null, avatar: player.avatar || "cube",
+    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, pick: player.pick || null, pickSlot: player.pick ? player.pickSlot : null, pencil: player.pencil || 0, avatar: player.avatar || "cube",
   }));
 }
 
@@ -417,7 +417,10 @@ function removePlayer(socket) {
 // picks one; while any offered item is still free, two players cannot pick the same one.
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
-const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5 };
+const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2 };
+const PENCIL_CHARGES = 3;        // strokes per pencil pick
+const PENCIL_SECONDS = 2.5;      // how long a sketched block lasts
+const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
 function drawItem() {
   let roll = Math.random() * Object.values(ITEM_WEIGHTS).reduce((sum, weight) => sum + weight, 0);
   for (const [item, weight] of Object.entries(ITEM_WEIGHTS)) { roll -= weight; if (roll < 0) return item; }
@@ -426,7 +429,8 @@ function drawItem() {
 function dealItems(room) {
   const count = Math.min(8, Math.max(2, room.players.size + 1));
   room.offer = Array.from({ length: count }, drawItem);
-  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; }
+  if (process.env.FORCE_ITEM) room.offer[0] = process.env.FORCE_ITEM;   // test hook: FORCE_ITEM=pencil node server.js
+  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; }
 }
 
 // Who holds which card (by card number, since two cards can show the same item).
@@ -706,6 +710,15 @@ webSocketServer.on("connection", (socket) => {
       if (problem) { send(socket, { type: "trap_rejected", message: problem }); return; }
       player.pick = room.offer[slot];
       player.pickSlot = slot;
+      if (player.pick === "pencil") {
+        // The pencil is used during the run, not placed now, so picking it is your build turn.
+        player.trapCount = TRAPS_PER_ROUND;
+        player.pencil = PENCIL_CHARGES;
+        broadcast(room, { type: "picks", picks: itemPicks(room) });
+        broadcast(room, { type: "pencil_taken", playerId: player.id, charges: PENCIL_CHARGES });
+        maybeStartRun(room);
+        return;
+      }
       broadcast(room, { type: "picks", picks: itemPicks(room) });
       return;
     }
@@ -731,6 +744,17 @@ webSocketServer.on("connection", (socket) => {
       } else {
         send(socket, { type: "trap_rejected", message: "You can't place a trap there." });
       }
+    }
+    // Pencil: sketch a few short-lived blocks to stand on, mid-run. The browser sends the
+    // squares it drew; the server trims, bounds-checks, spends a charge and tells everyone.
+    if (message.type === "draw_block" && room.phase === "run" && player.status === "running" && player.pencil > 0) {
+      const blocks = (Array.isArray(message.blocks) ? message.blocks : []).slice(0, PENCIL_MAX_BLOCKS)
+        .map((block) => ({ x: Math.round(Number(block.x) || 0), y: Math.round(Number(block.y) || 0), w: 15, h: 15 }))
+        .filter((block) => block.x >= 0 && block.x + block.w <= LEVEL_W && block.y >= 0 && block.y + block.h <= LEVEL_H);
+      if (!blocks.length) return;
+      player.pencil -= 1;
+      broadcast(room, { type: "drawn", by: player.id, blocks, seconds: PENCIL_SECONDS, left: player.pencil });
+      return;
     }
     if (message.type === "player_update" && room.phase === "run") {
       broadcast(room, { type: "player_update", playerId: player.id, x: Number(message.x) || 0, y: Number(message.y) || 0, alive: Boolean(message.alive), finished: Boolean(message.finished) });

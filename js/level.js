@@ -179,6 +179,7 @@ const Level = {
 
   scenery: [],          // title-screen decoration (stars, hills, trees...); empty on real courses
   sceneryId: 0,
+  drawn: [],            // pencil blocks: { x, y, w, h, until (performance.now() ms), color }
 
   load(index) {
     this.index = index;
@@ -190,6 +191,15 @@ const Level = {
     this.start = { ...level.start };
     this.flag = { ...level.flag };
     this.scenery = [];
+    this.drawn = [];
+  },
+
+  // Pencil blocks that still exist right now. Expired ones are dropped here, so the
+  // physics and the drawing always agree on what is solid.
+  drawnSolids() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (this.drawn.length) this.drawn = this.drawn.filter((block) => block.until > now);
+    return this.drawn;
   },
 
   // The title screen: a random little world to hop around in behind the menu.
@@ -312,6 +322,18 @@ const Level = {
     //   spring   a launch pad: land on it and fly upward
     //   ice      slippery: you keep sliding after you stop pushing
     //   decoy    looks exactly like spikes to everyone but its owner, and does nothing
+    // Pencil sketches: paper-white squares outlined in the drawer's color, fading out.
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    for (const block of this.drawnSolids()) {
+      ctx.globalAlpha = Math.min(1, (block.until - now) / 600);
+      ctx.fillStyle = "#f4f1e0";
+      ctx.fillRect(block.x, block.y, block.w, block.h);
+      ctx.strokeStyle = block.color || "#ffd23c";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(block.x + 1, block.y + 1, block.w - 2, block.h - 2);
+      ctx.globalAlpha = 1;
+    }
+
     for (const hazard of this.hazards) {
       if (hazard.kind === "crumble") { this.drawCrumbler(ctx, hazard, t); continue; }
       if (hazard.kind === "glue") { this.drawGlue(ctx, hazard); continue; }
@@ -356,6 +378,16 @@ const Level = {
     const box = { x: 0, y: 0, w: TILE, h: TILE };
     const t = this.theme;
     ctx.clearRect(0, 0, TILE, TILE);
+    if (item === "pencil") {
+      // A yellow pencil on the slant: pink eraser, wood tip, dark point.
+      ctx.save(); ctx.translate(15, 15); ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = "#ff8fb0"; ctx.fillRect(-14, -4, 5, 8);
+      ctx.fillStyle = "#ffd23c"; ctx.fillRect(-9, -4, 16, 8);
+      ctx.fillStyle = "#f0c9a0"; ctx.beginPath(); ctx.moveTo(7, -4); ctx.lineTo(14, 0); ctx.lineTo(7, 4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#0b0b14"; ctx.beginPath(); ctx.moveTo(11, -1.7); ctx.lineTo(14, 0); ctx.lineTo(11, 1.7); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      return;
+    }
     if (item === "eraser") {
       ctx.fillStyle = "#ff3c78";
       ctx.fillRect(3, 8, 24, 16);

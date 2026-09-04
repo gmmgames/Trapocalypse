@@ -102,7 +102,8 @@ const BURST_STYLE = {
   Autonomous:  { scale: 0.78, text: "Autonomous!" },
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil" };
+const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
 const GAIN_TEXT = {
@@ -236,6 +237,8 @@ const Game = {
   _runStartedAt: 0,     // wall-clock time the run began, so the countdown can't drift
   _runTimeLeft: null,   // seconds left, shown in the HUD
   _voteEndsAt: 0,       // wall-clock time the course vote closes
+  pencil: 0,            // pencil strokes you have left this run
+  _stroke: null,        // the stroke you are drawing right now: { blocks: [{x, y}] }
 
   start() {
     Level.loadTitle();
@@ -412,7 +415,7 @@ const Game = {
       Level.drawItemIcon(icon.getContext("2d"), item);
       const name = document.createElement("span");
       name.className = "item-name";
-      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : TRAP_NAMES[item];
+      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : TRAP_NAMES[item];
       const taker = document.createElement("span");
       taker.className = "item-taker";
       const takerId = Object.keys(this.picks).find((id) => this.picks[id] === slot && id !== Network.id);
@@ -426,6 +429,41 @@ const Game = {
       card.addEventListener("click", () => Network.send({ type: "pick_item", slot }));
       return card;
     }));
+  },
+
+  // --- pencil: hold the pointer during the run to sketch a short line of blocks ---
+  levelPoint(clientX, clientY) {
+    const bounds = canvas.getBoundingClientRect();
+    return { x: ((clientX - bounds.left) / bounds.width) * LEVEL_W, y: ((clientY - bounds.top) / bounds.height) * LEVEL_H };
+  },
+  // Returns true when the press started a stroke (so it is not a trap placement).
+  beginStroke(clientX, clientY) {
+    if (this.mode !== "online" || this.phase !== "run" || this.pencil <= 0 || !Player.alive || Player.finished) return false;
+    this._stroke = { blocks: [] };
+    this.extendStroke(clientX, clientY);
+    return true;
+  },
+  extendStroke(clientX, clientY) {
+    if (!this._stroke) return;
+    const point = this.levelPoint(clientX, clientY);
+    const block = { x: Math.floor(point.x / 15) * 15, y: Math.floor(point.y / 15) * 15 };   // half-tile squares
+    if (this._stroke.blocks.some((other) => other.x === block.x && other.y === block.y)) return;
+    if (Physics.overlaps({ ...block, w: 15, h: 15 }, Player)) return;   // never through yourself
+    this._stroke.blocks.push(block);
+    if (this._stroke.blocks.length >= PENCIL_MAX_BLOCKS) this.endStroke();   // the pencil runs dry mid-line
+  },
+  endStroke() {
+    if (!this._stroke) return;
+    const blocks = this._stroke.blocks;
+    this._stroke = null;
+    if (blocks.length) Network.send({ type: "draw_block", blocks });
+  },
+  drawStroke() {
+    if (!this._stroke) return;
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = "#f4f1e0";
+    for (const block of this._stroke.blocks) ctx.fillRect(block.x, block.y, 15, 15);
+    ctx.globalAlpha = 1;
   },
 
   // --- placing: put the item down, move it if you like, then confirm ---
@@ -454,6 +492,7 @@ const Game = {
   setPending(clientX, clientY) {
     if (this.phase !== "build" || this.mode !== "online") return;
     if (this.myColor === null) { this.say("Pick a color first.", 1.5); return; }
+    if (this.pick === "pencil") { this.say("You have the pencil: you sketch blocks during the run instead of placing now.", 2); return; }
     if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
     if (!this.pick) { this.say("Pick an item from the cards first.", 1.5); return; }
     if (!this.everyonePicked()) { this.say("Waiting for everyone to pick an item.", 1.5); return; }
@@ -840,6 +879,7 @@ const Game = {
     this.picks = {};
     for (const player of message.players) if (player.pick) this.picks[player.id] = player.pickSlot;
     this.pick = me ? me.pick || null : null;
+    this.pencil = me ? me.pencil || 0 : 0;
     this.pending = null;
     this.renderItems();
     startRunButton.classList.add("hidden");
@@ -919,6 +959,22 @@ const Game = {
       }
       this.renderAvatars();
     }
+    if (message.type === "pencil_taken") {
+      const who = this.players.find((player) => player.id === message.playerId);
+      if (who) who.trapCount = this.trapsPerRound;
+      if (message.playerId === Network.id) {
+        this.placements[0] = this.trapsPerRound; this.pencil = message.charges; this.pending = null;
+        Sfx.pickup();
+        this.say(`Pencil! During the run, hold the mouse (or a finger) to sketch blocks. ${message.charges} strokes.`, 4);
+      }
+      this.renderItems();
+    }
+    if (message.type === "drawn") {
+      const until = performance.now() + message.seconds * 1000;
+      for (const block of message.blocks) Level.drawn.push({ ...block, until, color: this.colorOf(message.by) });
+      if (message.by === Network.id) { this.pencil = message.left; this._stroke = null; }
+      Sfx.pickup();
+    }
     if (message.type === "trap_placed") {
       if (!Level.hazards.some((hazard) => hazard.x === message.trap.x && hazard.y === message.trap.y)) Level.hazards.push(message.trap);
       if (message.bomb) {
@@ -953,6 +1009,7 @@ const Game = {
       this.voteOpen = false;
       this.renderVote();
       Player.spawn();
+      Level.drawn = []; this._stroke = null;   // last run's pencil sketches are gone
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
       this.finalBattleIds = message.finalBattleIds || [];
@@ -1606,6 +1663,7 @@ const Game = {
     Player.draw(ctx);
     Confetti.draw(ctx);
     this.drawPending();
+    this.drawStroke();
     if (this.mode === "online" && Player.alive) {
       const me = this.players.find((player) => player.id === Network.id);
       this.drawNametag(Player.x, Player.y, me ? me.name : "You", "#ffffff");
@@ -1630,11 +1688,12 @@ const Game = {
       const showClock = this.phase === "run" && this._runTimeLeft !== null;
       const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
+      const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
       hudClock.classList.toggle("urgent", showClock && this._runTimeLeft <= 15);
-      hudTail.textContent = `${weapon}  •  ${this.message}`;
+      hudTail.textContent = `${weapon}${pencil}  •  ${this.message}`;
     } else {
       const progress = `LEVEL ${this.levelIndex + 1}/${LEVELS.length}  ${Level.name}`;
       hudText.textContent = this.complete ? `${progress}  •  COMPLETE` : `${progress}  •  ${this.message}`;
@@ -1765,9 +1824,16 @@ window.addEventListener("keydown", (event) => {
 Game.loadPreferences();
 // Tap the course to set your item down; drag to move it; ✓ or E to confirm; ✕ or Escape to cancel.
 let pointerHeld = false;
-canvas.addEventListener("pointerdown", (event) => { pointerHeld = true; Game.setPending(event.clientX, event.clientY); Game.placeTrap(event.clientX, event.clientY); });
-canvas.addEventListener("pointermove", (event) => { if (pointerHeld && Game.pending) Game.setPending(event.clientX, event.clientY); });
-window.addEventListener("pointerup", () => { pointerHeld = false; });
+canvas.addEventListener("pointerdown", (event) => {
+  pointerHeld = true;
+  if (Game.beginStroke(event.clientX, event.clientY)) return;   // pencil in hand during a run
+  Game.setPending(event.clientX, event.clientY); Game.placeTrap(event.clientX, event.clientY);
+});
+canvas.addEventListener("pointermove", (event) => {
+  if (pointerHeld && Game._stroke) Game.extendStroke(event.clientX, event.clientY);
+  else if (pointerHeld && Game.pending) Game.setPending(event.clientX, event.clientY);
+});
+window.addEventListener("pointerup", () => { pointerHeld = false; Game.endStroke(); });
 document.getElementById("place-ok").addEventListener("click", () => Game.confirmPlacement());
 document.getElementById("place-cancel").addEventListener("click", () => Game.cancelPlacement());
 
