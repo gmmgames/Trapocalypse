@@ -191,7 +191,8 @@ function courseSize(room) {
 
 function trapBlocked(room, trap) {
   const level = levelsOf(room)[room.levelIndex];
-  const startBox = { x: level.start.x, y: level.start.y, w: PLAYER_W, h: PLAYER_H };
+  // Every spawn spot stays clear (some courses spread players along the floor).
+  const startBoxes = (level.starts || [level.start]).map((spot) => ({ x: spot.x, y: spot.y, w: PLAYER_W, h: PLAYER_H }));
   // Nothing within two tiles of the flag, so the finish can never be walled off.
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
@@ -213,7 +214,7 @@ function trapBlocked(room, trap) {
   // Ice sits on top of a block: never inside one, and there must be a block right under it.
   const below = { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 };
   const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !level.solids.some((solid) => overlaps(solid, below)));
-  return inWall || looseSpikes || looseGlue || badIce || overlaps(trap, flagZone) || overlaps(trap, startBox) ||
+  return inWall || looseSpikes || looseGlue || badIce || overlaps(trap, flagZone) || startBoxes.some((box) => overlaps(trap, box)) ||
     room.traps.some((item) => overlaps(item, trap));
 }
 

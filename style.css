@@ -1329,3 +1329,11 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 @media (orientation: portrait) {
   #rotate-hint { display: block; }
 }
+
+/* Fingers cannot hover, but on phones a tap "sticks" as a hover, so tapped buttons, swatches and
+   cards stayed enlarged. On touch screens nothing grows or squashes: every control keeps one size. */
+@media (hover: none) {
+  button:hover:not(:disabled), button:active:not(:disabled), .swatch:hover:not(:disabled), .map-btn:hover, .weapon-card:hover { transform: none; filter: none; }
+  .swatch.mine, .swatch.mine:hover { transform: scale(1.1); }
+  .item-card:hover:not(:disabled) { transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--tilt, 0deg)); }
+}

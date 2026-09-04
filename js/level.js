@@ -401,10 +401,11 @@ const LEVELS = [
   {
     // EVENT-EXCLUSIVE course (64 x 36 tiles, drawn at half size). Only reached through the
     // "Rising Lava" course event. Lava climbs from the floor during every run: keep going up.
-    // Ten rounds instead of five.
+    // Three rounds instead of five. Players spawn spread along the ground floor (one spot each,
+    // in join order, wrapping round if there are more players than spots).
     name: "Rising Lava",
     theme: THEMES.lava,
-    cols: 64, rows: 36, ee: true, rounds: 10,
+    cols: 64, rows: 36, ee: true, rounds: 3,
     lava: { top: 3 * TILE, seconds: 55 },
     solids: [
       tileRect(0, 34, 64, 2), tileRect(0, 8, 1, 26), tileRect(63, 8, 1, 26),
@@ -425,6 +426,7 @@ const LEVELS = [
     ],
     movers: [{ ...tileRect(12, 29, 3, 1), dx: 0, dy: -60, period: 3 }, { ...tileRect(21, 17, 3, 1), dx: 90, dy: 0, period: 4 }],
     start: { x: 2 * TILE, y: 34 * TILE - 26 },
+    starts: [2, 12, 22, 32, 42, 52, 60].map((col) => ({ x: col * TILE, y: 34 * TILE - 26 })),
     flag: tileRect(32, 2, 1, 2),
   },
   {
@@ -479,7 +481,8 @@ const Level = {
     this.theme = typeof level.theme === "string" ? THEMES[level.theme] || THEMES.neon : level.theme;   // custom courses name their theme
     this.solids = level.solids.map((solid) => ({ ...solid }));
     this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
-    this.start = { ...level.start };
+    this.starts = (level.starts || [level.start]).map((spot) => ({ ...spot }));
+    this.start = { ...this.starts[this.spawnSlot() % this.starts.length] };
     this.flag = { ...level.flag };
     this.scenery = [];
     this.drawn = [];
@@ -526,6 +529,12 @@ const Level = {
   },
 
   // A custom course from the editor (or a saved one): same shape as the built-ins, theme by name.
+  // Which of a course's spawn spots is mine: my place in the room's player list (0 when offline).
+  spawnSlot() {
+    if (typeof Game === "undefined" || typeof Network === "undefined" || !Game.players) return 0;
+    return Math.max(0, Game.players.findIndex((player) => player.id === Network.id));
+  },
+
   applyCustom(level) {
     this.index = -2;
     this.w = level.cols * TILE; this.h = level.rows * TILE;
@@ -533,7 +542,8 @@ const Level = {
     this.theme = THEMES[level.theme] || THEMES.neon;
     this.solids = level.solids.map((solid) => ({ ...solid }));
     this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
-    this.start = { ...level.start };
+    this.starts = (level.starts || [level.start]).map((spot) => ({ ...spot }));
+    this.start = { ...this.starts[this.spawnSlot() % this.starts.length] };
     this.flag = { ...level.flag };
     this.scenery = []; this.drawn = [];
     this.ee = false; this.lava = null; this.lavaRising = false;
