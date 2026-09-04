@@ -243,6 +243,7 @@ const Game = {
   inRoom: false,        // true from the first room update until you leave
   votes: {},            // playerId -> course index, from the server
   voteOpen: false,      // true on a results screen where the next course is being voted on
+  voteOptions: null,    // the three course indexes on offer in the current vote (null = all)
   winnerIds: [],        // who won, once the match is over
   finalBattleIds: [],   // who is fighting in the current Final Battle (empty = normal round)
   _finalBattleNext: null, // the round_over said a Final Battle is coming
@@ -1198,6 +1199,7 @@ const Game = {
     [...mapButtons.children].forEach((button, index) => {
       button.querySelector(".count").textContent = counts[index] ? `×${counts[index]}` : "";
       button.classList.toggle("mine", this.votes[Network.id] === index);
+      button.classList.toggle("hidden", Array.isArray(this.voteOptions) && !this.voteOptions.includes(index));   // only the offered three
     });
   },
 
@@ -1284,6 +1286,7 @@ const Game = {
     this.finalBattleIds = message.finalBattleIds || [];
     this.votes = message.votes || {};
     this.voteOpen = Boolean(message.voteOpen);
+    this.voteOptions = message.voteOptions || null;
     this.testMatch = Boolean(message.testMatch);
     this.levelIndex = message.levelIndex;
     this.players = message.players;
@@ -1633,6 +1636,7 @@ const Game = {
       this.weapons = {};
       this.votes = {};
       this.voteOpen = Boolean(message.voteOpen);
+    this.voteOptions = message.voteOptions || null;
       this.renderVote();
       this.renderWeaponPick();
       const iFinished = message.finishers.includes(Network.id);

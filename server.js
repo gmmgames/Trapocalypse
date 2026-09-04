@@ -118,6 +118,7 @@ function snapshot(room) {
     finalBattleIds: room.finalBattle ? room.finalBattle.ids : [],
     votes: room.votes,
     voteOpen: room.voteOpen,
+    voteOptions: room.voteOptions || null,
     offer: room.offer || [],
     testMatch: Boolean(room.testMatch),
     customLevels: room.customLevels || [],
@@ -401,6 +402,7 @@ function checkRoundOver(room) {
   // If the next round starts a new course, everyone votes on which one during the results.
   room.votes = {};
   room.voteOpen = decision.kind === "next" && room.round % ROUNDS_PER_LEVEL === 0;
+  room.voteOptions = room.voteOpen ? pickVoteOptions(room) : null;
   const timing = resultsDelay(room, gains);
 
   broadcast(room, {
@@ -418,6 +420,7 @@ function checkRoundOver(room) {
     finalBattle: decision.kind === "final" ? { ids: decision.ids, again: wasFinalBattle && finishers.length === 0 } : null,
     winnerPending: decision.kind === "winner" ? decision.ids : null,
     voteOpen: room.voteOpen,
+    voteOptions: room.voteOptions || null,
     weaponOffers,
   });
   const delay = timing.total * 1000;
@@ -427,11 +430,27 @@ function checkRoundOver(room) {
 }
 
 // The course with the most votes. Ties are settled at random; no votes means `fallback`.
+// Three random courses to vote between. The course just played is left out when there are
+// enough others, so the same few are not picked round after round.
+const VOTE_CHOICES = 3;
+function pickVoteOptions(room) {
+  const all = levelsOf(room).map((level, index) => index);
+  let pool = all.filter((index) => index !== room.levelIndex || room.phase === "lobby");
+  if (pool.length < VOTE_CHOICES) pool = all;
+  const options = [];
+  while (options.length < Math.min(VOTE_CHOICES, pool.length)) {
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (!options.includes(pick)) options.push(pick);
+  }
+  return options.sort((a, b) => a - b);
+}
+
 function pickVotedLevel(room, fallback) {
   const counts = new Array(levelsOf(room).length).fill(0);
   for (const level of Object.values(room.votes)) if (counts[level] !== undefined) counts[level] += 1;
   const top = Math.max(...counts);
-  if (top === 0) return fallback;
+  // Nobody voted: one of the offered courses at random (or the plain fallback if there was no offer).
+  if (top === 0) return room.voteOptions && room.voteOptions.length ? room.voteOptions[Math.floor(Math.random() * room.voteOptions.length)] : fallback;
   const tied = counts.map((count, index) => (count === top ? index : -1)).filter((index) => index >= 0);
   return tied[Math.floor(Math.random() * tied.length)];
 }
@@ -808,7 +827,7 @@ webSocketServer.on("connection", (socket) => {
       // A Test Match skips the vote: the host is alone, so it starts on the spot.
       if (room.testMatch) { room.phase = "vote"; room.votes = {}; room.voteOpen = false; clearTimeout(room.timer); beginMatch(room); return; }
       // First, everyone votes on the course for VOTE_SECONDS. Then the match begins.
-      room.phase = "vote"; room.votes = {}; room.voteOpen = true;
+      room.phase = "vote"; room.votes = {}; room.voteOpen = true; room.voteOptions = pickVoteOptions(room);
       for (const item of room.players.values()) item.status = "waiting";
       broadcast(room, { ...snapshot(room), type: "vote_start", seconds: VOTE_SECONDS });
       clearTimeout(room.timer);
@@ -868,7 +887,8 @@ webSocketServer.on("connection", (socket) => {
     if (message.type === "vote_map") {
       const level = Number(message.level);
       const open = room.phase === "vote" || (room.phase === "results" && room.voteOpen);
-      if (open && Number.isInteger(level) && level >= 0 && level < levelsOf(room).length) {
+      const offered = !room.voteOptions || room.voteOptions.includes(level);
+      if (open && offered && Number.isInteger(level) && level >= 0 && level < levelsOf(room).length) {
         room.votes[player.id] = level;
         broadcast(room, { type: "votes", votes: room.votes });
       }
