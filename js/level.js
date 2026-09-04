@@ -25,9 +25,9 @@ function tileRect(col, row, cols = 1, rows = 1) {
 //   dust      the puffs kicked up when a runner moves or lands
 // Random background decoration for the title screen, picked to suit the theme.
 function makeScenery(themeName) {
-  const daylight = ["meadow", "ocean", "candy"].includes(themeName);
+  const daylight = ["meadow", "ocean", "candy", "dune"].includes(themeName);
   const items = [];
-  if (!daylight) for (let i = 0; i < 45; i++) items.push({ kind: "star", x: Math.random() * LEVEL_W, y: Math.random() * LEVEL_H * 0.65, r: 0.6 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
+  if (!daylight && themeName !== "storm") for (let i = 0; i < 45; i++) items.push({ kind: "star", x: Math.random() * LEVEL_W, y: Math.random() * LEVEL_H * 0.65, r: 0.6 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
   items.push({ kind: daylight ? "sun" : "moon", x: 80 + Math.random() * (LEVEL_W - 160), y: 50 + Math.random() * 80, r: 18 + Math.random() * 10, tint: themeName === "lava" ? "#ff5a3c" : null });
   if (daylight || themeName === "frost") for (let i = 0; i < 4; i++) items.push({ kind: "cloud", x: Math.random() * LEVEL_W, y: 40 + Math.random() * 150, w: 60 + Math.random() * 60, speed: 6 + Math.random() * 10, pink: themeName === "candy" });
   if (themeName === "midnight") {
@@ -42,6 +42,27 @@ function makeScenery(themeName) {
     items.push({ kind: "volcano", x: 200 + Math.random() * (LEVEL_W - 400), w: 260 + Math.random() * 120, h: 160 + Math.random() * 80 });
     for (let i = 0; i < 26; i++) items.push({ kind: "ember", x: Math.random() * LEVEL_W, speed: 18 + Math.random() * 30, phase: Math.random() * 100, r: 1 + Math.random() * 1.6 });
     items.push({ kind: "hills", layer: 1, seed: Math.random() * 100 });
+  } else if (themeName === "storm") {
+    // Rain falling through a dark sky, with the whole thing lighting up now and then.
+    for (let i = 0; i < 4; i++) items.push({ kind: "cloud", x: Math.random() * LEVEL_W, y: 30 + Math.random() * 90, w: 90 + Math.random() * 70, speed: 14 + Math.random() * 12, dark: true });
+    for (let i = 0; i < 70; i++) items.push({ kind: "rain", x: Math.random() * LEVEL_W, y: Math.random() * LEVEL_H, len: 8 + Math.random() * 10, speed: 420 + Math.random() * 260 });
+    items.push({ kind: "hills", layer: 1, seed: Math.random() * 100 });
+    items.push({ kind: "lightning", period: 4 + Math.random() * 5, offset: Math.random() * 5 });
+  } else if (themeName === "swamp") {
+    // Fireflies drifting between hanging vines, with mist rolling across.
+    items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
+    for (let i = 0; i < 7; i++) items.push({ kind: "vine", x: 30 + Math.random() * (LEVEL_W - 60), len: 60 + Math.random() * 150, phase: Math.random() * 6 });
+    for (let i = 0; i < 3; i++) items.push({ kind: "mist", y: 250 + i * 70, speed: 5 + Math.random() * 8, seed: Math.random() * 300 });
+    for (let i = 0; i < 22; i++) items.push({ kind: "firefly", x: Math.random() * LEVEL_W, y: 120 + Math.random() * 320, r: 1.2 + Math.random() * 1.6, phase: Math.random() * 100, drift: 8 + Math.random() * 14 });
+  } else if (themeName === "dune") {
+    // A pyramid over rolling sand, with the wind streaming past.
+    items.push({ kind: "pyramid", x: 140 + Math.random() * (LEVEL_W - 280), w: 200 + Math.random() * 140, h: 130 + Math.random() * 70 });
+    items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
+    for (let i = 0; i < 30; i++) items.push({ kind: "sandwind", x: Math.random() * LEVEL_W, y: 110 + Math.random() * 330, len: 14 + Math.random() * 26, speed: 40 + Math.random() * 60, phase: Math.random() * 100 });
+  } else if (themeName === "aurora") {
+    // Curtains of light swaying over a frozen ridge.
+    for (let i = 0; i < 4; i++) items.push({ kind: "aurora", x: 60 + i * (LEVEL_W / 4) + Math.random() * 60, w: 130 + Math.random() * 120, hue: 140 + Math.random() * 140, phase: Math.random() * 100, speed: 0.25 + Math.random() * 0.3 });
+    items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
   } else if (themeName === "candy") {
     items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
     for (let i = 0; i < 6; i++) items.push({ kind: "lollipop", x: 20 + Math.random() * (LEVEL_W - 40), h: 40 + Math.random() * 60, hue: Math.random() * 360 });
@@ -64,6 +85,10 @@ const THEMES = {
   midnight: { bg: "#070b1a", grid: "rgba(120,140,255,0.05)", solid: "#1a2040", solidTop: "#ffd23c", spike: "#ff8fb0", spikeBase: "#ffd6e6", pole: "#ffffff", dust: "rgba(200,200,255,0.6)" },
   ocean:  { bg: "#8fd3ff", grid: "rgba(0,60,120,0.05)",     solid: "#c9a56a", solidTop: "#ffe9b8", spike: "#2f4fa0", spikeBase: "#a8c8ff", pole: "#2f4fa0", dust: "rgba(255,240,200,0.7)" },
   lava:   { bg: "#1a0606", grid: "rgba(255,90,60,0.06)",    solid: "#3d1a14", solidTop: "#ff8c1a", spike: "#ffd23c", spikeBase: "#fff0b0", pole: "#ffe9b8", dust: "rgba(255,150,80,0.6)" },
+  storm:  { bg: "#0d1220", grid: "rgba(180,200,255,0.05)", solid: "#232c42", solidTop: "#9fd8ff", spike: "#ffe066", spikeBase: "#fff3b0", pole: "#ffffff", dust: "rgba(190,210,255,0.6)" },
+  swamp:  { bg: "#0d1a12", grid: "rgba(120,255,170,0.05)", solid: "#22402c", solidTop: "#7ee08a", spike: "#c9f24a", spikeBase: "#e8ffb0", pole: "#dfffe8", dust: "rgba(150,220,170,0.5)" },
+  dune:   { bg: "#f0c27a", grid: "rgba(120,60,0,0.05)",    solid: "#8a5a2b", solidTop: "#ffd9a0", spike: "#4a2c10", spikeBase: "#8a5a2b", pole: "#4a2c10", dust: "rgba(255,220,170,0.8)" },
+  aurora: { bg: "#050a18", grid: "rgba(120,255,220,0.05)", solid: "#132437", solidTop: "#7cf5d0", spike: "#ff7ad9", spikeBase: "#ffd0f0", pole: "#eafff8", dust: "rgba(140,255,230,0.6)" },
   candy:  { bg: "#ffd6ec", grid: "rgba(160,60,120,0.06)",   solid: "#ff8fb0", solidTop: "#ffffff", spike: "#7b3fe4", spikeBase: "#d9b8ff", pole: "#7b3fe4", dust: "rgba(255,255,255,0.8)" },
 };
 
@@ -847,9 +872,65 @@ const Level = {
         ctx.fillStyle = "#ffffff"; ctx.fillRect(item.x - 2, groundY - item.h, 4, item.h);
         ctx.fillStyle = `hsl(${item.hue}, 90%, 70%)`; ctx.beginPath(); ctx.arc(item.x, groundY - item.h, 16, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(item.x, groundY - item.h, 9, 0.4, 3.6); ctx.stroke();
+      } else if (item.kind === "rain") {
+        const y = ((item.y + time * item.speed) % (LEVEL_H + 40)) - 20;
+        ctx.globalAlpha = 0.35; ctx.strokeStyle = "#bcd8ff"; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(item.x, y); ctx.lineTo(item.x - 3, y + item.len); ctx.stroke();
+      } else if (item.kind === "lightning") {
+        // The sky lights up for a moment, then a fainter afterglow.
+        const since = (time + item.offset) % item.period;
+        if (since < 0.18) {
+          ctx.globalAlpha = since < 0.06 ? 0.45 : 0.16;
+          ctx.fillStyle = "#cfe4ff";
+          ctx.fillRect(0, 0, LEVEL_W, LEVEL_H);
+        }
+      } else if (item.kind === "firefly") {
+        const x = item.x + Math.sin(time * 0.5 + item.phase) * item.drift;
+        const y = item.y + Math.cos(time * 0.37 + item.phase) * item.drift * 0.7;
+        ctx.globalAlpha = 0.3 + 0.45 * Math.sin(time * 3 + item.phase);
+        ctx.fillStyle = "#d8ff7a"; ctx.shadowColor = "#d8ff7a"; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(x, y, item.r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (item.kind === "vine") {
+        ctx.globalAlpha = 0.5; ctx.strokeStyle = t.solidTop; ctx.lineWidth = 3; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(item.x, 0);
+        for (let y = 0; y <= item.len; y += 12) ctx.lineTo(item.x + Math.sin(y * 0.06 + time * 0.6 + item.phase) * 7, y);
+        ctx.stroke();
+      } else if (item.kind === "mist") {
+        const x = ((item.seed + time * item.speed) % (LEVEL_W + 400)) - 200;
+        ctx.globalAlpha = 0.12; ctx.fillStyle = t.solidTop;
+        ctx.beginPath(); ctx.ellipse(x, item.y, 200, 22, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x - 340, item.y + 12, 170, 18, 0, 0, Math.PI * 2); ctx.fill();
+      } else if (item.kind === "pyramid") {
+        ctx.globalAlpha = 0.7; ctx.fillStyle = t.solid;
+        ctx.beginPath(); ctx.moveTo(item.x - item.w / 2, groundY); ctx.lineTo(item.x, groundY - item.h); ctx.lineTo(item.x + item.w / 2, groundY); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.3; ctx.fillStyle = t.solidTop;   // the lit face
+        ctx.beginPath(); ctx.moveTo(item.x, groundY - item.h); ctx.lineTo(item.x + item.w / 2, groundY); ctx.lineTo(item.x + item.w * 0.12, groundY); ctx.closePath(); ctx.fill();
+      } else if (item.kind === "sandwind") {
+        const x = ((item.x + time * item.speed) % (LEVEL_W + 120)) - 60;
+        const y = item.y + Math.sin(time * 1.4 + item.phase) * 6;
+        ctx.globalAlpha = 0.3; ctx.strokeStyle = "#fff0cf"; ctx.lineWidth = 2; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + item.len, y - 2); ctx.stroke();
+      } else if (item.kind === "aurora") {
+        // Three curtains of light per band, each swaying at its own pace.
+        for (let k = 0; k < 3; k++) {
+          const sway = Math.sin(time * item.speed + item.phase + k) * 26;
+          const colour = `hsla(${item.hue + k * 18}, 90%, 65%,`;
+          const grad = ctx.createLinearGradient(0, 20, 0, 320);
+          grad.addColorStop(0, colour + " 0)");
+          grad.addColorStop(0.45, colour + " 0.5)");
+          grad.addColorStop(1, colour + " 0)");
+          ctx.globalAlpha = 0.5; ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(item.x + sway - item.w / 2, 10);
+          ctx.lineTo(item.x + sway + item.w / 2, 10);
+          ctx.lineTo(item.x - sway + item.w / 3, 320);
+          ctx.lineTo(item.x - sway - item.w / 3, 320);
+          ctx.closePath(); ctx.fill();
+        }
       } else if (item.kind === "cloud") {
         const x = ((item.x + time * item.speed) % (LEVEL_W + 200)) - 100;
-        ctx.globalAlpha = 0.8; ctx.fillStyle = item.pink ? "#fff0f7" : "#ffffff";
+        ctx.globalAlpha = item.dark ? 0.9 : 0.8; ctx.fillStyle = item.dark ? "#2a3350" : item.pink ? "#fff0f7" : "#ffffff";
         for (const [dx, dy, r] of [[0, 0, item.w * 0.22], [item.w * 0.25, -item.w * 0.08, item.w * 0.28], [item.w * 0.5, 0, item.w * 0.2]]) {
           ctx.beginPath(); ctx.arc(x + dx, item.y + dy, r, 0, Math.PI * 2); ctx.fill();
         }
