@@ -698,6 +698,22 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   cursor: pointer;
 }
 
+#reset-me {
+  position: fixed;
+  top: 60px;
+  right: 18px;
+  z-index: 4;
+  padding: 6px 10px;
+  border: 1px solid #4df0ff;
+  border-radius: 4px;
+  background: rgba(22, 22, 37, 0.94);
+  color: #4df0ff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 #leave-room {
   position: fixed;
   top: 18px;

@@ -509,6 +509,20 @@ const Game = {
     }));
   },
 
+  // --- stuck? back to the start ---
+  _resetMeAt: 0,   // performance.now() of the last reset, for a short cooldown
+  canResetMe() { return this.mode === "online" && this.phase === "run" && Player.alive && !Player.finished; },
+  resetCharacter() {
+    if (!this.canResetMe()) return;
+    if (performance.now() - this._resetMeAt < 2000) { this.say("Give it a second.", 1); return; }
+    this._resetMeAt = performance.now();
+    Player.x = Level.start.x; Player.y = Level.start.y; Player.vx = 0; Player.vy = 0;
+    Player._immune = 0.5;
+    Dust.spawn(Player.x + Player.w / 2, Player.y + Player.h, 12, 20);
+    Sfx.boots();
+    this.say("Back to the start.", 1.5);
+  },
+
   // --- Teleport Ball: grab the orb by touching it, throw it, appear where it lands ---
   // The throw's speed for a given power (0..1): a lob at a tap, a long arc at full charge.
   throwVelocity(power) {
@@ -2238,6 +2252,7 @@ const Game = {
     hud.classList.toggle("hidden", this.mode === "solo" || this.mode === "editor");
     if (this.mode === "solo") buildHud.classList.add("hidden");   // never show a stale build box behind the menu
     document.getElementById("settings-button").classList.toggle("hidden", this.mode === "editor");   // the editor bar covers that corner
+    document.getElementById("reset-me").classList.toggle("hidden", !this.canResetMe());
     // Touch buttons only while there is something to run: the title world, or an online run.
     const running = this.mode === "solo" || this.phase === "run";
     document.body.classList.toggle("in-run", running);
@@ -2356,6 +2371,7 @@ document.getElementById("copy-code").addEventListener("click", async () => {
   setTimeout(() => { button.textContent = "Copy code"; }, 1500);
 });
 document.getElementById("test-course").addEventListener("change", (event) => { Network.send({ type: "test_course", level: Number(event.target.value) }); Game.hideSettings(); });
+document.getElementById("reset-me").addEventListener("click", () => Game.resetCharacter());
 document.getElementById("reset-room").addEventListener("click", () => { if (window.confirm("Reset the room? Everyone's score goes to zero and the settings go back to normal.")) Network.send({ type: "reset_room" }); });
 document.getElementById("add-courses").addEventListener("click", () => Network.send({ type: "custom_levels", levels: Editor.saved() }));
 document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));
@@ -2418,7 +2434,7 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); Game.hideInvite(); Game.hideRoomList(); Game.cancelPlacement(); }
   if ((event.key === "e" || event.key === "E") && Game.pending && !event.target.matches("input, textarea, select")) Game.confirmPlacement();
   if ((event.key === "q" || event.key === "Q") && !event.target.matches("input, textarea, select")) Game.rotateItem(-1);   // turn left
-  if ((event.key === "r" || event.key === "R") && !event.target.matches("input, textarea, select")) Game.rotateItem(1);    // turn right
+  if ((event.key === "r" || event.key === "R") && !event.target.matches("input, textarea, select")) { Game.rotateItem(1); Game.resetCharacter(); }   // build: turn right; run: back to the start
   // "/" or "T" opens the chat when you are in a room and not already typing somewhere.
   if ((event.key === "/" || event.key === "t" || event.key === "T") && Game.inRoom && !event.target.matches("input, textarea, select")) { chatInput.focus(); event.preventDefault(); }
 });
