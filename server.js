@@ -49,8 +49,17 @@ const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 // --- match settings the host picks when creating a room ---
 // timeLimit is seconds per run, or null for Infinite.
 // The host can also set how much each kind of point is worth (defaults from the constants above).
-const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10], autonomousPoints: [0, 10], maxPlayers: [2, MAX_PLAYERS] };
-const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, maxPlayers: MAX_PLAYERS, isPublic: true };
+// The build phase runs on two clocks: one to choose an item, then a fresh one to put it down.
+// Anyone still choosing when the first runs out loses their turn. The host sets both in the lobby;
+// PICK_SECONDS, PLACE_SECONDS or BUILD_SECONDS in the environment override them (a test hook).
+const PICK_SECONDS = Number(process.env.PICK_SECONDS) || Number(process.env.BUILD_SECONDS) || 20;
+const PLACE_SECONDS = Number(process.env.PLACE_SECONDS) || Number(process.env.BUILD_SECONDS) || 20;
+const FORCED_CLOCKS = Boolean(process.env.PICK_SECONDS || process.env.PLACE_SECONDS || process.env.BUILD_SECONDS);
+function pickSecondsFor(room) { return FORCED_CLOCKS ? PICK_SECONDS : room.settings.pickSeconds || PICK_SECONDS; }
+function placeSecondsFor(room) { return FORCED_CLOCKS ? PLACE_SECONDS : room.settings.placeSeconds || PLACE_SECONDS; }
+
+const SETTING_LIMITS = { timeLimit: [30, 600], pickSeconds: [5, 120], placeSeconds: [5, 180], pointsToWin: [15, 600], roundCap: [3, 60], winPoints: [1, 20], killPoints: [0, 10], firstPoints: [0, 10], autonomousPoints: [0, 10], maxPlayers: [2, MAX_PLAYERS] };
+const SETTING_DEFAULTS = { timeLimit: 60, pickSeconds: PICK_SECONDS, placeSeconds: PLACE_SECONDS, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, autonomousPoints: AUTONOMOUS_BONUS, maxPlayers: MAX_PLAYERS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
 // Ban lengths the host can pick, in minutes. The room forgets its bans when it empties.
@@ -59,7 +68,7 @@ function banLength(minutes) { return minutes >= 1440 ? "24 hours" : minutes >= 6
 function banLeft(until) { const minutes = Math.ceil((until - Date.now()) / 60000); return minutes >= 60 ? `${Math.ceil(minutes / 60)} hour${minutes >= 120 ? "s" : ""}` : `${minutes} minute${minutes === 1 ? "" : "s"}`; }
 const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "frog", "penguin", "alien", "duck", "bear", "slime", "steamboat"];   // character models (drawn in js/player.js)
 const SECRET_AVATARS = { steamboat: (name) => /mouse/i.test(name || "") };   // easter egg: needs "mouse" in your name
-const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points", maxPlayers: "Max players" };
+const SETTING_LABELS = { timeLimit: "Time limit", pickSeconds: "Pick time", placeSeconds: "Place time", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points", maxPlayers: "Max players" };
 
 function roomCode() {
   let code;
@@ -553,10 +562,6 @@ const ITEM_WEIGHTS = {
 };
 const PICKUP_KINDS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // placed in the build phase, collected by touch during the run
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
-// The build phase runs on two clocks: one to choose an item, then a fresh one to put it down.
-// Anyone still choosing when the first runs out loses their turn. BUILD_SECONDS sets both (a test hook).
-const PICK_SECONDS = Number(process.env.PICK_SECONDS) || Number(process.env.BUILD_SECONDS) || 15;
-const PLACE_SECONDS = Number(process.env.PLACE_SECONDS) || Number(process.env.BUILD_SECONDS) || 20;
 const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
 const EVENT_CHANCE = 0.12;         // chance a normal round gets one (about one round in eight)
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
@@ -574,8 +579,9 @@ function dealItems(room) {
   // The build clock: when it runs out, anyone who has not placed loses their turn and the run starts.
   clearTimeout(room.buildTimer);
   room.buildStage = "pick";
-  room.buildEndsAt = Date.now() + PICK_SECONDS * 1000;
-  room.buildTimer = setTimeout(() => pickTimeUp(room), PICK_SECONDS * 1000);
+  const picking = pickSecondsFor(room);
+  room.buildEndsAt = Date.now() + picking * 1000;
+  room.buildTimer = setTimeout(() => pickTimeUp(room), picking * 1000);
   if (process.env.FORCE_ITEM) process.env.FORCE_ITEM.split(",").forEach((kind, slot) => { if (slot < room.offer.length) room.offer[slot] = kind; });   // test hook: FORCE_ITEM=pencil (or plank,spike to pin the first cards in order)
   for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = false; }
 }
@@ -609,8 +615,9 @@ function startPlacing(room) {
   if (room.phase !== "build" || room.buildStage === "place") return;
   room.buildStage = "place";
   clearTimeout(room.buildTimer);
-  room.buildEndsAt = Date.now() + PLACE_SECONDS * 1000;
-  room.buildTimer = setTimeout(() => buildTimeUp(room), PLACE_SECONDS * 1000);
+  const placing = placeSecondsFor(room);
+  room.buildEndsAt = Date.now() + placing * 1000;
+  room.buildTimer = setTimeout(() => buildTimeUp(room), placing * 1000);
   broadcast(room, snapshot(room));
 }
 
