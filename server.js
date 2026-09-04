@@ -591,7 +591,7 @@ function dealItems(room) {
   room.buildEndsAt = Date.now() + picking * 1000;
   room.buildTimer = setTimeout(() => pickTimeUp(room), picking * 1000);
   if (process.env.FORCE_ITEM) process.env.FORCE_ITEM.split(",").forEach((kind, slot) => { if (slot < room.offer.length) room.offer[slot] = kind; });   // test hook: FORCE_ITEM=pencil (or plank,spike to pin the first cards in order)
-  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = false; }
+  for (const player of room.players.values()) { player.pick = null; player.pickSlot = null; player.pencil = 0; player.portal = 0; }
 }
 
 // Who holds which card (by card number, since two cards can show the same item).
@@ -1110,14 +1110,14 @@ webSocketServer.on("connection", (socket) => {
       const orb = room.traps.find((trap) => PICKUP_KINDS.includes(trap.kind) && !trap.taken && trap.x === Number(message.x) && trap.y === Number(message.y));
       if (!orb) return;
       orb.taken = true;
-      if (orb.kind === "portal") player.portal = true;
+      if (orb.kind === "portal") player.portal = (player.portal || 0) + 1;   // two balls, two throws
       broadcast(room, { type: "picked_up", x: orb.x, y: orb.y, by: player.id, kind: orb.kind });
       return;
     }
     // ...then throw it. Everyone gets the same throw and simulates the same arc; the thrower
     // appears wherever it lands.
-    if (message.type === "portal_throw" && room.phase === "run" && player.status === "running" && player.portal) {
-      player.portal = false;
+    if (message.type === "portal_throw" && room.phase === "run" && player.status === "running" && player.portal > 0) {
+      player.portal -= 1;
       const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number(value) || 0));
       const { W, H } = courseSize(room);
       broadcast(room, { type: "portal_ball", by: player.id, x: clamp(message.x, 0, W), y: clamp(message.y, 0, H), vx: clamp(message.vx, -600, 600), vy: clamp(message.vy, -700, 700) });

@@ -279,8 +279,8 @@ const Game = {
   bat: false,           // carrying the Baseball Bat this run
   _swing: 0,            // seconds left of the current swing
   buckler: 0,           // Shield item health left this run
-  revive: false,        // holding a Revive Heart
-  boots: false,         // Rocket Boots this run: one extra jump in mid-air
+  revive: 0,            // Revive Hearts held: each one is another life this run
+  boots: 0,             // Rocket Boots held: each pair is another mid-air jump per landing
   feather: false,       // Feather this run: floaty gravity
   speedshoes: false,    // Speed Shoes this run: 35% faster
   event: null,          // this round's random event (see EVENT_INFO), or null
@@ -366,7 +366,7 @@ const Game = {
     // Nothing from the old round may linger behind the menu: cards, ghost, bursts, balls, dialogs.
     buildHud.classList.add("hidden");
     this.offer = []; this.picks = {}; this.pick = null; this.pending = null; this.renderItems();
-    this._bursts = []; this._balls = []; this.pencil = 0; this.portal = false; this.testMatch = false; this._stroke = null;
+    this._bursts = []; this._balls = []; this.pencil = 0; this.portal = 0; this.testMatch = false; this._stroke = null;
     this.hideSettings();
     this.weaponOffer = []; this.myWeapon = null; this.weapons = {};
     Player.setWeapon(null);
@@ -542,7 +542,7 @@ const Game = {
     const power = Math.max(0.15, this._charge);
     this._charge = 0;
     if (!this.portal || this.phase !== "run" || !Player.alive || Player.finished) return;
-    this.portal = false;   // the server confirms with a portal_ball for everyone
+    this.portal = Math.max(0, this.portal - 1);   // one throw spent; the server confirms with a portal_ball
     const { vx, vy } = this.throwVelocity(power);
     Network.send({ type: "portal_throw", x: Player.x + Player.w / 2, y: Player.y + 6, vx, vy });
   },
@@ -1488,13 +1488,15 @@ const Game = {
       if (orb) orb.taken = true;
       const kind = message.kind || "portal";
       if (message.by === Network.id) {
-        if (kind === "heart") { this.revive = true; this.say("Revive Heart! If you die this run, you get one more go from the start.", 4); }
+        // Two of the same means two goes with it: throws, lives, shield hits and jumps add up.
+        // The bat, feather and shoes have no uses to count; they simply last the whole run.
+        if (kind === "heart") { this.revive += 1; this.say(this.revive > 1 ? `Another Revive Heart! ${this.revive} lives in hand.` : "Revive Heart! If you die this run, you get one more go from the start.", 4); }
         else if (kind === "bat") { this.bat = true; this.say("Baseball Bat! Press X / Shift (or USE) to knock thrown balls away.", 4); }
-        else if (kind === "buckler") { this.buckler = BUCKLER_HEALTH; this.say("Shield! It soaks two hits this run: spikes, or balls thrown at you.", 4); }
-        else if (kind === "boots") { this.boots = true; this.say("Rocket Boots! Jump again in mid-air, once per landing.", 4); }
+        else if (kind === "buckler") { this.buckler += BUCKLER_HEALTH; this.say(`Shield! It soaks ${this.buckler} hits this run: spikes, or balls thrown at you.`, 4); }
+        else if (kind === "boots") { this.boots += 1; this.say(this.boots > 1 ? `Another pair of Rocket Boots! ${this.boots} jumps in mid-air per landing.` : "Rocket Boots! Jump again in mid-air, once per landing.", 4); }
         else if (kind === "feather") { this.feather = true; this.say("Feather! You float: slower falls and longer jumps this run.", 4); }
         else if (kind === "speedshoes") { this.speedshoes = true; this.say("Speed Shoes! You run 35% faster this run.", 4); }
-        else { this.portal = true; this.say("Teleport Ball! Hold X / Shift (or USE) to aim and charge, let go to throw. You appear where it lands.", 4); }
+        else { this.portal += 1; this.say(this.portal > 1 ? `Another Teleport Ball! ${this.portal} throws in hand.` : "Teleport Ball! Hold X / Shift (or USE) to aim and charge, let go to throw. You appear where it lands.", 4); }
       } else this.say(`${this.nameOf(message.by)} grabbed the ${TRAP_NAMES[kind] || kind}!`, 2);
       Sfx.pickup();
     }
@@ -1511,7 +1513,7 @@ const Game = {
     }
     if (message.type === "portal_ball") {
       this._balls.push({ x: message.x, y: message.y, vx: message.vx, vy: message.vy, by: message.by, color: this.colorOf(message.by), trail: [] });
-      if (message.by === Network.id) this.portal = false;
+      // The thrower already counted this throw when they let go, so only the sound is left to do.
       Sfx.dash();
     }
     // Someone else batted or shielded a ball: send it the same way on this screen too.
@@ -1588,8 +1590,8 @@ const Game = {
       this.rotation = 0;
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
       Level.lavaRising = true;                 // on the Rising Lava course the flood begins now
-      this.portal = false; this._balls = []; this._charge = 0;
-      this.bat = false; this._swing = 0; this.buckler = 0; this.revive = false; this.boots = false; this.feather = false; this.speedshoes = false;
+      this.portal = 0; this._balls = []; this._charge = 0;
+      this.bat = false; this._swing = 0; this.buckler = 0; this.revive = 0; this.boots = 0; this.feather = false; this.speedshoes = false;
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
       this.finalBattleIds = message.finalBattleIds || [];
@@ -2388,9 +2390,9 @@ const Game = {
       const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
       const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
-      const portal = this.portal ? "  •  🔮 Teleport Ball: hold X / Shift to aim, let go to throw" : "";
+      const portal = this.portal ? `  •  🔮 Teleport Ball${this.portal > 1 ? " ×" + this.portal : ""}: hold X / Shift to aim, let go to throw` : "";
       const twist = this.event && this.phase === "run" ? `  •  ⚠ ${EVENT_INFO[this.event].title}` : "";
-      const carry = twist + (this.boots ? "  •  🚀 Boots" : "") + (this.feather ? "  •  🪶 Feather" : "") + (this.speedshoes ? "  •  👟 Speed Shoes" : "") + (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? "  •  💗 Revive ready" : "");
+      const carry = twist + (this.boots ? `  •  🚀 Boots${this.boots > 1 ? " ×" + this.boots : ""}` : "") + (this.feather ? "  •  🪶 Feather" : "") + (this.speedshoes ? "  •  👟 Speed Shoes" : "") + (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? `  •  💗 Revive${this.revive > 1 ? " ×" + this.revive : ""} ready` : "");
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";

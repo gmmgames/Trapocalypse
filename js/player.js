@@ -57,7 +57,7 @@ const Player = {
   weapon: null,
   weaponUsed: false,   // for the one-shot weapons
   gravityScale: 1,
-  _boots: false,       // extra jump still available
+  _boots: 0,           // mid-air jumps still available before landing again
   _dash: 0,            // seconds of dash left
   _dashCooldown: 0,
   _shield: false,
@@ -86,7 +86,7 @@ const Player = {
   setWeapon(weapon) {
     this.weapon = weapon;
     this.weaponUsed = false;
-    this._boots = weapon === "boots";
+    this._boots = weapon === "boots" ? 1 : 0;
     this._shield = weapon === "shield";
     this.gravityScale = weapon === "feather" ? 0.55 : 1;
   },
@@ -165,10 +165,10 @@ const Player = {
       this._shortHop = false;   // a tap is enough: the kick is never cut short
       Dust.spawn(this.x + (this._wallSide > 0 ? this.w : 0), this.y + this.h * 0.7, 6, 8);
       Sfx.jump();
-    } else if (Input.jumpPressed && this._boots && !this.onGround && this._coyote <= 0) {
+    } else if (Input.jumpPressed && this._boots > 0 && !this.onGround && this._coyote <= 0) {
       // Rocket Boots: one more jump from thin air. A tap gives the full boost.
       this.vy = -this.JUMP_SPEED * 0.9;
-      this._boots = false;
+      this._boots -= 1;
       this._shortHop = false;
       Dust.spawn(this.x + this.w / 2, this.y + this.h, 8, 20);
       Sfx.boots();
@@ -189,7 +189,9 @@ const Player = {
         Sfx.crumble();
       }
     }
-    if (this.onGround && (this.weapon === "boots" || (typeof Game !== "undefined" && Game.boots))) this._boots = true;   // the extra jump comes back when you land
+    // Landing refills the mid-air jumps: one for the Final Battle boots, one per pair picked up.
+    const spareJumps = (this.weapon === "boots" ? 1 : 0) + (typeof Game !== "undefined" ? Number(Game.boots) || 0 : 0);
+    if (this.onGround && spareJumps > 0) this._boots = spareJumps;
 
     // Let go of jump early = shorter hop. Feels much better than fixed jumps.
     if (this._shortHop && !Input.jump && this.vy < -200 && this._dash <= 0) this.vy = -200;
@@ -275,14 +277,14 @@ const Player = {
           Game.say(Game.buckler > 0 ? `Shield took the hit! ${Game.buckler} left` : "Shield broke!", 1.5);
           break;
         }
-        if (typeof Game !== "undefined" && Game.revive) {
-          // The Revive Heart: one more life, back at the start.
-          Game.revive = false;
+        if (typeof Game !== "undefined" && Game.revive > 0) {
+          // A Revive Heart: one more life, back at the start. Two hearts, two more lives.
+          Game.revive -= 1;
           this.x = Level.start.x; this.y = Level.start.y; this.vx = 0; this.vy = 0;
           this._immune = 1.0;
           Sfx.boots();
           Dust.spawn(this.x + this.w / 2, this.y + this.h, 14, 24);
-          Game.say("Second chance! The heart brought you back.", 2.5);
+          Game.say(Game.revive > 0 ? `Second chance! ${Game.revive} more in hand.` : "Second chance! The heart brought you back.", 2.5);
           break;
         }
         this.die(hazard);   // pass the spike along so its owner can get credit
@@ -292,8 +294,8 @@ const Player = {
 
     // Rising lava: touching it is the end (a Revive Heart still brings you back).
     if (Level.lava && this._immune <= 0 && this.y + this.h - 3 > Level.lavaY()) {
-      if (typeof Game !== "undefined" && Game.revive) {
-        Game.revive = false;
+      if (typeof Game !== "undefined" && Game.revive > 0) {
+        Game.revive -= 1;
         this.x = Level.start.x; this.y = Level.start.y; this.vx = 0; this.vy = 0; this._immune = 1.0;
         Sfx.boots(); Game.say("Second chance! The heart pulled you out of the lava.", 2.5);
       } else { this.die(null); return; }
