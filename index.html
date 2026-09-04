@@ -43,6 +43,8 @@
     <div id="lobby" class="hidden">
       <strong id="lobby-title">ROOM ------</strong>
       <span id="lobby-settings"></span>
+      <!-- The host's settings form and the color picker are moved in here by main.js while in the lobby. -->
+      <div id="lobby-color"></div>
       <!-- Course vote. main.js fills in one button per course. It also moves to the results screen when a new course is coming. -->
       <div id="map-vote" class="hidden">
         <span id="map-vote-title">Vote for the course</span>
@@ -77,20 +79,22 @@
       <strong>SETTINGS</strong>
       <label class="switch"><input id="chat-filter" type="checkbox" checked> Chat filter (bleep rude words on my screen)</label>
       <label class="switch"><input id="sounds-toggle" type="checkbox" checked> Sounds</label>
+      <button id="settings-help" type="button">How to Play</button>
       <button id="settings-back-to-lobby" type="button" class="hidden">Back to Lobby (ends the match)</button>
       <span id="settings-note"></span>
       <button id="settings-close" type="button">Close</button>
     </div>
   </div>
 
-  <!-- Chat, bottom left, while you are in a room. Enter to start typing, Enter again to send. -->
+  <!-- Chat, bottom left, while you are in a room. / or T to start typing, Enter to send.
+       The log is see-through and clicks pass through it to the course; only the box and the minimize button catch clicks. -->
   <div id="chat" class="hidden">
+    <button id="chat-toggle" type="button" aria-label="Minimize chat">Chat −</button>
     <div id="chat-log" aria-live="polite"></div>
-    <input id="chat-input" maxlength="140" placeholder="Press Enter to chat" aria-label="Chat message">
+    <input id="chat-input" maxlength="140" placeholder="Press / or T to chat" aria-label="Chat message">
   </div>
 
-  <!-- How to Play: always available, bottom right. main.js fills in the point values. -->
-  <button id="help-button" type="button" aria-label="How to play">? How to Play</button>
+  <!-- How to Play: opened from the menu, or from the settings gear during a match. main.js fills in the point values. -->
   <div id="help" class="hidden" role="dialog" aria-label="How to play">
     <div id="help-box">
       <strong>HOW TO PLAY</strong>
@@ -111,12 +115,20 @@
     </div>
   </div>
 
-  <section id="online-panel" aria-label="Online multiplayer">
-    <strong>ONLINE RUN</strong>
+  <section id="online-panel" aria-label="Main menu">
+    <strong id="menu-title">TRAPOCALYPSE</strong>
     <input id="player-name" maxlength="18" placeholder="Your name" aria-label="Your name">
     <input id="room-code" maxlength="6" placeholder="Room code" aria-label="Room code">
-    <!-- Match settings. Only used by Create Room; the host picks them once for the whole match. -->
-    <fieldset id="match-settings">
+    <div>
+      <button id="create-room" type="button">Create Room</button>
+      <button id="join-room" type="button">Join Room</button>
+    </div>
+    <button id="menu-help" type="button">How to Play</button>
+    <span id="online-status">Create a room or join a friend.</span>
+  </section>
+
+  <!-- Match settings. Lives in the lobby, host only; the host can change them until the match starts. -->
+  <fieldset id="match-settings" class="hidden">
       <legend>Match settings (host)</legend>
       <label>Time limit
         <select id="set-time">
@@ -147,13 +159,8 @@
         <label>Kill <input id="set-kill" type="number" min="0" max="10" step="1" value="1"></label>
         <label>Trailblazer <input id="set-first" type="number" min="0" max="10" step="1" value="2"></label>
       </div>
+      <span id="settings-status"></span>
     </fieldset>
-    <div>
-      <button id="create-room" type="button">Create Room</button>
-      <button id="join-room" type="button">Join Room</button>
-    </div>
-    <span id="online-status">Create a room or join a friend.</span>
-  </section>
 
   <!-- Touch buttons. CSS hides these on devices that have a mouse and keyboard. -->
   <div id="touch-controls">

@@ -93,6 +93,21 @@ for (const field of Object.values(SETTING_FIELDS)) {
   select.addEventListener("change", () => custom.classList.toggle("hidden", select.value !== "custom"));
 }
 
+// Put the room's current settings into the form (used when you are, or become, the host).
+function fillSettingsForm(settings) {
+  if (!settings) return;
+  for (const [key, field] of Object.entries(SETTING_FIELDS)) {
+    const value = settings[key] === null ? "null" : String(settings[key]);
+    if (field.input) { document.getElementById(field.input).value = value; continue; }
+    const select = document.getElementById(field.select);
+    const custom = document.getElementById(field.custom);
+    const preset = [...select.options].some((option) => option.value === value);
+    select.value = preset ? value : "custom";
+    custom.classList.toggle("hidden", preset);
+    if (!preset) custom.value = value;
+  }
+}
+
 // Read the settings. Returns null (and says why) if a value is out of range.
 function readSettings() {
   const settings = {};
@@ -106,13 +121,21 @@ function readSettings() {
     if (text === "null") { settings[key] = null; continue; }   // Infinite time limit
     const n = Number(text);
     if (text.trim() === "" || !Number.isInteger(n) || n < field.min || n > field.max) {
-      onlineStatus.textContent = `${field.label} must be between ${field.min} and ${field.max}.`;
+      document.getElementById("settings-status").textContent = `${field.label} must be between ${field.min} and ${field.max}.`;
       return null;
     }
     settings[key] = n;
   }
+  document.getElementById("settings-status").textContent = "";
   return settings;
 }
+
+// The host changed something in the lobby form: check it and send it to the server.
+function sendSettings() {
+  const settings = readSettings();
+  if (settings) Network.send({ type: "update_settings", settings });
+}
+document.getElementById("match-settings").addEventListener("change", sendSettings);
 
 const Game = {
   // Day 1 only has one thing to do: run. Later days add
@@ -234,6 +257,7 @@ const Game = {
     this.weaponOffer = []; this.myWeapon = null; this.weapons = {};
     Player.setWeapon(null);
     onlinePanel.classList.remove("hidden");
+    document.getElementById("match-settings").classList.add("hidden");
     onlineStatus.textContent = statusText;
     roomCodeInput.value = "";
     this.say("Left the room.", 2);
@@ -246,6 +270,14 @@ const Game = {
     chatBox.classList.toggle("hidden", !this.inRoom);
     lobby.classList.toggle("hidden", this.phase !== "lobby");
     const isHost = Network.id === this.hostId;
+    // The settings form lives in the lobby and only the host sees it.
+    const settingsForm = document.getElementById("match-settings");
+    const showForm = this.phase === "lobby" && isHost;
+    settingsForm.classList.toggle("hidden", !showForm);
+    if (showForm) {
+      if (settingsForm.parentElement !== lobby) lobby.insertBefore(settingsForm, document.getElementById("lobby-color"));
+      if (document.activeElement === null || !settingsForm.contains(document.activeElement)) fillSettingsForm(this.settings);
+    }
     // Winner screen: only the host gets the button, everyone else waits.
     winnerHud.classList.toggle("hidden", this.phase !== "winner");
     backToLobbyButton.classList.toggle("hidden", !isHost);
@@ -268,6 +300,7 @@ const Game = {
     else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players";
     else if (this.players.some((player) => player.color === null)) lobbyNote.textContent = "Waiting for everyone to pick a color";
     else lobbyNote.textContent = "";
+    this.refreshSwatches();
   },
 
   // --- color picker ---
@@ -458,18 +491,30 @@ const Game = {
 
   refreshSwatches() {
     const taken = new Set(this.players.filter((player) => player.id !== Network.id && player.color !== null).map((player) => player.color));
-    [...swatchGrid.children].forEach((button, index) => { button.disabled = taken.has(index); });
+    [...swatchGrid.children].forEach((button, index) => {
+      button.disabled = taken.has(index);
+      button.classList.toggle("mine", this.myColor === index);
+    });
   },
 
+  // In the lobby the picker sits inside the lobby box and stays open, so you can change
+  // your mind. Anywhere else (joining mid-match) it is the overlay, shown until you pick.
   showColorPicker() {
     this.refreshSwatches();
     colorPicker.classList.remove("hidden");
-    buildHud.classList.add("hidden");
+    if (this.phase !== "lobby") buildHud.classList.add("hidden");
   },
 
   hideColorPicker() {
+    if (this.phase === "lobby") return;   // stays open in the lobby
     colorPicker.classList.add("hidden");
     if (this.phase === "build") buildHud.classList.remove("hidden");
+  },
+
+  placeColorPicker() {
+    const lobbyColor = document.getElementById("lobby-color");
+    if (this.phase === "lobby") { if (colorPicker.parentElement !== lobbyColor) lobbyColor.appendChild(colorPicker); }
+    else if (colorPicker.parentElement !== gameWrap) gameWrap.appendChild(colorPicker);
   },
 
   colorOf(playerId) {
@@ -518,8 +563,9 @@ const Game = {
     this.renderEraserCount();
     if (this.trapKind === "eraser") this.setTrapKind("spike");   // start each build with a real trap selected
     startRunButton.classList.add("hidden");
-    // The picker only shows until you have a color. After that it stays away for good.
-    if (this.myColor === null) this.showColorPicker();
+    // In the lobby the picker is always open. Elsewhere it only shows until you have a color.
+    this.placeColorPicker();
+    if (this.phase === "lobby" || this.myColor === null) this.showColorPicker();
     else if (this.phase === "build") this.hideColorPicker();
     else { colorPicker.classList.add("hidden"); buildHud.classList.add("hidden"); }
   },
@@ -565,7 +611,7 @@ const Game = {
         this.myColor = message.color;
         Player.color = PALETTE[message.color];
         this.hideColorPicker();
-        this.say(this.phase === "lobby" ? "Color picked. Waiting in the lobby." : "Now tap the level to place your trap.", 3);
+        this.say(this.phase === "lobby" ? "Color picked. You can still change it before the start." : "Now tap the level to place your trap.", 3);
       }
       this.refreshSwatches();
       this.renderRoom();
@@ -1153,12 +1199,11 @@ const Game = {
 
 Network.onMessage = (message) => Game.onNetworkMessage(message);
 createRoomButton.addEventListener("click", () => {
-  const settings = readSettings();
-  if (!settings) return;   // a setting is out of range; the message is already on screen
   const name = playerNameInput.value.trim() || "Runner";
   Game.startOnline();
-  Network.connect(name, "", settings);
+  Network.connect(name);   // the room starts with default settings; the host adjusts them in the lobby
 });
+document.getElementById("menu-help").addEventListener("click", () => Game.showHelp());
 joinRoomButton.addEventListener("click", () => {
   const name = playerNameInput.value.trim() || "Runner";
   const code = roomCodeInput.value.trim();
@@ -1172,8 +1217,14 @@ startRunButton.addEventListener("click", () => {
 startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
 leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
-document.getElementById("help-button").addEventListener("click", () => Game.showHelp());
+document.getElementById("settings-help").addEventListener("click", () => { Game.hideSettings(); Game.showHelp(); });
 document.getElementById("help-close").addEventListener("click", () => Game.hideHelp());
+document.getElementById("chat-toggle").addEventListener("click", () => {
+  const minimized = chatBox.classList.toggle("minimized");
+  document.getElementById("chat-toggle").textContent = minimized ? "Chat +" : "Chat −";
+  try { localStorage.setItem("trapocalypse.chatMin", minimized ? "1" : "0"); } catch (error) { /* ignore */ }
+});
+try { if (localStorage.getItem("trapocalypse.chatMin") === "1") { chatBox.classList.add("minimized"); document.getElementById("chat-toggle").textContent = "Chat +"; } } catch (error) { /* ignore */ }
 helpPanel.addEventListener("click", (event) => { if (event.target === helpPanel) Game.hideHelp(); });   // click outside the box
 document.getElementById("settings-button").addEventListener("click", () => Game.showSettings());
 document.getElementById("settings-close").addEventListener("click", () => Game.hideSettings());
@@ -1191,8 +1242,8 @@ const TRAP_KEYS = { "1": "spike", "2": "crumble", "3": "glue", "4": "bumper", "5
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { Game.hideHelp(); Game.hideSettings(); }
   if (TRAP_KEYS[event.key] && Game.phase === "build" && !event.target.matches("input, textarea, select")) Game.setTrapKind(TRAP_KEYS[event.key]);
-  // Enter opens the chat when you are in a room and not already typing somewhere.
-  if (event.key === "Enter" && Game.inRoom && !event.target.matches("input, textarea, select, button")) { chatInput.focus(); event.preventDefault(); }
+  // "/" or "T" opens the chat when you are in a room and not already typing somewhere.
+  if ((event.key === "/" || event.key === "t" || event.key === "T") && Game.inRoom && !event.target.matches("input, textarea, select")) { chatInput.focus(); event.preventDefault(); }
 });
 Game.loadPreferences();
 canvas.addEventListener("pointerdown", (event) => Game.placeTrap(event.clientX, event.clientY));

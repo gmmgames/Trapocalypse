@@ -436,6 +436,17 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "leave_room") { removePlayer(socket); return; }
 
+    // The host can change the match settings while everyone is in the lobby.
+    if (message.type === "update_settings") {
+      if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can change the settings." }); return; }
+      if (room.phase !== "lobby") { send(socket, { type: "error", message: "Settings are locked once the match starts." }); return; }
+      const check = validateSettings(message.settings);
+      if (!check.ok) { send(socket, { type: "error", message: check.message }); return; }
+      room.settings = check.settings;
+      broadcast(room, snapshot(room));
+      return;
+    }
+
     // Only the host starts the match, from the lobby, with 2+ players who all have colors.
     if (message.type === "start_match") {
       const everyoneColored = [...room.players.values()].every((item) => item.color !== null);
@@ -526,8 +537,9 @@ webSocketServer.on("connection", (socket) => {
       return;
     }
 
-    // Pick a color once, when you first join. Two players can't share one.
-    if (message.type === "choose_color" && player.color === null) {
+    // Pick a color. In the lobby you can change your mind; once the match starts it is fixed.
+    // Two players can't share one.
+    if (message.type === "choose_color" && (player.color === null || room.phase === "lobby")) {
       const color = Number(message.color);
       const valid = Number.isInteger(color) && color >= 0 && color < PALETTE_SIZE;
       const taken = [...room.players.values()].some((item) => item !== player && item.color === color);
