@@ -424,8 +424,32 @@ const LEVELS = [
       tileRect(30, 4, 4, 1),
     ],
     hazards: [
-      tileRect(9, 30, 1, 1), tileRect(35, 27, 1, 1), tileRect(44, 24, 1, 1), tileRect(17, 21, 1, 1),
-      tileRect(27, 18, 1, 1), tileRect(53, 15, 1, 1), tileRect(8, 12, 1, 1), tileRect(36, 9, 1, 1),
+      // Thorns on the ledges: one row above whichever ledge they stand on.
+      tileRect(9, 30, 1, 1), tileRect(26, 30, 1, 1), tileRect(46, 30, 1, 1),
+      tileRect(35, 27, 1, 1), tileRect(19, 27, 1, 1),
+      tileRect(44, 24, 1, 1), tileRect(7, 24, 1, 1),
+      tileRect(17, 21, 1, 1), tileRect(34, 21, 1, 1), tileRect(52, 21, 1, 1),
+      tileRect(27, 18, 1, 1), tileRect(10, 18, 1, 1), tileRect(45, 18, 1, 1),
+      tileRect(53, 15, 1, 1), tileRect(16, 15, 1, 1),
+      tileRect(8, 12, 1, 1), tileRect(26, 12, 1, 1),
+      tileRect(36, 9, 1, 1), tileRect(17, 9, 1, 1),
+      tileRect(44, 6, 1, 1),
+      // Crumbling stepping stones hanging in the gaps between ledges: a quicker way up, but they
+      // give way a moment after you land, and the lava is right behind you.
+      { ...tileRect(22, 29, 1, 1), kind: "crumble" }, { ...tileRect(13, 23, 1, 1), kind: "crumble" },
+      { ...tileRect(31, 26, 1, 1), kind: "crumble" }, { ...tileRect(40, 23, 1, 1), kind: "crumble" },
+      { ...tileRect(49, 20, 1, 1), kind: "crumble" }, { ...tileRect(22, 14, 1, 1), kind: "crumble" },
+      { ...tileRect(40, 11, 1, 1), kind: "crumble" }, { ...tileRect(31, 8, 1, 1), kind: "crumble" },
+      // Springs to fling you up a level, and ice to make a ledge hard to stop on.
+      { ...tileRect(10, 30, 1, 1), kind: "spring" }, { ...tileRect(37, 27, 1, 1), kind: "spring" },
+      { ...tileRect(28, 12, 1, 1), kind: "spring" },
+      { ...tileRect(18, 27, 1, 1), kind: "ice" }, { ...tileRect(45, 24, 1, 1), kind: "ice" },
+      { ...tileRect(35, 15, 1, 1), kind: "ice" },
+      // A belt that shoves you along the ledge, a fan lifting the right-hand corridor, and a
+      // bumper to knock you off course on the way up.
+      { ...tileRect(21, 25, 3, 1), kind: "belt", rot: 0 },
+      { ...tileRect(58, 33, 1, 1), kind: "fan" },
+      { ...tileRect(57, 20, 1, 1), kind: "bumper" },
     ],
     movers: [{ ...tileRect(12, 29, 3, 1), dx: 0, dy: -60, period: 3 }, { ...tileRect(21, 17, 3, 1), dx: 90, dy: 0, period: 4 }],
     start: { x: 2 * TILE, y: 34 * TILE - 26 },
