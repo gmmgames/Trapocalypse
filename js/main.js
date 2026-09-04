@@ -363,9 +363,10 @@ const Game = {
     const chosen = kickTarget.value;
     kickTarget.replaceChildren(...others.map((player) => { const option = document.createElement("option"); option.value = player.id; option.textContent = player.name; return option; }));
     if (others.some((player) => player.id === chosen)) kickTarget.value = chosen;
-    startMatchButton.classList.toggle("hidden", !isHost);
+    startMatchButton.classList.toggle("hidden", !isHost || this.players.length < 2);
+    document.getElementById("test-match").classList.toggle("hidden", !isHost || this.players.length !== 1);
     if (!isHost) lobbyNote.textContent = "Waiting for the host to start";
-    else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players";
+    else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players, or try a Test Match by yourself";
     else if (this.players.some((player) => player.color === null)) lobbyNote.textContent = "Waiting for everyone to pick a color";
     else lobbyNote.textContent = "";
     this.refreshSwatches();
@@ -869,6 +870,7 @@ const Game = {
     this.finalBattleIds = message.finalBattleIds || [];
     this.votes = message.votes || {};
     this.voteOpen = Boolean(message.voteOpen);
+    this.testMatch = Boolean(message.testMatch);
     this.levelIndex = message.levelIndex;
     this.players = message.players;
     Level.load(message.levelIndex);
@@ -987,8 +989,7 @@ const Game = {
       this.renderItems();
     }
     if (message.type === "drawn") {
-      const until = performance.now() + message.seconds * 1000;
-      for (const block of message.blocks) Level.drawn.push({ ...block, until, color: this.colorOf(message.by) });
+      for (const block of message.blocks) Level.drawn.push({ ...block, until: Infinity, color: this.colorOf(message.by) });   // gone when the round ends
       if (message.by === Network.id) { this.pencil = message.left; this._stroke = null; }
       Sfx.pickup();
     }
@@ -1145,6 +1146,7 @@ const Game = {
       }
     }
     if (message.type === "round_over") {
+      Level.drawn = []; this._stroke = null;   // pencil sketches last exactly one round
       this.playRoundSounds(message);
       this.phase = "results";
       this.players = message.players;
@@ -1701,7 +1703,7 @@ const Game = {
       hudText.textContent = `MATCH OVER  •  ${this.message}`;
     } else if (this.mode === "online") {
       const cap = this.settings ? this.settings.roundCap : "?";
-      const roundLabel = `ROUND ${this.round} of ${cap}  ${Level.name}`;
+      const roundLabel = `${this.testMatch ? "TEST MATCH  •  " : ""}ROUND ${this.round} of ${cap}  ${Level.name}`;
       const showClock = this.phase === "run" && this._runTimeLeft !== null;
       const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
@@ -1780,6 +1782,7 @@ startRunButton.addEventListener("click", () => {
   if (Game.phase === "build") Game.startPartyRun();
 });
 startMatchButton.addEventListener("click", () => Network.send({ type: "start_match" }));
+document.getElementById("test-match").addEventListener("click", () => Network.send({ type: "start_match", test: true }));
 leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnline(); });
 document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));
 document.getElementById("ban-button").addEventListener("click", () => Network.send({ type: "ban", playerId: document.getElementById("kick-target").value, minutes: document.getElementById("ban-length").value }));

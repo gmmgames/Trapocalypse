@@ -115,6 +115,7 @@ function snapshot(room) {
     votes: room.votes,
     voteOpen: room.voteOpen,
     offer: room.offer || [],
+    testMatch: Boolean(room.testMatch),
     traps: room.traps,
     players: playerList(room),
   };
@@ -426,7 +427,6 @@ function removePlayer(socket) {
 // items have a lower weight: the eraser turns up in maybe one round in four.
 const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2 };
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
-const PENCIL_SECONDS = 2.5;      // how long a sketched block lasts
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
 function drawItem() {
   let roll = Math.random() * Object.values(ITEM_WEIGHTS).reduce((sum, weight) => sum + weight, 0);
@@ -460,7 +460,7 @@ function canPick(room, player, slot) {
 
 // After a trap is placed or an eraser used: once everyone has used their item, the run starts.
 function maybeStartRun(room) {
-  if (room.phase === "build" && room.players.size >= 2 && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
+  if (room.phase === "build" && room.players.size >= (room.testMatch ? 1 : 2) && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
 }
 
 // The course vote is over: reset everyone and start round 1 on the winning course.
@@ -632,8 +632,10 @@ webSocketServer.on("connection", (socket) => {
       if (player.id !== room.hostId) problem = "Only the host can start.";
       else if (room.phase === "winner") problem = "Use Back to Lobby first.";
       else if (room.phase !== "lobby") problem = "The match has already started.";
-      else if (room.players.size < 2) problem = "You need at least 2 players.";
+      else if (room.players.size < 2 && !message.test) problem = "You need at least 2 players.";
       if (problem) { send(socket, { type: "error", message: problem }); return; }
+      // A Test Match: the host alone, to try courses and items. Runs start with one player.
+      room.testMatch = room.players.size === 1;
       // Anyone who never picked a color gets a random one nobody else has.
       for (const item of room.players.values()) {
         if (item.color !== null) continue;
@@ -792,7 +794,7 @@ webSocketServer.on("connection", (socket) => {
         .filter((block) => block.x >= 0 && block.x + block.w <= LEVEL_W && block.y >= 0 && block.y + block.h <= LEVEL_H);
       if (!blocks.length) return;
       player.pencil -= 1;
-      broadcast(room, { type: "drawn", by: player.id, blocks, seconds: PENCIL_SECONDS, left: player.pencil });
+      broadcast(room, { type: "drawn", by: player.id, blocks, left: player.pencil });   // blocks last until the round ends
       return;
     }
     if (message.type === "player_update" && room.phase === "run") {

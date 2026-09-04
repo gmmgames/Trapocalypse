@@ -972,6 +972,16 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 @media (pointer: coarse) {
   #user-badge { left: 50%; transform: translateX(-50%); bottom: 12px; }
 }
+#test-match {
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 210, 60, 0.7);
+  border-radius: 4px;
+  background: transparent;
+  color: #ffd23c;
+  font-weight: 700;
+  font-family: inherit;
+}
+
 /* ---------------- Host tools (kick / ban) ---------------- */
 
 #host-tools {
