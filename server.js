@@ -46,7 +46,7 @@ const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap:
 const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
-const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond"];   // character models (drawn in js/player.js)
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot"];   // character models (drawn in js/player.js)
 const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points" };
 
 function roomCode() {

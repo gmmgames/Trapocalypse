@@ -23,6 +23,19 @@ function tileRect(col, row, cols = 1, rows = 1) {
 //   spike     spike color, spikeBase the strip along the bottom of the spikes
 //   pole      the flagpole
 //   dust      the puffs kicked up when a runner moves or lands
+// Random background decoration for the title screen, picked to suit the theme.
+function makeScenery(themeName) {
+  const daylight = themeName === "meadow";
+  const items = [];
+  if (!daylight) for (let i = 0; i < 45; i++) items.push({ kind: "star", x: Math.random() * LEVEL_W, y: Math.random() * LEVEL_H * 0.65, r: 0.6 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
+  items.push({ kind: daylight ? "sun" : "moon", x: 80 + Math.random() * (LEVEL_W - 160), y: 50 + Math.random() * 80, r: 18 + Math.random() * 10 });
+  if (daylight || themeName === "frost") for (let i = 0; i < 4; i++) items.push({ kind: "cloud", x: Math.random() * LEVEL_W, y: 40 + Math.random() * 150, w: 60 + Math.random() * 60, speed: 6 + Math.random() * 10 });
+  items.push({ kind: "hills", layer: 0, seed: Math.random() * 100 }, { kind: "hills", layer: 1, seed: Math.random() * 100 });
+  const prop = { meadow: "tree", rust: "cactus", frost: "crystal", grotto: "crystal", neon: "tower", dusk: "tower", ash: "stump" }[themeName] || "stump";
+  for (let i = 0; i < 6; i++) items.push({ kind: prop, x: 20 + Math.random() * (LEVEL_W - 40), h: 30 + Math.random() * 60 });
+  return items;
+}
+
 const THEMES = {
   neon:   { bg: "#0b0b14", grid: "rgba(255,255,255,0.04)", solid: "#1c1c2e", solidTop: "#4df0ff", spike: "#ff3c78", spikeBase: "#ffb3c9", pole: "#ffffff", dust: "rgba(200,200,230,0.7)" },
   rust:   { bg: "#171008", grid: "rgba(255,180,80,0.05)",  solid: "#3a2414", solidTop: "#ff8c1a", spike: "#d8dde3", spikeBase: "#8a949e", pole: "#e8e8ff", dust: "rgba(255,190,120,0.6)" },
@@ -164,6 +177,9 @@ const Level = {
   flag: { x: 0, y: 0, w: 0, h: 0 },
   theme: THEMES.neon,
 
+  scenery: [],          // title-screen decoration (stars, hills, trees...); empty on real courses
+  sceneryId: 0,
+
   load(index) {
     this.index = index;
     const level = LEVELS[index];
@@ -173,6 +189,93 @@ const Level = {
     this.hazards = level.hazards.map((hazard) => ({ ...hazard }));
     this.start = { ...level.start };
     this.flag = { ...level.flag };
+    this.scenery = [];
+  },
+
+  // The title screen: a random little world to hop around in behind the menu.
+  // A random theme, a full floor, a few floating ledges, no traps and no flag.
+  loadTitle() {
+    this.index = -1;
+    this.name = "Title";
+    const themeNames = Object.keys(THEMES);
+    const themeName = themeNames[Math.floor(Math.random() * themeNames.length)];
+    this.theme = THEMES[themeName];
+    this.hazards = [];
+    this.flag = { x: -1000, y: 0, w: TILE, h: TILE * 2 };   // parked off-screen: nothing to finish
+    this.solids = [tileRect(0, 17, 32, 1)];
+    let col = 1 + Math.floor(Math.random() * 3);
+    while (col < 28) {
+      const width = 2 + Math.floor(Math.random() * 3), row = 9 + Math.floor(Math.random() * 6);
+      this.solids.push(tileRect(col, row, width, 1));
+      col += width + 2 + Math.floor(Math.random() * 3);
+    }
+    for (let i = 0; i < 2; i++) {   // a couple of steps on the floor, away from where you spawn
+      const c = 9 + Math.floor(Math.random() * 21);
+      this.solids.push(tileRect(c, 16, 1 + Math.floor(Math.random() * 2), 1));
+    }
+    this.start = { x: 5 * TILE, y: 17 * TILE - 26 };
+    this.scenery = makeScenery(themeName);
+    this.sceneryId = Math.random();
+  },
+
+  // Background decoration for the title screen. Everything is drawn from the theme's
+  // own colors so it always matches. `time` in seconds makes stars twinkle and clouds drift.
+  drawScenery(ctx) {
+    const t = this.theme;
+    const time = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    const groundY = 17 * TILE;
+    ctx.save();
+    for (const item of this.scenery) {
+      if (item.kind === "star") {
+        ctx.globalAlpha = 0.45 + 0.45 * Math.sin(time * 2 + item.phase);
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2); ctx.fill();
+      } else if (item.kind === "moon" || item.kind === "sun") {
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = item.kind === "sun" ? "#ffe066" : "#f4f1e0";
+        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 30;
+        ctx.beginPath(); ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        if (item.kind === "moon") { ctx.fillStyle = t.bg; ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(item.x + item.r * 0.3, item.y - item.r * 0.2, item.r * 0.3, 0, Math.PI * 2); ctx.fill(); }
+      } else if (item.kind === "cloud") {
+        const x = ((item.x + time * item.speed) % (LEVEL_W + 200)) - 100;
+        ctx.globalAlpha = 0.8; ctx.fillStyle = "#ffffff";
+        for (const [dx, dy, r] of [[0, 0, item.w * 0.22], [item.w * 0.25, -item.w * 0.08, item.w * 0.28], [item.w * 0.5, 0, item.w * 0.2]]) {
+          ctx.beginPath(); ctx.arc(x + dx, item.y + dy, r, 0, Math.PI * 2); ctx.fill();
+        }
+      } else if (item.kind === "hills") {
+        // Two rolling silhouettes: the far one fainter and taller, the near one darker.
+        const base = groundY - (item.layer === 0 ? 40 : 8), amp = item.layer === 0 ? 70 : 38;
+        ctx.globalAlpha = item.layer === 0 ? 0.45 : 0.85;
+        ctx.fillStyle = t.solid;
+        ctx.beginPath(); ctx.moveTo(0, groundY);
+        for (let x = 0; x <= LEVEL_W; x += 20) ctx.lineTo(x, base - amp * (0.5 + 0.5 * Math.sin(x * 0.011 + item.seed) * Math.cos(x * 0.004 + item.seed * 0.5)));
+        ctx.lineTo(LEVEL_W, groundY); ctx.closePath(); ctx.fill();
+      } else {
+        // Props standing on the floor, drawn as soft silhouettes.
+        ctx.globalAlpha = 0.75;
+        const { x, h } = item;
+        if (item.kind === "tree") {
+          ctx.fillStyle = t.solid; ctx.fillRect(x - 3, groundY - h * 0.45, 6, h * 0.45);
+          ctx.fillStyle = t.solidTop; ctx.beginPath(); ctx.arc(x, groundY - h * 0.6, h * 0.35, 0, Math.PI * 2); ctx.fill();
+        } else if (item.kind === "cactus") {
+          ctx.fillStyle = t.solidTop;
+          ctx.fillRect(x - 4, groundY - h, 8, h);
+          ctx.fillRect(x - 14, groundY - h * 0.6, 10, 5); ctx.fillRect(x - 14, groundY - h * 0.6, 5, h * 0.25);
+          ctx.fillRect(x + 4, groundY - h * 0.75, 10, 5); ctx.fillRect(x + 9, groundY - h * 0.75, 5, h * 0.3);
+        } else if (item.kind === "crystal") {
+          ctx.fillStyle = t.solidTop; ctx.globalAlpha = 0.5;
+          for (const [dx, hh] of [[-10, h * 0.6], [0, h], [9, h * 0.7]]) { ctx.beginPath(); ctx.moveTo(x + dx - 5, groundY); ctx.lineTo(x + dx, groundY - hh); ctx.lineTo(x + dx + 5, groundY); ctx.closePath(); ctx.fill(); }
+        } else if (item.kind === "tower") {
+          ctx.fillStyle = t.solid; ctx.fillRect(x - 8, groundY - h, 16, h);
+          ctx.fillStyle = t.spike; ctx.globalAlpha = 0.4 + 0.6 * (Math.sin(time * 3 + x) > 0 ? 1 : 0);
+          ctx.fillRect(x - 2, groundY - h - 4, 4, 4);
+        } else {   // stump
+          ctx.fillStyle = t.solid; ctx.fillRect(x - 6, groundY - h * 0.3, 12, h * 0.3);
+        }
+      }
+    }
+    ctx.restore();
   },
 
   draw(ctx) {
@@ -181,6 +284,7 @@ const Level = {
     // Background first, then everything else on top of it.
     ctx.fillStyle = t.bg;
     ctx.fillRect(0, 0, LEVEL_W, LEVEL_H);
+    if (this.scenery.length) this.drawScenery(ctx);
 
     // Faint grid so you can see the tiles. Handy when we start placing pieces.
     ctx.strokeStyle = t.grid;

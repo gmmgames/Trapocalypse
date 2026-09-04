@@ -305,45 +305,82 @@ const Player = {
 
 // Every runner is the same 22x26 box for the physics; the avatar only changes how the
 // box is painted. Shared by your own runner and everyone else's.
-const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond"];
+// Every shape uses the same 22x26 hitbox; ears, horns and tails are just paint.
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot"];
 function drawAvatar(ctx, x, y, w, h, color, facing, avatar) {
   ctx.save();
+  // Draw everything as if facing right, then mirror the whole thing when facing left.
+  const cx = x + w / 2;
+  if (facing === -1) { ctx.translate(cx * 2, 0); ctx.scale(-1, 1); }
   ctx.shadowColor = color;
   ctx.shadowBlur = 18;
   ctx.fillStyle = color;
-  const cx = x + w / 2, cy = y + h / 2;
+  const cy = y + h / 2, INK = "#0b0b14";
+  const eyes = (eyeY, frontX, spread = 6, size = 4) => {   // two dots, the front one at frontX
+    ctx.fillStyle = INK;
+    ctx.fillRect(frontX, eyeY, size, size);
+    ctx.fillRect(frontX - spread, eyeY, size, size);
+  };
   ctx.beginPath();
   if (avatar === "ball") {
     ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.shadowBlur = 0; eyes(y + 7, x + 13);
   } else if (avatar === "wedge") {
-    // a pointy arrowhead facing the way you run
-    if (facing === 1) { ctx.moveTo(x, y); ctx.lineTo(x + w, cy); ctx.lineTo(x, y + h); }
-    else { ctx.moveTo(x + w, y); ctx.lineTo(x, cy); ctx.lineTo(x + w, y + h); }
-    ctx.closePath();
+    ctx.moveTo(x, y); ctx.lineTo(x + w, cy); ctx.lineTo(x, y + h); ctx.closePath();
+    ctx.fill(); ctx.shadowBlur = 0; eyes(y + h / 2 - 2, x + 11, 4);
   } else if (avatar === "ghost") {
-    // rounded top, wavy hem
-    ctx.moveTo(x, y + h);
-    ctx.lineTo(x, y + w / 2);
-    ctx.arc(cx, y + w / 2, w / 2, Math.PI, 0);
-    ctx.lineTo(x + w, y + h);
-    ctx.lineTo(x + w * 0.75, y + h - 5);
-    ctx.lineTo(x + w * 0.5, y + h);
-    ctx.lineTo(x + w * 0.25, y + h - 5);
-    ctx.closePath();
+    ctx.moveTo(x, y + h); ctx.lineTo(x, y + w / 2); ctx.arc(cx, y + w / 2, w / 2, Math.PI, 0); ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + w * 0.75, y + h - 5); ctx.lineTo(x + w * 0.5, y + h); ctx.lineTo(x + w * 0.25, y + h - 5); ctx.closePath();
+    ctx.fill(); ctx.shadowBlur = 0; eyes(y + 7, x + 13);
   } else if (avatar === "diamond") {
     ctx.moveTo(cx, y); ctx.lineTo(x + w, cy); ctx.lineTo(cx, y + h); ctx.lineTo(x, cy); ctx.closePath();
+    ctx.fill(); ctx.shadowBlur = 0; eyes(y + 9, x + 13, 5, 3);
+  } else if (avatar === "dino") {
+    // Stocky body, head poking forward, tail out the back, plates down the spine.
+    ctx.roundRect(x, y + 8, w - 4, h - 8, 4);                       // body
+    ctx.rect(x + 8, y + 2, w - 4, 11);                               // head
+    ctx.moveTo(x, y + 14); ctx.lineTo(x - 6, y + 20); ctx.lineTo(x + 2, y + 22); ctx.closePath();   // tail
+    for (let i = 0; i < 3; i++) { const px = x + 1 + i * 5; ctx.moveTo(px, y + 9); ctx.lineTo(px + 2.5, y + 4); ctx.lineTo(px + 5, y + 9); }   // plates
+    ctx.fill(); ctx.shadowBlur = 0;
+    eyes(y + 5, x + 20, 0, 3);
+    ctx.fillRect(x + 18, y + 10, 8, 1.5);                            // mouth line
+  } else if (avatar === "unicorn") {
+    // Horse head on a chest, a swoop of mane, and a horn.
+    ctx.roundRect(x, y + 10, w, h - 10, 5);                          // chest
+    ctx.roundRect(x + 4, y + 4, w - 2, 13, 4);                       // head + muzzle
+    ctx.moveTo(x + 2, y + 6); ctx.lineTo(x - 3, y + 14); ctx.lineTo(x + 4, y + 18); ctx.closePath();   // mane
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "#ffe66d";                                       // golden horn
+    ctx.beginPath(); ctx.moveTo(x + 9, y + 5); ctx.lineTo(x + 12, y - 5); ctx.lineTo(x + 15, y + 5); ctx.closePath(); ctx.fill();
+    eyes(y + 7, x + 15, 0, 3);
+    ctx.fillRect(x + 22, y + 12, 2, 2);                              // nostril
+  } else if (avatar === "cat") {
+    ctx.rect(x, y + 6, w, h - 6);
+    ctx.moveTo(x, y + 7); ctx.lineTo(x + 3, y - 1); ctx.lineTo(x + 8, y + 6);            // ears
+    ctx.moveTo(x + w - 8, y + 6); ctx.lineTo(x + w - 3, y - 1); ctx.lineTo(x + w, y + 7);
+    ctx.fill(); ctx.shadowBlur = 0;
+    eyes(y + 11, x + 14, 7);
+    ctx.fillStyle = INK; ctx.fillRect(x + 10, y + 16, 2, 2);          // nose
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    for (const wy of [16, 19]) { ctx.fillRect(x - 3, y + wy, 7, 1); ctx.fillRect(x + w - 4, y + wy, 7, 1); }   // whiskers
+  } else if (avatar === "bunny") {
+    ctx.roundRect(x, y + 8, w, h - 8, 5);
+    ctx.roundRect(x + 3, y - 6, 6, 16, 3);                           // two tall ears
+    ctx.roundRect(x + 13, y - 6, 6, 16, 3);
+    ctx.fill(); ctx.shadowBlur = 0;
+    eyes(y + 13, x + 14, 7, 3);
+    ctx.fillStyle = "#ffb3c9"; ctx.fillRect(x + 10, y + 17, 3, 2);     // pink nose
+  } else if (avatar === "robot") {
+    ctx.rect(x, y + 4, w, h - 4);
+    ctx.rect(cx - 1, y - 2, 2, 7);                                    // antenna
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(cx, y - 3, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = INK; ctx.fillRect(x + 3, y + 8, w - 6, 6);        // visor
+    ctx.fillStyle = "#7dffb3"; ctx.fillRect(x + 6, y + 10, 3, 2); ctx.fillRect(x + 13, y + 10, 3, 2);   // glowing eyes
+    ctx.fillStyle = INK; for (let i = 0; i < 4; i++) ctx.fillRect(x + 4 + i * 4, y + 18, 2, 3);        // teeth
   } else {
     ctx.rect(x, y, w, h);   // the classic cube
+    ctx.fill(); ctx.shadowBlur = 0; eyes(y + 7, x + 13);
   }
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Two little eyes that look where you are going (a bit higher on the ghost's round head)
-  ctx.fillStyle = "#0b0b14";
-  const eyeY = y + (avatar === "wedge" ? h / 2 - 2 : 7);
-  const eyeX = facing === 1 ? x + 13 : x + 5;
-  const spread = avatar === "wedge" ? 4 : 6;
-  ctx.fillRect(eyeX, eyeY, 4, 4);
-  ctx.fillRect(eyeX + (facing === 1 ? -spread : spread), eyeY, 4, 4);
   ctx.restore();
 }

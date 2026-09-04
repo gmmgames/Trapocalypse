@@ -18,6 +18,11 @@ const hudTail = document.getElementById("hud-tail");
 // A random name for players who leave the box empty (or roll the dice). Two words, always clean.
 const NAME_ADJECTIVES = ["Sneaky", "Bouncy", "Zesty", "Turbo", "Wobbly", "Spicy", "Crispy", "Jolly", "Mighty", "Fuzzy", "Rapid", "Sleepy", "Cosmic", "Loopy", "Frosty", "Peppy", "Dizzy", "Chunky", "Slippy", "Golden", "Rowdy", "Sunny", "Grumpy", "Nimble"];
 const NAME_NOUNS = ["Mango", "Pickle", "Waffle", "Noodle", "Badger", "Comet", "Pebble", "Gecko", "Muffin", "Rocket", "Walrus", "Taco", "Panda", "Cactus", "Yeti", "Donut", "Falcon", "Marble", "Otter", "Pretzel", "Robot", "Turnip", "Llama", "Biscuit"];
+// The shape you picked last time (kept in this browser), the cube until you pick one.
+function savedAvatar() {
+  try { const saved = localStorage.getItem("trapocalypse.avatar"); return AVATARS.includes(saved) ? saved : "cube"; } catch (error) { return "cube"; }
+}
+
 function randomName() {
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
   return `${pick(NAME_ADJECTIVES)} ${pick(NAME_NOUNS)}`;
@@ -233,9 +238,9 @@ const Game = {
   _voteEndsAt: 0,       // wall-clock time the course vote closes
 
   start() {
-    Level.load(this.levelIndex);
+    Level.loadTitle();
+    Player.avatar = savedAvatar();
     Player.spawn();
-    this.say(`Level 1: ${Level.name}`, 2.5);
     requestAnimationFrame(this.loop.bind(this));
   },
 
@@ -289,7 +294,8 @@ const Game = {
     this.winnerIds = [];
     this.finalBattleIds = [];
     Player.color = "#ff3c78";
-    Level.load(0);
+    Player.avatar = savedAvatar();
+    Level.loadTitle();   // a fresh random title world each time you come back
     Player.spawn();
     lobby.classList.add("hidden");
     colorPicker.classList.add("hidden");
@@ -822,6 +828,8 @@ const Game = {
     this.myColor = me ? me.color : null;
     Player.color = this.myColor === null ? "#ff3c78" : PALETTE[this.myColor];
     Player.avatar = me && me.avatar ? me.avatar : "cube";
+    // First time in this room: ask for the shape you used last time.
+    if (!this.inRoom && me && this.phase === "lobby" && savedAvatar() !== me.avatar) Network.send({ type: "choose_avatar", avatar: savedAvatar() });
     this.renderAvatars();
     roomCodeInput.value = message.code;
     this.inRoom = true;
@@ -904,7 +912,11 @@ const Game = {
     if (message.type === "avatar") {
       const who = this.players.find((player) => player.id === message.playerId);
       if (who) who.avatar = message.avatar;
-      if (message.playerId === Network.id) { Player.avatar = message.avatar; this.say(`You're a ${message.avatar} now.`, 2); }
+      if (message.playerId === Network.id) {
+        Player.avatar = message.avatar;
+        this.say(`You're a ${message.avatar} now.`, 2);
+        try { localStorage.setItem("trapocalypse.avatar", message.avatar); } catch (error) { /* ignore */ }
+      }
       this.renderAvatars();
     }
     if (message.type === "trap_placed") {
