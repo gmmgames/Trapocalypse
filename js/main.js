@@ -769,6 +769,17 @@ const Game = {
       const sides = [{ x: x + 2, y: y - 2, w: TILE - 4, h: 2 }, { x: x + 2, y: y + TILE, w: TILE - 4, h: 2 }, { x: x - 2, y: y + 2, w: 2, h: TILE - 4 }, { x: x + TILE, y: y + 2, w: 2, h: TILE - 4 }];
       if (!sides.some((probe) => Level.solids.some((solid) => Physics.overlaps(probe, solid)))) return "Gum has to stick to something: put it against a block.";
     }
+    if (this.pick === "spike" || this.pick === "longspike" || this.pick === "decoy") {
+      // Spikes stand on something: a block behind their base (below when pointing up, and so on).
+      if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Spikes go on a block, not inside it.";
+      const base = [
+        { x: x + 2, y: y + trap.h, w: trap.w - 4, h: 2 },         // pointing up: block below
+        { x: x - 2, y: y + 2, w: 2, h: trap.h - 4 },            // pointing right: block on the left
+        { x: x + 2, y: y - 2, w: trap.w - 4, h: 2 },            // pointing down: block above
+        { x: x + trap.w, y: y + 2, w: 2, h: trap.h - 4 },         // pointing left: block on the right
+      ][this.rotation];
+      if (!Level.solids.some((solid) => Physics.overlaps(base, solid))) return "Spikes need a block behind them.";
+    }
     if (this.pick === "ice") {
       // Ice is a coating: it sits on top of a block, never inside one, beside one or under one.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Ice goes on top of a block, not inside it.";

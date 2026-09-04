@@ -129,7 +129,7 @@ function snapshot(room) {
 // The public rooms a player can browse and join: listed, not full, and not mid-match-over.
 function publicRoomList() {
   return [...rooms.values()]
-    .filter((room) => room.settings.isPublic && room.players.size < (room.settings.maxPlayers || MAX_PLAYERS) && room.players.size > 0)
+    .filter((room) => room.settings.isPublic && !room.testMatch && room.players.size < (room.settings.maxPlayers || MAX_PLAYERS) && room.players.size > 0)   // a host testing alone is not listed
     .map((room) => {
       const host = room.players.get(room.hostId);
       return { code: room.code, host: host ? host.name : "?", players: room.players.size, max: room.settings.maxPlayers || MAX_PLAYERS, phase: room.phase, level: levelsOf(room)[room.levelIndex].name };
@@ -187,14 +187,25 @@ function trapBlocked(room, trap) {
   // Nothing within two tiles of the flag, so the finish can never be walled off.
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
-  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
+  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
+  // Spikes need a block behind their base (the side they point away from).
+  let looseSpikes = false;
+  if (trap.kind === "spike" || trap.kind === "longspike" || trap.kind === "decoy") {
+    const base = [
+      { x: trap.x + 2, y: trap.y + trap.h, w: trap.w - 4, h: 2 },         // pointing up: block below
+      { x: trap.x - 2, y: trap.y + 2, w: 2, h: trap.h - 4 },            // pointing right: block on the left
+      { x: trap.x + 2, y: trap.y - 2, w: trap.w - 4, h: 2 },            // pointing down: block above
+      { x: trap.x + trap.w, y: trap.y + 2, w: 2, h: trap.h - 4 },         // pointing left: block on the right
+    ][trap.rot || 0];
+    looseSpikes = !level.solids.some((solid) => overlaps(solid, base));
+  }
   // Glue must touch a block on some side (top, bottom, left or right).
   const sides = [{ x: trap.x + 2, y: trap.y - 2, w: TILE - 4, h: 2 }, { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 }, { x: trap.x - 2, y: trap.y + 2, w: 2, h: TILE - 4 }, { x: trap.x + TILE, y: trap.y + 2, w: 2, h: TILE - 4 }];
   const looseGlue = trap.kind === "glue" && !sides.some((probe) => level.solids.some((solid) => overlaps(solid, probe)));
   // Ice sits on top of a block: never inside one, and there must be a block right under it.
   const below = { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 };
   const badIce = trap.kind === "ice" && (level.solids.some((solid) => overlaps(solid, trap)) || !level.solids.some((solid) => overlaps(solid, below)));
-  return inWall || looseGlue || badIce || overlaps(trap, flagZone) || overlaps(trap, startBox) ||
+  return inWall || looseSpikes || looseGlue || badIce || overlaps(trap, flagZone) || overlaps(trap, startBox) ||
     room.traps.some((item) => overlaps(item, trap));
 }
 
@@ -426,6 +437,7 @@ function pickVotedLevel(room, fallback) {
 function toLobby(room, { resetScores }) {
   clearTimeout(room.timer); clearTimeout(room.runTimer);
   room.timer = null; room.runTimer = null;
+  room.testMatch = false;   // back from a solo Test Match: the room can be listed again
   room.phase = "lobby"; room.round = 1; room.roundsPlayed = 0; room.levelIndex = 0;
   room.traps = []; room.finishOrder = []; room.finalBattle = null; room.winnerIds = [];
   room.votes = {}; room.voteOpen = false;
