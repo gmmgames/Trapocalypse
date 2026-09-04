@@ -73,6 +73,9 @@ const MOVER_PERIOD = 3;
 const SPRING_COOLDOWN = 2;   // seconds a spring rests after launching someone
 const BELT_SPEED = 130;      // how fast a Conveyor Belt carries you (px/s)
 const FAN_LIFT = 4 * 30;     // how high a Fan's updraft reaches (px)
+const GENERATOR_ON = 3;      // seconds a Generator runs before it rests
+const GENERATOR_OFF = 2;     // seconds it rests before starting again
+const GENERATOR_MAX = 3;     // most Generators that can feed one fan or spring
 const PLANK_TILES = 3;   // a placed Plank is three tiles wide
 
 const LEVELS = [
@@ -564,16 +567,40 @@ const Level = {
     return this.hazards.filter((hazard) => ["plank", "mirror", "bigblock", "belt", "fan", "generator"].includes(hazard.kind));
   },
   // A Generator powers up any fan or spring it shares an edge with (corners alone do not count).
-  powered(item) {
-    return this.hazards.some((g) => g.kind === "generator" && g !== item && this.touching(g, item));
+  // Every Generator beats together: GENERATOR_ON seconds running, then GENERATOR_OFF resting. The
+  // clock is the one the moving platforms use, which starts afresh each round, so every player in
+  // the room sees the same beat at the same time.
+  generatorsOn() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const t = ((now - this.moverEpoch) / 1000) % (GENERATOR_ON + GENERATOR_OFF);
+    return t < GENERATOR_ON;
+  },
+  // The Generators feeding a fan or spring: the ones touching it, plus any chained on behind those,
+  // up to GENERATOR_MAX. Empty while the Generators are resting.
+  feeders(item) {
+    if (!this.generatorsOn()) return [];
+    const all = this.hazards.filter((h) => h.kind === "generator" && h !== item);
+    const group = [], queue = all.filter((g) => this.touching(g, item));
+    while (queue.length && group.length < GENERATOR_MAX) {
+      const g = queue.shift();
+      if (group.includes(g)) continue;
+      group.push(g);
+      for (const other of all) if (!group.includes(other) && this.touching(other, g)) queue.push(other);
+    }
+    return group;
+  },
+  powerOf(item) { return this.feeders(item).length; },
+  // Is this Generator part of a chain powering something right now? (Only for how it is drawn.)
+  generatorLive(g) {
+    return this.hazards.some((item) => (item.kind === "fan" || item.kind === "spring") && this.feeders(item).includes(g));
   },
   touching(a, b) {
     const sideBySide = (a.x + a.w === b.x || b.x + b.w === a.x) && a.y < b.y + b.h && b.y < a.y + a.h;
     const stacked = (a.y + a.h === b.y || b.y + b.h === a.y) && a.x < b.x + b.w && b.x < a.x + a.w;
     return sideBySide || stacked;
   },
-  // How high a fan's updraft reaches: 4 tiles, 6 with a Generator.
-  fanReach(fan) { return FAN_LIFT * (this.powered(fan) ? 1.5 : 1); },
+  // How high a fan's updraft reaches: 4 tiles, and two more for every Generator feeding it.
+  fanReach(fan) { return FAN_LIFT * (1 + 0.5 * this.powerOf(fan)); },
   // Every moving platform, course-built or player-placed, as a box the physics can use.
   movingSolids() {
     return this.movers.concat(this.hazards.filter((hazard) => hazard.kind === "mover" && hazard._box).map((hazard) => hazard._box));
@@ -917,7 +944,7 @@ const Level = {
     if (item === "bigblock") { this.drawPlank(ctx, { x: 4, y: 4, w: 22, h: 22 }, t); return; }
     if (item === "belt") { this.drawBelt(ctx, { ...box, rot: 0 }, t); return; }
     if (item === "fan") { this.drawFan(ctx, box, t); return; }
-    if (item === "generator") { this.drawGenerator(ctx, box, t); return; }
+    if (item === "generator") { this.drawGenerator(ctx, box, t, true); return; }
     if (item === "bat") { this.drawBat(ctx, 8, 24, -Math.PI / 4); return; }
     if (item === "buckler") { this.drawBuckler(ctx, 15, 15, 11); return; }
     if (item === "eraser") {
@@ -1192,15 +1219,16 @@ const Level = {
   },
   // Generator: a boxy block with a lightning bolt. When it is powering a neighbour the bolt flickers
   // and a glow pulses around the block; idle, the bolt is dim.
-  drawGenerator(ctx, g, t) {
+  drawGenerator(ctx, g, t, onCard) {
     const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
-    const live = this.hazards.some((item) => (item.kind === "fan" || item.kind === "spring") && this.touching(g, item));
+    const running = onCard || this.generatorsOn();
+    const live = onCard || (running && this.generatorLive(g));
     ctx.fillStyle = "#2a2a3a"; ctx.fillRect(g.x, g.y, g.w, g.h);
     ctx.strokeStyle = "#8a8aa8"; ctx.lineWidth = 2; ctx.strokeRect(g.x + 1, g.y + 1, g.w - 2, g.h - 2);
     for (let i = 0; i < 3; i++) { ctx.fillStyle = "#3a3a4e"; ctx.fillRect(g.x + 4, g.y + 5 + i * 8, 5, 4); }   // vent slots
     ctx.save();
     if (live) { ctx.shadowColor = "#ffd23c"; ctx.shadowBlur = 8 + 6 * Math.sin(now * 10); }
-    ctx.fillStyle = live ? (Math.sin(now * 24) > -0.3 ? "#ffe680" : "#ffd23c") : "#7a6a2a";
+    ctx.fillStyle = live ? (Math.sin(now * 24) > -0.3 ? "#ffe680" : "#ffd23c") : running ? "#c8a83c" : "#4a4436";
     const cx = g.x + g.w * 0.6, top = g.y + 4, bottom = g.y + g.h - 4;
     ctx.beginPath();
     ctx.moveTo(cx + 2, top); ctx.lineTo(cx - 5, g.y + g.h * 0.55); ctx.lineTo(cx, g.y + g.h * 0.55);

@@ -204,10 +204,15 @@ const Player = {
     }
     for (const fan of Level.hazards) {
       if (fan.kind !== "fan") continue;
-      // A Generator touching the fan makes the draft reach higher (6 tiles, not 4) and blow harder.
-      const reach = Level.fanReach(fan), strong = Level.powered(fan);
+      // Every Generator feeding the fan (up to three) makes the draft reach two tiles higher and
+      // blow harder. While the Generators are resting the fan is back to its plain self.
+      const power = Level.powerOf(fan), reach = Level.fanReach(fan);
       const draft = { x: fan.x + 2, y: fan.y - reach, w: fan.w - 4, h: reach };
-      if (Physics.overlaps(this, draft)) { this.vy -= (strong ? 4800 : 3600) * dt; if (this.vy < (strong ? -430 : -330)) this.vy = strong ? -430 : -330; }
+      if (Physics.overlaps(this, draft)) {
+        this.vy -= (3600 + 1200 * power) * dt;
+        const fastest = -(330 + 100 * power);
+        if (this.vy < fastest) this.vy = fastest;
+      }
     }
     const movers = Level.movingSolids();
     const walls = Level.solids.concat(Level.drawnSolids(), Level.solidHazards());
@@ -318,7 +323,7 @@ const Player = {
       // A spring that just fired needs SPRING_COOLDOWN seconds before it can fire again.
       const spring = Level.hazards.find((h) => h.kind === "spring" && Physics.overlaps(this, h) && !Level.springCooling(h));
       if (spring) {
-        this.vy = -this.SPRING_SPEED * (Level.powered(spring) ? 1.3 : 1);   // a Generator touching the spring launches you 30% harder
+        this.vy = -this.SPRING_SPEED * (1 + 0.3 * Level.powerOf(spring));   // every Generator feeding the spring adds 30%
         this.onGround = false;
         this._shortHop = false;
         spring.bouncedAt = performance.now();   // starts the squash-and-stretch animation
