@@ -1381,3 +1381,6 @@ body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto
   #menu-buttons button { padding: 8px 10px; font-size: 16px; }
   #menu-help, #menu-editor { padding: 6px 10px; }
 }
+
+/* How to Play: a point's slogan sits right after its name, in its own quieter voice. */
+.point-slogan { color: #c0c0d8; font-style: italic; }

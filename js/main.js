@@ -446,22 +446,30 @@ const Game = {
   showHelp() {
     const s = this.settings || { winPoints: 4, killPoints: 1, firstPoints: 2, pointsToWin: 45, roundCap: 30, timeLimit: 60 };
     const time = s.timeLimit === null ? "no time limit" : `${s.timeLimit} seconds per run`;
-    // [name, color, rest of the line]. The name is drawn bold, italic and in its own color.
+    // [name, color, slogan, what earns it]. The name is drawn bold, italic and in its own color,
+    // its slogan comes straight after it, and the explanation follows.
     const lines = [
-      ["Win", POINT_COLORS.Win, `, ${s.winPoints} point${s.winPoints === 1 ? "" : "s"}: reaching the flag. "${GAIN_TEXT.Win}"`],
-      ["Trailblazer", POINT_COLORS.Trailblazer, `, ${s.firstPoints} more: first to the flag when 3 or more run and 2 or more finish. "${GAIN_TEXT.Trailblazer}"`],
-      ["Autonomous", POINT_COLORS.Autonomous, `, ${s.autonomousPoints ?? 1} more: the only one to make it when 2 or more ran. "${GAIN_TEXT.Autonomous}"`],
-      ["Curiosity", POINT_COLORS.Curiosity, `, ${s.killPoints} each: your trap kills someone, paid at the end of the round only if you reach the flag too. "${GAIN_TEXT.Curiosity}"`],
-      ["Condolence", POINT_COLORS.Condolence, `, 3 more: you were at least 15 points behind everyone, and then you finally won a round. "${GAIN_TEXT.Condolence}"`],
-      ["Final Battle", POINT_COLORS["Final Battle"], `: 1st Place 5, 2nd Place 3, 3rd Place 1. Nothing else pays in a Final Battle.`],
-      [this.settings ? "This match" : "Default", "#e8e8ff", `: first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`],
+      ["Win", POINT_COLORS.Win, GAIN_TEXT.Win, `${s.winPoints} point${s.winPoints === 1 ? "" : "s"}: reaching the flag.`],
+      ["Trailblazer", POINT_COLORS.Trailblazer, GAIN_TEXT.Trailblazer, `${s.firstPoints} more: first to the flag when 3 or more run and 2 or more finish.`],
+      ["Autonomous", POINT_COLORS.Autonomous, GAIN_TEXT.Autonomous, `${s.autonomousPoints ?? 1} more: the only one to make it when 2 or more ran.`],
+      ["Curiosity", POINT_COLORS.Curiosity, GAIN_TEXT.Curiosity, `${s.killPoints} each: your trap kills someone, paid at the end of the round only if you reach the flag too.`],
+      ["Condolence", POINT_COLORS.Condolence, GAIN_TEXT.Condolence, "3 more: you were at least 15 points behind everyone, and then you finally won a round."],
+      ["Final Battle", POINT_COLORS["Final Battle"], "", "1st Place 5, 2nd Place 3, 3rd Place 1. Nothing else pays in a Final Battle."],
+      [this.settings ? "This match" : "Default", "#e8e8ff", "", `first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`],
     ];
-    helpPoints.replaceChildren(...lines.map(([name, color, rest]) => {
+    helpPoints.replaceChildren(...lines.map(([name, color, slogan, what]) => {
       const li = document.createElement("li");
       const b = document.createElement("b"), i = document.createElement("i");
       i.textContent = name; i.style.color = color; i.className = "point-name";
       b.appendChild(i);
-      li.append(b, rest);
+      li.append(b);
+      if (slogan) {
+        const quote = document.createElement("span");
+        quote.className = "point-slogan";
+        quote.textContent = ` "${slogan}"`;
+        li.append(quote);
+      }
+      li.append(`${slogan ? " — " : ": "}${what}`);
       return li;
     }));
     helpPanel.classList.remove("hidden");
