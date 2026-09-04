@@ -125,9 +125,6 @@
   <!-- Shown whenever you are in a room. Takes you back to this page as it is on load. -->
   <!-- Shown only when a phone is held upright. -->
   <div id="rotate-hint">📱 Turn your phone sideways for a bigger view</div>
-  <button id="leave-room" type="button" class="hidden">Leave Room</button>
-  <!-- Stuck during a run? Back to the start, no questions asked. -->
-  <button id="reset-me" type="button" class="hidden">Stuck? Reset (R) · counts as a death</button>
 
   <!-- Your permanent player ID, and the invite button. -->
   <div id="user-badge">
@@ -177,7 +174,10 @@
       <button id="settings-help" type="button">How to Play</button>
       <!-- Test Match only: the host can hop to any course at once. -->
       <label id="test-course-row" class="hidden">Course <select id="test-course"></select></label>
+      <!-- Stuck during a run? Back to the start, no questions asked. Only shows during a run. -->
+      <button id="reset-me" type="button" class="hidden">Stuck? Reset character (R) · counts as a death</button>
       <button id="settings-back-to-lobby" type="button" class="hidden">Back to Lobby (ends the match)</button>
+      <button id="leave-room" type="button" class="hidden">Leave Room</button>
       <span id="settings-note"></span>
       <button id="settings-close" type="button">Close</button>
     </div>

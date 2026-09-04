@@ -2271,6 +2271,7 @@ const Game = {
     // Touch buttons only while there is something to run: the title world, or an online run.
     const running = this.mode === "solo" || this.phase === "run";
     document.body.classList.toggle("in-run", running);
+    document.body.classList.toggle("in-room", this.mode === "online" && this.inRoom);   // moves the gear to the top-left
     document.getElementById("touch-controls").classList.toggle("hidden", !running);
     hudClock.textContent = ""; hudClock.classList.remove("urgent"); hudTail.textContent = "";   // only the run branch fills these
     if (this.mode === "online" && this.phase === "lobby") {
@@ -2387,7 +2388,7 @@ document.getElementById("copy-code").addEventListener("click", async () => {
   setTimeout(() => { button.textContent = "Copy code"; }, 1500);
 });
 document.getElementById("test-course").addEventListener("change", (event) => { Network.send({ type: "test_course", level: Number(event.target.value) }); Game.hideSettings(); });
-document.getElementById("reset-me").addEventListener("click", () => Game.resetCharacter());
+document.getElementById("reset-me").addEventListener("click", () => { Game.resetCharacter(); Game.hideSettings(); });
 document.getElementById("reset-room").addEventListener("click", () => { if (window.confirm("Reset the room? Everyone's score goes to zero and the settings go back to normal.")) Network.send({ type: "reset_room" }); });
 document.getElementById("add-courses").addEventListener("click", () => Network.send({ type: "custom_levels", levels: Editor.saved() }));
 document.getElementById("kick-button").addEventListener("click", () => Network.send({ type: "kick", playerId: document.getElementById("kick-target").value }));

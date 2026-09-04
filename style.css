@@ -731,41 +731,23 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   cursor: pointer;
 }
 
-#reset-me {
-  position: fixed;
-  top: 60px;
-  right: 18px;
-  z-index: 4;
-  padding: 6px 10px;
+/* Both live inside the settings panel: Reset only during a run, Leave Room whenever you are in a room. */
+#reset-me, #leave-room {
+  padding: 8px 14px;
   border: 1px solid #4df0ff;
   border-radius: 4px;
-  background: rgba(22, 22, 37, 0.94);
+  background: transparent;
   color: #4df0ff;
   font: inherit;
-  font-size: 12px;
   font-weight: 800;
   cursor: pointer;
 }
-
-#leave-room {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  z-index: 4;
-  padding: 7px 10px;
-  border: 1px solid #ffd23c;
-  border-radius: 4px;
-  background: rgba(22, 22, 37, 0.94);
-  color: #ffd23c;
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
+#leave-room { border-color: #ffd23c; color: #ffd23c; }
 
 /* ---------------- Settings ---------------- */
 
-/* The gear sits in the bottom-right corner, out of the way of the logo (top-left) and the menu (right, middle).
-   Phones keep it top-left because the touch buttons own the bottom corners; the logo moves right of it there. */
+/* On the title screen the gear sits in the bottom-right corner, out of the way of the logo (top-left) and
+   the menu (right, middle). In a room it moves to the top-left (see body.in-room below). */
 #settings-button {
   position: fixed;
   bottom: 12px;
@@ -1035,6 +1017,8 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
   #user-badge { left: 50%; transform: translateX(-50%); bottom: 12px; }
   #settings-button { bottom: 100px; right: 12px; }
 }
+/* In a room (lobby, build, run, results) the gear sits top-left, clear of the course action and the touch buttons. */
+body.in-room #settings-button { top: 12px; left: 12px; bottom: auto; right: auto; }
 /* Narrow (upright) screens: the logo spans the top and the menu sits below it. */
 @media (max-width: 700px) {
   #menu-logo { width: min(92vw, 500px); }
