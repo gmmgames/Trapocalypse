@@ -362,6 +362,7 @@ const Game = {
     const hostTools = document.getElementById("host-tools"), kickTarget = document.getElementById("kick-target");
     const others = this.players.filter((player) => player.id !== Network.id);
     hostTools.classList.toggle("hidden", !isHost || others.length === 0);
+    if (this.phase === "lobby" && hostTools.parentElement !== lobby) lobbyPlayers.after(hostTools);   // back from the settings dialog
     const chosen = kickTarget.value;
     kickTarget.replaceChildren(...others.map((player) => { const option = document.createElement("option"); option.value = player.id; option.textContent = player.name; return option; }));
     if (others.some((player) => player.id === chosen)) kickTarget.value = chosen;
@@ -751,6 +752,9 @@ const Game = {
   showSettings() {
     const hostInMatch = this.inRoom && Network.id === this.hostId && this.phase !== "lobby";
     settingsBackToLobby.classList.toggle("hidden", !hostInMatch);
+    // The Kick/Ban row lives in the lobby panel; during a match it moves in here so the host
+    // can still deal with a troll. renderRoom() puts it back when the lobby returns.
+    if (hostInMatch) settingsBackToLobby.before(document.getElementById("host-tools"));
     settingsNote.textContent = hostInMatch ? "Ends the match for everyone and clears the scores." : this.inRoom ? "Only the host can end a match early." : "";
     settingsPanel.classList.remove("hidden");
   },
@@ -1550,6 +1554,9 @@ const Game = {
     }
     ctx.restore();
 
+    // A four-to-the-floor beat under the disco ball, two beats a second.
+    const beat = Math.floor(now * 2);
+    if (this._lastBeat !== beat) { this._lastBeat = beat; Sfx.discoBeat(beat % 8); }
     // A pop of confetti from the ceiling every so often.
     if (!this._lastPodiumConfetti || now - this._lastPodiumConfetti > 1.3) {
       this._lastPodiumConfetti = now;

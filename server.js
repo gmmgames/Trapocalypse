@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 8080;
 const rooms = new Map();
 const users = new Map();       // permanent player ID -> socket, for everyone connected (in a room or on the menu)
 const MIME = {
+  ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon",
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -501,7 +502,10 @@ function startNextRound(room) {
 
 const server = http.createServer((request, response) => {
   const requested = request.url === "/" ? "/index.html" : request.url;
-  const filePath = path.normalize(path.join(ROOT, requested.split("?")[0]));
+  // Browsers send spaces as %20 ("Trapocalypse Bumper Icon.png"): decode before looking on disk.
+  let wanted;
+  try { wanted = decodeURIComponent(requested.split("?")[0]); } catch (error) { response.writeHead(400); response.end("Bad request"); return; }
+  const filePath = path.normalize(path.join(ROOT, wanted));
   if (!filePath.startsWith(ROOT)) {
     response.writeHead(403); response.end("Forbidden"); return;
   }

@@ -139,6 +139,15 @@ const Sfx = {
   },
 
   // Match over.
+  // One beat of the podium disco: a thumping kick every beat, a hi-hat tick on the off
+  // beats, and a bouncing bass line that repeats every eight beats.
+  discoBeat(step) {
+    this.tone(70, 0, 0.12, "square", 0.22);                                   // kick
+    if (step % 2 === 1) this.tone(2200, 0, 0.03, "square", 0.05);            // hi-hat
+    const bass = [131, 131, 165, 131, 196, 165, 131, 98][step % 8];
+    this.tone(bass, 0.02, 0.2, "sawtooth", 0.07);
+  },
+
   victory() {
     [523, 523, 523, 659, 784, 1047].forEach((freq, i) => this.tone(freq, i * 0.13, i === 5 ? 0.8 : 0.16, "square", 0.14));
   },
