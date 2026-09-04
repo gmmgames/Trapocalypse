@@ -53,7 +53,7 @@ const INVITE_COOLDOWN_MS = 5000;                  // between invites from one pl
 const BAN_LENGTHS = { "5": 5, "30": 30, "120": 120, "1440": 1440, "forever": Infinity };
 function banLength(minutes) { return minutes >= 1440 ? "24 hours" : minutes >= 60 ? `${minutes / 60} hours` : `${minutes} minutes`; }
 function banLeft(until) { const minutes = Math.ceil((until - Date.now()) / 60000); return minutes >= 60 ? `${Math.ceil(minutes / 60)} hour${minutes >= 120 ? "s" : ""}` : `${minutes} minute${minutes === 1 ? "" : "s"}`; }
-const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "steamboat"];   // character models (drawn in js/player.js)
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "frog", "penguin", "alien", "duck", "bear", "slime", "steamboat"];   // character models (drawn in js/player.js)
 const SECRET_AVATARS = { steamboat: (name) => /mouse/i.test(name || "") };   // easter egg: needs "mouse" in your name
 const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points", autonomousPoints: "Autonomous points", maxPlayers: "Max players" };
 

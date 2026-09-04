@@ -359,7 +359,7 @@ const Player = {
 // Every runner is the same 22x26 box for the physics; the avatar only changes how the
 // box is painted. Shared by your own runner and everyone else's.
 // Every shape uses the same 22x26 hitbox; ears, horns and tails are just paint.
-const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "steamboat"];
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond", "dino", "unicorn", "cat", "bunny", "robot", "frog", "penguin", "alien", "duck", "bear", "slime", "steamboat"];
 // "steamboat" is a secret: a 1928-style black-and-white cartoon mouse (the old public-domain
 // Steamboat Willie look), only for players who typed "mouse" into their name.
 const SECRET_AVATARS = { steamboat: (name) => /mouse/i.test(name || "") };
@@ -434,6 +434,56 @@ function drawAvatar(ctx, x, y, w, h, color, facing, avatar) {
     ctx.fillStyle = INK; ctx.fillRect(x + 3, y + 8, w - 6, 6);        // visor
     ctx.fillStyle = "#7dffb3"; ctx.fillRect(x + 6, y + 10, 3, 2); ctx.fillRect(x + 13, y + 10, 3, 2);   // glowing eyes
     ctx.fillStyle = INK; for (let i = 0; i < 4; i++) ctx.fillRect(x + 4 + i * 4, y + 18, 2, 3);        // teeth
+  } else if (avatar === "frog") {
+    // Squat body, two bulging eyes on top, a wide grin.
+    ctx.roundRect(x, y + 8, w, h - 8, 7);
+    ctx.moveTo(x + 5, y + 8); ctx.arc(x + 5, y + 8, 5, 0, Math.PI * 2);
+    ctx.moveTo(x + w - 5, y + 8); ctx.arc(x + w - 5, y + 8, 5, 0, Math.PI * 2);
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "#f4f4ff"; ctx.fillRect(x + 3, y + 5, 4, 4); ctx.fillRect(x + w - 7, y + 5, 4, 4);
+    ctx.fillStyle = INK; ctx.fillRect(x + 5, y + 6, 2, 3); ctx.fillRect(x + w - 5, y + 6, 2, 3);
+    ctx.fillRect(x + 4, y + 17, w - 8, 2);   // grin
+  } else if (avatar === "penguin") {
+    ctx.roundRect(x, y, w, h, 9);
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "#f4f4ff"; ctx.beginPath(); ctx.ellipse(cx, y + 16, 7, 9, 0, 0, Math.PI * 2); ctx.fill();   // belly
+    ctx.fillStyle = "#ffb830"; ctx.beginPath(); ctx.moveTo(cx + 2, y + 9); ctx.lineTo(cx + 9, y + 11); ctx.lineTo(cx + 2, y + 13); ctx.closePath(); ctx.fill();   // beak
+    ctx.fillRect(x + 3, y + h - 3, 7, 3); ctx.fillRect(x + w - 10, y + h - 3, 7, 3);   // feet
+    eyes(y + 6, x + 12, 5, 3);
+  } else if (avatar === "alien") {
+    // Big domed head on a thin body, two antennae.
+    ctx.moveTo(x, y + 14); ctx.arc(cx, y + 11, w / 2, Math.PI, 0); ctx.lineTo(x + w, y + 14);
+    ctx.lineTo(cx + 5, y + h); ctx.lineTo(cx - 5, y + h); ctx.closePath();
+    ctx.rect(cx - 6, y - 4, 2, 6); ctx.rect(cx + 4, y - 4, 2, 6);
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = INK; ctx.beginPath(); ctx.ellipse(cx - 4, y + 11, 3, 4.5, 0.3, 0, Math.PI * 2); ctx.ellipse(cx + 5, y + 11, 3, 4.5, -0.3, 0, Math.PI * 2); ctx.fill();   // big black eyes
+    ctx.fillStyle = "#5cf05a"; ctx.beginPath(); ctx.arc(cx - 5, y - 4, 2, 0, Math.PI * 2); ctx.arc(cx + 5, y - 4, 2, 0, Math.PI * 2); ctx.fill();   // antenna tips
+  } else if (avatar === "duck") {
+    ctx.roundRect(x, y + 10, w, h - 10, 7);                        // body
+    ctx.moveTo(x + w - 2, y + 8); ctx.arc(x + w - 8, y + 8, 7, 0, Math.PI * 2);   // head, forward
+    ctx.moveTo(x + 2, y + 12); ctx.lineTo(x - 5, y + 9); ctx.lineTo(x + 2, y + 16);   // tail
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "#ffb830"; ctx.beginPath(); ctx.moveTo(x + w - 2, y + 7); ctx.lineTo(x + w + 6, y + 9); ctx.lineTo(x + w - 2, y + 11); ctx.closePath(); ctx.fill();   // bill
+    ctx.fillRect(x + 6, y + h - 3, 5, 3); ctx.fillRect(x + 13, y + h - 3, 5, 3);   // feet
+    ctx.fillStyle = INK; ctx.fillRect(x + w - 9, y + 5, 3, 3);
+  } else if (avatar === "bear") {
+    ctx.roundRect(x, y + 4, w, h - 4, 8);
+    ctx.moveTo(x + 5, y + 5); ctx.arc(x + 5, y + 5, 4, 0, Math.PI * 2);   // round ears
+    ctx.moveTo(x + w - 5, y + 5); ctx.arc(x + w - 5, y + 5, 4, 0, Math.PI * 2);
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "#f4f4ff"; ctx.beginPath(); ctx.ellipse(cx, y + 16, 5, 4, 0, 0, Math.PI * 2); ctx.fill();   // muzzle
+    ctx.fillStyle = INK; ctx.fillRect(cx - 1, y + 14, 3, 2);
+    eyes(y + 9, x + 14, 7, 3);
+  } else if (avatar === "slime") {
+    // A wobbling blob that squishes and stretches over time.
+    const wob = Math.sin((typeof performance !== "undefined" ? performance.now() : 0) / 180) * 2;
+    ctx.moveTo(x, y + h);
+    ctx.quadraticCurveTo(x - 2, y + 10 - wob, cx - 3, y + 6 + wob);
+    ctx.quadraticCurveTo(cx + 6, y - 2 + wob, x + w + 1, y + 12 - wob);
+    ctx.lineTo(x + w, y + h); ctx.closePath();
+    ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.beginPath(); ctx.ellipse(cx - 5, y + 10, 3, 1.6, -0.5, 0, Math.PI * 2); ctx.fill();   // glossy spot
+    eyes(y + 14, x + 13, 6, 3);
   } else if (avatar === "steamboat") {
     // Old-film cartoon mouse in black and white; your color only shows in the glow.
     const PAPER = "#f4f1e0";
