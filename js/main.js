@@ -89,7 +89,14 @@ const PALETTE = [
 // Canvas text uses the same fonts as the page (see index.html). Bangers is for big shouty titles.
 const FONT = "'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const DISPLAY_FONT = "'Baloo 2', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
-const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
+const BANNER_SECONDS = 4;   // (old) how long the Trailblazer burst stayed on screen
+const BURST_SECONDS = 1.6;  // how long each special-point burst stays; bursts never overlap
+// Which points get a burst, how big, and what the burst says.
+const BURST_STYLE = {
+  Trailblazer: { scale: 1, text: "Trailblazer!" },
+  Autonomous:  { scale: 0.78, text: "Autonomous!" },
+  Curiosity:   { scale: 0.62, text: "Curiosity!" },
+};
 const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser" };
 
 // Every kind of point has a name and a little line that shows on the results screen as it lands.
@@ -219,6 +226,7 @@ const Game = {
   _firstFinisher: null, // who earned the "First One There!" bonus this round
   _firstBonus: 2,       // how many points that bonus is worth (the server tells us)
   _bannerTimer: 0,      // seconds left to show that banner
+  _bursts: [],          // the round's special-point bursts (Trailblazer, Autonomous, Curiosity), shown one at a time
   _runTimeLimit: null,  // seconds allowed for this run, or null for no limit
   _runStartedAt: 0,     // wall-clock time the run began, so the countdown can't drift
   _runTimeLeft: null,   // seconds left, shown in the HUD
@@ -652,7 +660,7 @@ const Game = {
     const othersScored = Object.keys(gains).some((id) => id !== Network.id);
     if (mine.length) setTimeout(() => Sfx.score(), 700);            // first bar stage starts at 0.7 s
     else if (othersScored) setTimeout(() => Sfx.otherScore(), 700);
-    if (message.firstFinisher === Network.id) setTimeout(() => Sfx.fanfare(), 1900);
+    // The Trailblazer fanfare now plays when its burst appears (see update()).
     if (before && after) {
       const step = this.MILESTONE_STEP;
       const crossed = Math.floor(after.score / step) - Math.floor(before.score / step);
@@ -827,7 +835,7 @@ const Game = {
     if (message.type === "round_start") {
       this.applyRoomState(message);
       Player.spawn();
-      this._bannerTimer = 0;
+      this._bannerTimer = 0; this._bursts = [];
       this.say(`Round ${this.round} on ${Level.name}. Place your trap.`, 3);
     }
     if (message.type === "vote_start") {
@@ -931,7 +939,7 @@ const Game = {
       this.phase = "winner";
       this.players = message.players;
       this.winnerIds = message.winnerIds;
-      this._bannerTimer = 0;
+      this._bannerTimer = 0; this._bursts = [];
       this._runTimeLeft = null;
       this.showScores();
       this.renderRoom();
@@ -1000,7 +1008,7 @@ const Game = {
       this._nextRoundIn = message.nextIn;
       this._firstFinisher = message.firstFinisher || null;
       this._firstBonus = message.firstBonus || this._firstBonus;
-      this._bannerTimer = this._firstFinisher ? BANNER_SECONDS : 0;
+      this._bursts = this.buildBursts(message.gains || {});
       this._finalBattleNext = message.finalBattle || null;
       this._winnerPending = message.winnerPending || null;
       this._gains = message.gains || {};
@@ -1121,6 +1129,9 @@ const Game = {
     if (this.phase === "results" && this._nextRoundIn > 0) this._nextRoundIn -= dt;
     if (this.phase === "results") this._resultsElapsed += dt;
     Confetti.update(dt);
+    // A burst plays its sound the moment it appears: the fanfare for Trailblazer, a chime otherwise.
+    const burst = this.activeBurst();
+    if (burst && !burst.sounded) { burst.sounded = true; if (burst.label === "Trailblazer") Sfx.fanfare(); else Sfx.otherScore(); }
     // Last 15 seconds of a run: a tick every second.
     if (this.phase === "run" && this._runTimeLeft !== null && this._runTimeLeft <= 15) {
       const whole = Math.ceil(this._runTimeLeft);
@@ -1170,6 +1181,28 @@ const Game = {
     ctx.fillRect(centerX - width / 2, y - 22, width, 17);
     ctx.fillStyle = color;
     ctx.fillText(name, centerX, y - 7);
+  },
+
+  // Special points burst onto the screen as they land on the chart: Trailblazer big,
+  // Autonomous a bit smaller, Curiosity smaller still. Two bursts never show at once:
+  // if they would collide in time, the later one waits its turn.
+  buildBursts(gains) {
+    const STAGE_START = 0.7, STAGE_GAP = 1.0;
+    const bursts = [];
+    for (const [playerId, stages] of Object.entries(gains)) {
+      stages.forEach((stage, i) => {
+        const key = stage.label.replace(/ ×\d+$/, "");
+        if (BURST_STYLE[key]) bursts.push({ label: key, playerId, points: stage.points, at: STAGE_START + i * STAGE_GAP, scale: BURST_STYLE[key].scale });
+      });
+    }
+    bursts.sort((a, b) => a.at - b.at || b.scale - a.scale);
+    for (let i = 1; i < bursts.length; i++) bursts[i].at = Math.max(bursts[i].at, bursts[i - 1].at + BURST_SECONDS);
+    return bursts;
+  },
+
+  activeBurst() {
+    if (this.phase !== "results") return null;
+    return this._bursts.find((burst) => this._resultsElapsed >= burst.at && this._resultsElapsed < burst.at + BURST_SECONDS) || null;
   },
 
   // The bar animation: each player's points arrive one stage at a time (win, then
@@ -1303,28 +1336,30 @@ const Game = {
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(leftX - 20, baseline); ctx.lineTo(leftX + totalW + 20, baseline); ctx.stroke();
 
-    if (this._bannerTimer > 0 && this._firstFinisher) this.drawTrailblazer();
+    const burst = this.activeBurst();
+    if (burst) this.drawBurst(burst);
   },
 
-  // "Trailblazer!" for the first finisher: a jagged comic burst that slams down
-  // into place, holds, then fades. Everyone sees it for BANNER_SECONDS.
-  drawTrailblazer() {
-    const winner = this.players.find((player) => player.id === this._firstFinisher);
+  // A special-point burst (Trailblazer, Autonomous, Curiosity): a jagged comic burst that
+  // slams down into place, holds, then fades. burst = { label, playerId, points, at, scale }.
+  drawBurst(burst) {
+    const winner = this.players.find((player) => player.id === burst.playerId);
     const color = winner && winner.color !== null ? PALETTE[winner.color] : "#ffd23c";
-    const elapsed = BANNER_SECONDS - this._bannerTimer;   // seconds since it appeared
+    const elapsed = this._resultsElapsed - burst.at;     // seconds since it appeared
+    const remaining = BURST_SECONDS - elapsed;
     const centerX = LEVEL_W / 2, centerY = 200;
 
     // Slam: starts huge and far, shrinks and drops into place over 0.25 s...
     const drop = Math.min(1, elapsed / 0.25);
     const eased = drop * drop;                            // speeds up as it falls, like gravity
-    let scaleX = 2.2 - 1.2 * eased, scaleY = scaleX;
+    let scaleX = (2.2 - 1.2 * eased) * burst.scale, scaleY = scaleX;
     let offsetY = -60 * (1 - eased);
     // ...then squashes on impact for 0.2 s and springs back.
     const impact = Math.max(0, Math.min(1, (elapsed - 0.25) / 0.2));
     const squash = Math.sin(impact * Math.PI);
     scaleX += 0.14 * squash;
     scaleY -= 0.2 * squash;
-    const fade = Math.min(1, this._bannerTimer / 0.4);   // quick fade-out at the end
+    const fade = Math.max(0, Math.min(1, remaining / 0.4));   // quick fade-out at the end
 
     ctx.save();
     ctx.globalAlpha = fade;
@@ -1358,11 +1393,11 @@ const Game = {
     ctx.shadowBlur = 14;
     ctx.fillStyle = color;
     ctx.font = `34px ${DISPLAY_FONT}`;
-    ctx.fillText("Trailblazer!", 0, 8);
+    ctx.fillText(BURST_STYLE[burst.label].text, 0, 8);
     ctx.shadowBlur = 0;
     ctx.fillStyle = "#e8e8ff";
     ctx.font = `bold 15px ${FONT}`;
-    ctx.fillText(`+${this._firstBonus} Points`, 0, 30);
+    ctx.fillText(`+${burst.points} Point${burst.points === 1 ? "" : "s"}`, 0, 30);
     ctx.restore();
   },
 
