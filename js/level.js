@@ -561,8 +561,19 @@ const Level = {
   },
   // Player-placed blocks that are simply solid (planks).
   solidHazards() {
-    return this.hazards.filter((hazard) => ["plank", "mirror", "bigblock", "belt", "fan"].includes(hazard.kind));
+    return this.hazards.filter((hazard) => ["plank", "mirror", "bigblock", "belt", "fan", "generator"].includes(hazard.kind));
   },
+  // A Generator powers up any fan or spring it shares an edge with (corners alone do not count).
+  powered(item) {
+    return this.hazards.some((g) => g.kind === "generator" && g !== item && this.touching(g, item));
+  },
+  touching(a, b) {
+    const sideBySide = (a.x + a.w === b.x || b.x + b.w === a.x) && a.y < b.y + b.h && b.y < a.y + a.h;
+    const stacked = (a.y + a.h === b.y || b.y + b.h === a.y) && a.x < b.x + b.w && b.x < a.x + a.w;
+    return sideBySide || stacked;
+  },
+  // How high a fan's updraft reaches: 4 tiles, 6 with a Generator.
+  fanReach(fan) { return FAN_LIFT * (this.powered(fan) ? 1.5 : 1); },
   // Every moving platform, course-built or player-placed, as a box the physics can use.
   movingSolids() {
     return this.movers.concat(this.hazards.filter((hazard) => hazard.kind === "mover" && hazard._box).map((hazard) => hazard._box));
@@ -837,6 +848,7 @@ const Level = {
       if (hazard.kind === "bigblock") { this.drawPlank(ctx, hazard, t); continue; }
       if (hazard.kind === "belt") { this.drawBelt(ctx, hazard, t); continue; }
       if (hazard.kind === "fan") { this.drawFan(ctx, hazard, t); continue; }
+      if (hazard.kind === "generator") { this.drawGenerator(ctx, hazard, t); continue; }
       if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
       if (hazard.kind === "plank") { this.drawPlank(ctx, hazard, t); continue; }
       if (hazard.kind === "mirror") { this.drawMirror(ctx, hazard); continue; }
@@ -905,6 +917,7 @@ const Level = {
     if (item === "bigblock") { this.drawPlank(ctx, { x: 4, y: 4, w: 22, h: 22 }, t); return; }
     if (item === "belt") { this.drawBelt(ctx, { ...box, rot: 0 }, t); return; }
     if (item === "fan") { this.drawFan(ctx, box, t); return; }
+    if (item === "generator") { this.drawGenerator(ctx, box, t); return; }
     if (item === "bat") { this.drawBat(ctx, 8, 24, -Math.PI / 4); return; }
     if (item === "buckler") { this.drawBuckler(ctx, 15, 15, 11); return; }
     if (item === "eraser") {
@@ -1159,7 +1172,7 @@ const Level = {
     ctx.restore();
     // The updraft: two wavy arrows drifting upward, drawn in whichever ink shows against this
     // course's sky (dark on a bright sky, light on a dark one), with arrowheads at the top.
-    const reach = FAN_LIFT;
+    const reach = this.fanReach(f);
     ctx.save();
     ctx.strokeStyle = this.inkFor(t.bg);
     ctx.lineWidth = 2.5;
@@ -1175,6 +1188,24 @@ const Level = {
       const tipX = x0 + Math.sin(reach / 9 + phase) * 3.5, tipY = f.y - reach;
       ctx.beginPath(); ctx.moveTo(tipX - 5, tipY + 6); ctx.lineTo(tipX, tipY); ctx.lineTo(tipX + 5, tipY + 6); ctx.stroke();
     }
+    ctx.restore();
+  },
+  // Generator: a boxy block with a lightning bolt. When it is powering a neighbour the bolt flickers
+  // and a glow pulses around the block; idle, the bolt is dim.
+  drawGenerator(ctx, g, t) {
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    const live = this.hazards.some((item) => (item.kind === "fan" || item.kind === "spring") && this.touching(g, item));
+    ctx.fillStyle = "#2a2a3a"; ctx.fillRect(g.x, g.y, g.w, g.h);
+    ctx.strokeStyle = "#8a8aa8"; ctx.lineWidth = 2; ctx.strokeRect(g.x + 1, g.y + 1, g.w - 2, g.h - 2);
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = "#3a3a4e"; ctx.fillRect(g.x + 4, g.y + 5 + i * 8, 5, 4); }   // vent slots
+    ctx.save();
+    if (live) { ctx.shadowColor = "#ffd23c"; ctx.shadowBlur = 8 + 6 * Math.sin(now * 10); }
+    ctx.fillStyle = live ? (Math.sin(now * 24) > -0.3 ? "#ffe680" : "#ffd23c") : "#7a6a2a";
+    const cx = g.x + g.w * 0.6, top = g.y + 4, bottom = g.y + g.h - 4;
+    ctx.beginPath();
+    ctx.moveTo(cx + 2, top); ctx.lineTo(cx - 5, g.y + g.h * 0.55); ctx.lineTo(cx, g.y + g.h * 0.55);
+    ctx.lineTo(cx - 3, bottom); ctx.lineTo(cx + 5, g.y + g.h * 0.42); ctx.lineTo(cx, g.y + g.h * 0.42); ctx.closePath();
+    ctx.fill();
     ctx.restore();
   },
   // Dark or light ink for markings drawn over a course background (a #rrggbb colour).

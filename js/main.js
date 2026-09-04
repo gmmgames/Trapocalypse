@@ -114,7 +114,7 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart", boots: "Rocket Boots", feather: "Feather", speedshoes: "Speed Shoes", bigblock: "Big Block", belt: "Conveyor Belt", fan: "Fan" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart", boots: "Rocket Boots", feather: "Feather", speedshoes: "Speed Shoes", bigblock: "Big Block", belt: "Conveyor Belt", fan: "Fan", generator: "Generator" };
 const PICKUPS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // collected by touch during the run
 const BAT_REACH = 46;   // how far in front of you a swing reaches
 // Random round events: a title for the warning and one line on what changes.
@@ -806,7 +806,7 @@ const Game = {
     if (this.pick === "mirror" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mirror needs open air.";
     if (this.pick === "heart" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The heart has to float in open air.";
     if (["bat", "buckler", "boots", "feather", "speedshoes"].includes(this.pick) && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Pickups have to float in open air.";
-    if (["bigblock", "belt", "fan"].includes(this.pick) && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "That block needs open air.";
+    if (["bigblock", "belt", "fan", "generator"].includes(this.pick) && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "That block needs open air.";
     if (this.pick === "glue") {
       // Gum sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Gum goes on a block, not inside it.";

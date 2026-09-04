@@ -189,7 +189,7 @@ function courseSize(room) {
   return { W: (level.cols || 32) * TILE, H: (level.rows || 18) * TILE };
 }
 
-const SOLID_ITEM_KINDS = ["plank", "mirror", "bigblock", "belt", "fan"];   // placed items that are solid blocks (see Level.solidHazards)
+const SOLID_ITEM_KINDS = ["plank", "mirror", "bigblock", "belt", "fan", "generator"];   // placed items that are solid blocks (see Level.solidHazards)
 
 function trapBlocked(room, trap) {
   const level = levelsOf(room)[room.levelIndex];
@@ -198,7 +198,7 @@ function trapBlocked(room, trap) {
   // Nothing within two tiles of the flag, so the finish can never be walled off.
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
-  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "bat", "buckler", "boots", "feather", "speedshoes", "bigblock", "belt", "fan", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
+  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "bat", "buckler", "boots", "feather", "speedshoes", "bigblock", "belt", "fan", "generator", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
   // Ground for spikes, gum and ice: the course's blocks plus the solid items already placed this
   // course (planks, big blocks, mirrors, belts, fans). Movers slide, so they do not count.
   const ground = level.solids.concat(room.traps.filter((item) => SOLID_ITEM_KINDS.includes(item.kind)));
@@ -539,7 +539,7 @@ function removePlayer(socket) {
 // Traps are the everyday cards; blocks a bit rarer; pickups (collected during the run) rare.
 const ITEM_WEIGHTS = {
   spike: 1.2, crumble: 1.2, glue: 1.2, bumper: 1.2, spring: 1.2, ice: 1.2, decoy: 1, longspike: 0.4,
-  plank: 0.5, bigblock: 0.45, mover: 0.4, mirror: 0.3, belt: 0.35, fan: 0.3, eraser: 0.5, pencil: 0.15,
+  plank: 0.5, bigblock: 0.45, mover: 0.4, mirror: 0.3, belt: 0.35, fan: 0.3, generator: 0.3, eraser: 0.5, pencil: 0.15,
   bat: 0.12, buckler: 0.12, boots: 0.1, feather: 0.1, speedshoes: 0.1, heart: 0.06, portal: 0.05,
 };
 const PICKUP_KINDS = ["portal", "heart", "bat", "buckler", "boots", "feather", "speedshoes"];   // placed in the build phase, collected by touch during the run
