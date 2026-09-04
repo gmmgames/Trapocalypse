@@ -107,7 +107,7 @@ body {
   filter: drop-shadow(0 0 10px rgba(255, 60, 180, 0.7));
   animation: glow 2.4s ease-in-out infinite;
   transition: top 0.7s cubic-bezier(0.4, 0, 0.2, 1), left 0.7s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.7s cubic-bezier(0.4, 0, 0.2, 1), transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+              width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* The logo belongs to the menu: when the panel is hidden (in a room), so is the logo */
 #online-panel.hidden + #menu-logo { display: none; }
@@ -116,10 +116,12 @@ body {
    the menu and the ID badge are held invisible. main.js removes "intro" a moment later, which lets the
    logo slide (via the transition above) to its corner while the menu fades in. */
 body.intro #menu-logo {
-  top: 50%;
-  left: 50%;
+  /* Centred with plain top/left maths (the picture is 1813x341, so its height is 0.188 of its
+     width) rather than a transform shift: the pop animation owns the transform, and a transform
+     that is both animated and transitioned snaps instead of easing when the slide begins. */
   width: min(80vw, 1000px);
-  transform: translate(-50%, -50%);
+  left: calc(50% - min(40vw, 500px));
+  top: calc(50% - min(7.52vw, 94px));
   animation: logo-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.3) both, glow 2.4s ease-in-out infinite;
 }
 body.intro #online-panel, body.intro #user-badge, body.intro #settings-button {
@@ -128,8 +130,8 @@ body.intro #online-panel, body.intro #user-badge, body.intro #settings-button {
   pointer-events: none;
 }
 @keyframes logo-pop {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  from { opacity: 0; transform: scale(0.2); }
+  to { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   #menu-logo { transition: none; animation: none; }
