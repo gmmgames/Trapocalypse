@@ -74,6 +74,18 @@ const Sfx = {
     this.tone(110, 0, 0.18, "sawtooth", 0.18);
   },
 
+  // Last 15 seconds of a run: a dry tick each second.
+  tick() {
+    this.tone(1800, 0, 0.03, "square", 0.08);
+    this.tone(900, 0.02, 0.04, "square", 0.06);
+  },
+
+  // You reached the flag: a quick rising flourish.
+  finish() {
+    [523, 659, 784, 1047, 1319].forEach((freq, i) => this.tone(freq, i * 0.06, 0.18, "triangle", 0.16));
+    this.tone(1568, 0.32, 0.4, "sine", 0.1);
+  },
+
   // Weapons.
   dash() { this.tone(300, 0, 0.05, "sawtooth", 0.1); this.tone(900, 0.03, 0.12, "sawtooth", 0.08); },
   shieldPop() { this.tone(1200, 0, 0.08, "sine", 0.2); this.noise(0.2, 0.15); },

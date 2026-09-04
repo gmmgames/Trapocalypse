@@ -11,6 +11,23 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hud = document.getElementById("hud");
+const hudText = document.getElementById("hud-text");
+const hudClock = document.getElementById("hud-clock");
+const hudTail = document.getElementById("hud-tail");
+
+// A random name for players who leave the box empty (or roll the dice). Two words, always clean.
+const NAME_ADJECTIVES = ["Sneaky", "Bouncy", "Zesty", "Turbo", "Wobbly", "Spicy", "Crispy", "Jolly", "Mighty", "Fuzzy", "Rapid", "Sleepy", "Cosmic", "Loopy", "Frosty", "Peppy", "Dizzy", "Chunky", "Slippy", "Golden", "Rowdy", "Sunny", "Grumpy", "Nimble"];
+const NAME_NOUNS = ["Mango", "Pickle", "Waffle", "Noodle", "Badger", "Comet", "Pebble", "Gecko", "Muffin", "Rocket", "Walrus", "Taco", "Panda", "Cactus", "Yeti", "Donut", "Falcon", "Marble", "Otter", "Pretzel", "Robot", "Turnip", "Llama", "Biscuit"];
+function randomName() {
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  return `${pick(NAME_ADJECTIVES)} ${pick(NAME_NOUNS)}`;
+}
+// The name to play under: what you typed, or a fresh random one written into the box for you.
+function chosenName() {
+  const input = document.getElementById("player-name");
+  if (!input.value.trim()) input.value = randomName();
+  return input.value.trim();
+}
 const buildHud = document.getElementById("build-hud");
 const buildTitle = document.getElementById("build-title");
 const buildInstructions = document.getElementById("build-instructions");
@@ -529,7 +546,7 @@ const Game = {
     const code = this._invite.code;
     this.hideInviteToast();
     if (this.inRoom) { Network.leave(); this.leaveOnline(); }
-    const name = playerNameInput.value.trim() || "Runner";
+    const name = chosenName();
     this.startOnline();
     Network.connect(name, code);
   },
@@ -568,7 +585,7 @@ const Game = {
     code = String(code || "").trim().toUpperCase();
     if (!code) { document.getElementById("room-list-note").textContent = "Type a room code first."; return; }
     this.hideRoomList();
-    const name = playerNameInput.value.trim() || "Runner";
+    const name = chosenName();
     this.startOnline();
     Network.connect(name, code);
   },
@@ -963,6 +980,11 @@ const Game = {
       } else if (message.playerId !== Network.id && who) {
         this.say(message.status === "dead" ? `${who.name} is out!` : `${who.name} made it!`, 1.5);
       }
+      // Someone else reached the flag: confetti where we last saw them.
+      if (message.status === "finished" && message.playerId !== Network.id) {
+        const remote = this.remotePlayers[message.playerId];
+        if (remote && remote.x !== undefined) Confetti.burst(remote.x + Player.w / 2, remote.y + Player.h / 2, this.colorOf(message.playerId));
+      }
     }
     if (message.type === "round_over") {
       this.playRoundSounds(message);
@@ -1053,6 +1075,8 @@ const Game = {
   },
 
   onPlayerFinished() {
+    Sfx.finish();
+    Confetti.burst(Player.x + Player.w / 2, Player.y + Player.h / 2, Player.color);
     if (this.mode === "online") {
       Network.send({ type: "finished" });
       this.say("You made it! Waiting for the others...", 4);
@@ -1089,6 +1113,12 @@ const Game = {
     }
     if (this.phase === "results" && this._nextRoundIn > 0) this._nextRoundIn -= dt;
     if (this.phase === "results") this._resultsElapsed += dt;
+    Confetti.update(dt);
+    // Last 15 seconds of a run: a tick every second.
+    if (this.phase === "run" && this._runTimeLeft !== null && this._runTimeLeft <= 15) {
+      const whole = Math.ceil(this._runTimeLeft);
+      if (whole !== this._lastTick && whole > 0) { this._lastTick = whole; Sfx.tick(); }
+    } else this._lastTick = null;
     // Countdown from the wall clock, so a tab that was hidden still shows the right time.
     if (this.phase === "run" && this._runTimeLimit !== null && this._runTimeLeft !== null) {
       this._runTimeLeft = Math.max(0, this._runTimeLimit - (performance.now() - this._runStartedAt) / 1000);
@@ -1347,6 +1377,7 @@ const Game = {
       if (this.mode === "online") this.drawNametag(remote.x, remote.y, remote.name, color);
     }
     Player.draw(ctx);
+    Confetti.draw(ctx);
     this.drawPending();
     if (this.mode === "online" && Player.alive) {
       const me = this.players.find((player) => player.id === Network.id);
@@ -1358,23 +1389,28 @@ const Game = {
     // The round and course line only shows once a match is under way. On the menu (solo
     // mode) the HUD stays hidden; in the lobby and the vote it shows no course name.
     hud.classList.toggle("hidden", this.mode === "solo");
+    hudClock.textContent = ""; hudClock.classList.remove("urgent"); hudTail.textContent = "";   // only the run branch fills these
     if (this.mode === "online" && this.phase === "lobby") {
-      hud.textContent = `ROOM ${roomCodeInput.value}  •  ${this.message}`;
+      hudText.textContent = `ROOM ${roomCodeInput.value}  •  ${this.message}`;
     } else if (this.mode === "online" && this.phase === "vote") {
       const left = Math.max(0, Math.ceil((this._voteEndsAt - performance.now()) / 1000));
-      hud.textContent = `COURSE VOTE  •  ⏱ ${left}s  •  ${this.message}`;
+      hudText.textContent = `COURSE VOTE  •  ⏱ ${left}s  •  ${this.message}`;
     } else if (this.mode === "online" && this.phase === "winner") {
-      hud.textContent = `MATCH OVER  •  ${this.message}`;
+      hudText.textContent = `MATCH OVER  •  ${this.message}`;
     } else if (this.mode === "online") {
       const cap = this.settings ? this.settings.roundCap : "?";
       const roundLabel = `ROUND ${this.round} of ${cap}  ${Level.name}`;
-      const clock = this.phase === "run" && this._runTimeLeft !== null ? `  •  ⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
+      const showClock = this.phase === "run" && this._runTimeLeft !== null;
       const info = this.phase === "run" && Player.weapon ? WEAPON_INFO[Player.weapon] : null;
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
-      hud.textContent = `${roundLabel}${clock}${weapon}  •  ${this.message}`;
+      // The clock is its own span so the last 15 seconds can go red without the rest.
+      hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
+      hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
+      hudClock.classList.toggle("urgent", showClock && this._runTimeLeft <= 15);
+      hudTail.textContent = `${weapon}  •  ${this.message}`;
     } else {
       const progress = `LEVEL ${this.levelIndex + 1}/${LEVELS.length}  ${Level.name}`;
-      hud.textContent = this.complete ? `${progress}  •  COMPLETE` : `${progress}  •  ${this.message}`;
+      hudText.textContent = this.complete ? `${progress}  •  COMPLETE` : `${progress}  •  ${this.message}`;
     }
 
     if (this.mode === "party" && this.phase === "build") {
@@ -1415,11 +1451,12 @@ const Game = {
 
 Network.onMessage = (message) => Game.onNetworkMessage(message);
 createRoomButton.addEventListener("click", () => {
-  const name = playerNameInput.value.trim() || "Runner";
+  const name = chosenName();
   Game.startOnline();
   Network.connect(name);   // the room starts with default settings; the host adjusts them in the lobby
 });
 document.getElementById("menu-help").addEventListener("click", () => Game.showHelp());
+document.getElementById("roll-name").addEventListener("click", () => { playerNameInput.value = randomName(); });
 // Join Room opens the room list; a code typed on the menu is carried into it.
 joinRoomButton.addEventListener("click", () => Game.showRoomList());
 document.getElementById("join-code-button").addEventListener("click", () => Game.joinCode(document.getElementById("join-code").value));
