@@ -527,6 +527,7 @@ const Level = {
       if (hazard.kind === "spring") { this.drawSpring(ctx, hazard); continue; }
       if (hazard.kind === "ice") { this.drawIce(ctx, hazard); continue; }
       if (hazard.kind === "portal") { if (!hazard.taken) this.drawPortal(ctx, hazard); continue; }
+      if (hazard.kind === "heart") { if (!hazard.taken) this.drawHeart(ctx, hazard); continue; }
       if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
       if (hazard.kind === "plank") { this.drawPlank(ctx, hazard, t); continue; }
       if (hazard.kind === "mirror") { this.drawMirror(ctx, hazard); continue; }
@@ -572,6 +573,9 @@ const Level = {
     if (item === "plank") { this.drawPlank(ctx, { x: 2, y: 11, w: 26, h: 8 }, t); return; }
     if (item === "longspike") { this.drawSpikes(ctx, { x: 1, y: 14, w: 28, h: 16 }, t, 7); return; }
     if (item === "mirror") { this.drawMirror(ctx, box); return; }
+    if (item === "heart") { this.drawHeart(ctx, box); return; }
+    if (item === "bat") { this.drawBat(ctx, 8, 24, -Math.PI / 4); return; }
+    if (item === "buckler") { this.drawBuckler(ctx, 15, 15, 11); return; }
     if (item === "eraser") {
       ctx.fillStyle = "#ff3c78";
       ctx.fillRect(3, 8, 24, 16);
@@ -634,6 +638,16 @@ const Level = {
     const list = stuck.length ? stuck : ["bottom"];
     const cx = g.x + g.w / 2, cy = g.y + g.h / 2;
     const rotation = { bottom: 0, left: Math.PI / 2, top: Math.PI, right: -Math.PI / 2 };
+    // Stuck to two or more blocks: a wad in the middle with thick strands pulled out to each one.
+    if (list.length >= 2) {
+      const edge = { bottom: [cx, g.y + g.h], top: [cx, g.y], left: [g.x, cy], right: [g.x + g.w, cy] };
+      ctx.save();
+      ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 7; ctx.lineCap = "round";
+      for (const side of list) { const [ex, ey] = edge[side]; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.quadraticCurveTo((cx + ex) / 2 + 3, (cy + ey) / 2 - 3, ex, ey); ctx.stroke(); }
+      ctx.fillStyle = "#ff6fb5"; ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffb3d9"; ctx.beginPath(); ctx.ellipse(cx - 3, cy - 3, 3, 2, -0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     for (const side of list) {
       ctx.save();
       ctx.translate(cx, cy);
@@ -718,6 +732,43 @@ const Level = {
     }
     ctx.fillStyle = t.spikeBase;
     ctx.fillRect(s.x, s.y + s.h - 3, s.w, 3);
+  },
+
+  // The Revive Heart pickup: a bobbing pink heart with a glow.
+  drawHeart(ctx, p) {
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    const cx = p.x + p.w / 2, cy = p.y + p.h / 2 + Math.sin(now * 3) * 2, r = 6;
+    ctx.save();
+    ctx.shadowColor = "#ff6fb5"; ctx.shadowBlur = 14;
+    ctx.fillStyle = "#ff3c78";
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + r);
+    ctx.bezierCurveTo(cx - r * 2, cy - r * 0.5, cx - r, cy - r * 1.8, cx, cy - r * 0.6);
+    ctx.bezierCurveTo(cx + r, cy - r * 1.8, cx + r * 2, cy - r * 0.5, cx, cy + r);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#ffb3d9";
+    ctx.beginPath(); ctx.ellipse(cx - 3, cy - 4, 2, 1.3, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+  // A baseball bat: handle at (x, y), pointing along angle.
+  drawBat(ctx, x, y, angle, length = 22) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(angle);
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#8a6a4a"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length * 0.4, 0); ctx.stroke();
+    ctx.strokeStyle = "#d2a06a"; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(length * 0.4, 0); ctx.lineTo(length, 0); ctx.stroke();
+    ctx.fillStyle = "#0b0b14"; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+  // A round shield: blue disc, silver rim, a cross boss.
+  drawBuckler(ctx, cx, cy, r) {
+    ctx.save();
+    ctx.fillStyle = "#3cb4ff"; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#e8e8ff"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy, r - 1, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "#ffd23c"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - r * 0.5, cy); ctx.lineTo(cx + r * 0.5, cy); ctx.moveTo(cx, cy - r * 0.5); ctx.lineTo(cx, cy + r * 0.5); ctx.stroke();
+    ctx.restore();
   },
 
   // A Mirror: a solid glassy tile in a silver frame. Thrown things bounce off it; it flashes when hit.

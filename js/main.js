@@ -114,7 +114,9 @@ const BURST_STYLE = {
   Curiosity:   { scale: 0.62, text: "Curiosity!" },
   Condolence:  { scale: 0.85, text: "Condolence." },
 };
-const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror" };
+const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Gum", bumper: "Bumper", spring: "Spring", ice: "Ice", decoy: "Decoy", eraser: "Eraser", pencil: "Pencil", portal: "Teleport Ball", mover: "Mover", plank: "Plank", longspike: "Long Spikes", mirror: "Mirror", bat: "Baseball Bat", buckler: "Shield", heart: "Revive Heart" };
+const BAT_REACH = 46;   // how far in front of you a swing reaches
+const BUCKLER_HEALTH = 2;
 const THROW_CHARGE_SECONDS = 0.9;   // holding USE this long gives a full-power throw
 const PENCIL_MAX_BLOCKS = 8;   // squares per pencil stroke (the server enforces the same cap)
 
@@ -260,6 +262,10 @@ const Game = {
   portal: false,        // holding a picked-up Teleport Ball
   _charge: 0,           // throw power building up while USE is held (0..1)
   rotation: 0,          // quarter turns for the item you are placing (Q / R)
+  bat: false,           // carrying the Baseball Bat this run
+  _swing: 0,            // seconds left of the current swing
+  buckler: 0,           // Shield item health left this run
+  revive: false,        // holding a Revive Heart
   _balls: [],           // teleport balls in flight: { x, y, vx, vy, by, color, trail }
   _stroke: null,        // the stroke you are drawing right now: { blocks: [{x, y}] }
 
@@ -468,7 +474,7 @@ const Game = {
       Level.drawItemIcon(icon.getContext("2d"), item);
       const name = document.createElement("span");
       name.className = "item-name";
-      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : TRAP_NAMES[item];
+      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : TRAP_NAMES[item];
       const taker = document.createElement("span");
       taker.className = "item-taker";
       const takerId = Object.keys(this.picks).find((id) => this.picks[id] === slot && id !== Network.id);
@@ -514,6 +520,28 @@ const Game = {
     }
     return dots;
   },
+  swingBat() {
+    if (!this.bat || this.phase !== "run" || !Player.alive || Player.finished || this._swing > 0) return;
+    this._swing = 0.22;
+    Sfx.dash();
+  },
+  // What you carry: the bat in hand (swinging when used), the shield ring with its health, the heart over your head.
+  drawCarry() {
+    if (this.phase !== "run" || !Player.alive) return;
+    if (this.bat) {
+      const swing = this._swing > 0 ? (0.22 - this._swing) / 0.22 : 0;
+      const angle = Player.facing === 1 ? -Math.PI / 3 + swing * Math.PI * 0.9 : -Math.PI * 2 / 3 - swing * Math.PI * 0.9;
+      Level.drawBat(ctx, Player.x + (Player.facing === 1 ? Player.w - 2 : 2), Player.y + 14, angle, 24);
+    }
+    if (this.buckler > 0) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(60, 180, 255, 0.8)"; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(Player.x + Player.w / 2, Player.y + Player.h / 2, 22, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < BUCKLER_HEALTH; i++) { ctx.fillStyle = i < this.buckler ? "#3cb4ff" : "rgba(60,180,255,0.25)"; ctx.fillRect(Player.x + 2 + i * 10, Player.y - 30, 8, 4); }
+      ctx.restore();
+    }
+    if (this.revive) Level.drawHeart(ctx, { x: Player.x + Player.w / 2 - 15, y: Player.y - 44, w: 30, h: 30 });
+  },
   drawAimer() {
     if (!this.portal || this._charge <= 0 || this.phase !== "run") return;
     const dots = this.aimDots(Math.max(0.15, this._charge));
@@ -538,6 +566,19 @@ const Game = {
       ball.vy += Physics.GRAVITY * dt;
       ball.x += ball.vx * dt; ball.y += ball.vy * dt;
       ball.trail.push(before); if (ball.trail.length > 8) ball.trail.shift();
+      // A swinging bat in front of you knocks the ball away hard; a Shield bounces one that hits you.
+      if (ball.by !== Network.id || ball.age > 0.3) {
+        const reach = { x: Player.facing === 1 ? Player.x + Player.w : Player.x - BAT_REACH, y: Player.y - 12, w: BAT_REACH, h: Player.h + 24 };
+        if (this._swing > 0 && inside(ball, reach)) {
+          ball.vx = Player.facing * Math.max(420, Math.abs(ball.vx) * 1.3); ball.vy = Math.min(ball.vy, -220); ball.by = Network.id; ball.age = 0;
+          Sfx.bump(); this.say("Batted!", 1); continue;
+        }
+        if (this.buckler > 0 && Player.alive && inside(ball, { x: Player.x - 4, y: Player.y - 4, w: Player.w + 8, h: Player.h + 8 })) {
+          this.buckler -= 1; ball.vx = -ball.vx * 0.8; ball.vy = -Math.abs(ball.vy) * 0.5 - 100; ball.x = before.x; ball.by = Network.id; ball.age = 0;
+          Sfx.shieldPop(); this.say(this.buckler > 0 ? `Shield bounced it! ${this.buckler} left` : "Shield broke!", 1.5); continue;
+        }
+      }
+      ball.age = (ball.age || 0) + dt;
       // Springs fling the ball back up; mirrors bounce it off whichever face it hit.
       const spring = Level.hazards.find((h) => h.kind === "spring" && inside(ball, h));
       if (spring && ball.vy > 0) { ball.vy = -Math.abs(ball.vy) * 0.9 - 250; ball.y = spring.y - 1; spring.bouncedAt = performance.now(); Sfx.bump(); continue; }
@@ -650,6 +691,7 @@ const Game = {
     if (this.pick === "mover" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mover needs open air to slide in.";
     if (this.pick === "plank" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A plank needs open air.";
     if (this.pick === "mirror" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mirror needs open air.";
+    if (this.pick === "heart" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The heart has to float in open air.";
     if (this.pick === "glue") {
       // Gum sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Gum goes on a block, not inside it.";
@@ -670,6 +712,7 @@ const Game = {
     if (this.phase !== "build" || this.mode !== "online") return;
     if (this.myColor === null) { this.say("Pick a color first.", 1.5); return; }
     if (this.pick === "pencil") { this.say("You have the pencil: you sketch blocks during the run instead of placing now.", 2); return; }
+    if (this.pick === "bat" || this.pick === "buckler") { this.say(`You carry the ${TRAP_NAMES[this.pick].toLowerCase()} into the run: nothing to place now.`, 2); return; }
     if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
     if (!this.pick) { this.say("Pick an item from the cards first.", 1.5); return; }
     if (!this.everyonePicked()) { this.say("Waiting for everyone to pick an item.", 1.5); return; }
@@ -1171,11 +1214,25 @@ const Game = {
       this.renderAvatars();
     }
     if (message.type === "picked_up") {
-      const orb = Level.hazards.find((hazard) => hazard.kind === "portal" && hazard.x === message.x && hazard.y === message.y);
+      const orb = Level.hazards.find((hazard) => (hazard.kind === "portal" || hazard.kind === "heart") && hazard.x === message.x && hazard.y === message.y);
       if (orb) orb.taken = true;
-      if (message.by === Network.id) { this.portal = true; this.say("Teleport Ball! Hold X / Shift (or USE) to aim and charge, let go to throw. You appear where it lands.", 4); }
-      else this.say(`${this.nameOf(message.by)} grabbed the Teleport Ball!`, 2);
+      const kind = message.kind || "portal";
+      if (message.by === Network.id) {
+        if (kind === "heart") { this.revive = true; this.say("Revive Heart! If you die this run, you get one more go from the start.", 4); }
+        else { this.portal = true; this.say("Teleport Ball! Hold X / Shift (or USE) to aim and charge, let go to throw. You appear where it lands.", 4); }
+      } else this.say(`${this.nameOf(message.by)} grabbed the ${kind === "heart" ? "Revive Heart" : "Teleport Ball"}!`, 2);
       Sfx.pickup();
+    }
+    if (message.type === "carry_taken") {
+      const who = this.players.find((player) => player.id === message.playerId);
+      if (who) who.trapCount = this.trapsPerRound;
+      if (message.playerId === Network.id) {
+        this.placements[0] = this.trapsPerRound; this.pending = null;
+        if (message.item === "bat") { this.bat = true; this.say("Baseball Bat! Press X / Shift (or USE) during the run to knock thrown balls away.", 4); }
+        if (message.item === "buckler") { this.buckler = BUCKLER_HEALTH; this.say("Shield! It soaks two hits this run: spikes, or balls thrown at you.", 4); }
+        Sfx.pickup();
+      }
+      this.renderItems();
     }
     if (message.type === "portal_ball") {
       this._balls.push({ x: message.x, y: message.y, vx: message.vx, vy: message.vy, by: message.by, color: this.colorOf(message.by), trail: [] });
@@ -1235,6 +1292,7 @@ const Game = {
       this.rotation = 0;
       Level.moverEpoch = performance.now();    // everyone's platforms start the run in the same spot
       this.portal = false; this._balls = []; this._charge = 0;
+      this.bat = false; this._swing = 0; this.buckler = 0; this.revive = false;
       for (const remote of Object.values(this.remotePlayers)) { remote.alive = true; remote.finished = false; }
       // Mirror what the server just did: everyone runs, or in a Final Battle only the tied players do.
       this.finalBattleIds = message.finalBattleIds || [];
@@ -1473,10 +1531,11 @@ const Game = {
     if (this.phase === "run" && !this.complete) {
       Player.update(dt);
       if (this.mode === "online") {
+        if (this._swing > 0) this._swing -= dt;
         this.updateBalls(dt);
         // Touch a Teleport Ball orb to claim it (the server decides who was first).
         for (const orb of Level.hazards) {
-          if (orb.kind === "portal" && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
+          if ((orb.kind === "portal" || orb.kind === "heart") && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
             orb._claimed = true;
             Network.send({ type: "pickup", x: orb.x, y: orb.y });
           }
@@ -1944,6 +2003,7 @@ const Game = {
     this.drawPending();
     this.drawStroke();
     this.drawBalls();
+    this.drawCarry();
     this.drawAimer();
     if (this.mode === "online" && Player.alive) {
       const me = this.players.find((player) => player.id === Network.id);
@@ -1976,11 +2036,12 @@ const Game = {
       const weapon = info ? `  •  ${info.icon} ${info.name}${Player.weaponUsed ? " (used)" : ""}` : "";
       const pencil = this.pencil > 0 ? `  •  ✏️ ${this.pencil} stroke${this.pencil === 1 ? "" : "s"} left` : "";
       const portal = this.portal ? "  •  🔮 Teleport Ball: hold X / Shift to aim, let go to throw" : "";
+      const carry = (this.bat ? "  •  ⚾ Bat: X / Shift to swing" : "") + (this.buckler > 0 ? `  •  🛡 Shield ×${this.buckler}` : "") + (this.revive ? "  •  💗 Revive ready" : "");
       // The clock is its own span so the last 15 seconds can go red without the rest.
       hudText.textContent = `${roundLabel}${showClock ? "  •  " : ""}`;
       hudClock.textContent = showClock ? `⏱ ${Math.ceil(this._runTimeLeft)}s` : "";
       hudClock.classList.toggle("urgent", showClock && this._runTimeLeft <= 15);
-      hudTail.textContent = `${weapon}${pencil}${portal}  •  ${this.message}`;
+      hudTail.textContent = `${weapon}${pencil}${portal}${carry}  •  ${this.message}`;
     } else {
       const progress = `LEVEL ${this.levelIndex + 1}/${LEVELS.length}  ${Level.name}`;
       hudText.textContent = this.complete ? `${progress}  •  COMPLETE` : `${progress}  •  ${this.message}`;

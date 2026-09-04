@@ -130,6 +130,7 @@ const Player = {
     if (this._wallLock > 0) { this._wallLock -= dt; this.vx = this._wallLockVx; }
 
     // Weapon button: dash, or ask the server to freeze / drop a bomb.
+    if (Input.usePressed && typeof Game !== "undefined" && Game.bat) Game.swingBat();   // the Baseball Bat
     // Throwables (the Teleport Ball): hold USE to aim and build power, let go to throw.
     if (typeof Game !== "undefined" && Game.portal) {
       if (Input.use) Game.chargeThrow(dt);
@@ -221,6 +222,24 @@ const Player = {
           this._immune = 0.6;
           Sfx.shieldPop();
           Game.say("Shield popped!", 1.5);
+          break;
+        }
+        if (typeof Game !== "undefined" && Game.buckler > 0) {
+          // The Shield item soaks the hit: one point of its health gone.
+          Game.buckler -= 1;
+          this._immune = 0.6;
+          Sfx.shieldPop();
+          Game.say(Game.buckler > 0 ? `Shield took the hit! ${Game.buckler} left` : "Shield broke!", 1.5);
+          break;
+        }
+        if (typeof Game !== "undefined" && Game.revive) {
+          // The Revive Heart: one more life, back at the start.
+          Game.revive = false;
+          this.x = Level.start.x; this.y = Level.start.y; this.vx = 0; this.vy = 0;
+          this._immune = 1.0;
+          Sfx.boots();
+          Dust.spawn(this.x + this.w / 2, this.y + this.h, 14, 24);
+          Game.say("Second chance! The heart brought you back.", 2.5);
           break;
         }
         this.die(hazard);   // pass the spike along so its owner can get credit

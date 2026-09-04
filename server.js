@@ -151,7 +151,7 @@ function trapBlocked(room, trap) {
   // Nothing within two tiles of the flag, so the finish can never be walled off.
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
-  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
+  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
   // Glue must touch a block on some side (top, bottom, left or right).
   const sides = [{ x: trap.x + 2, y: trap.y - 2, w: TILE - 4, h: 2 }, { x: trap.x + 2, y: trap.y + TILE, w: TILE - 4, h: 2 }, { x: trap.x - 2, y: trap.y + 2, w: 2, h: TILE - 4 }, { x: trap.x + TILE, y: trap.y + 2, w: 2, h: TILE - 4 }];
   const looseGlue = trap.kind === "glue" && !sides.some((probe) => level.solids.some((solid) => overlaps(solid, probe)));
@@ -439,7 +439,8 @@ function removePlayer(socket) {
 // picks one; while any offered item is still free, two players cannot pick the same one.
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
-const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7, longspike: 0.35, mirror: 0.4 };
+const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7, longspike: 0.35, mirror: 0.4, bat: 0.4, buckler: 0.4, heart: 0.1 };
+const CARRY_ITEMS = ["bat", "buckler"];   // picked in the build phase, used during the run (like the pencil)
 const PLANK_TILES = 3;           // a Plank is this many tiles wide (one tall)
 const PENCIL_CHARGES = 3;        // strokes per pencil pick
 const PENCIL_MAX_BLOCKS = 8;     // blocks per stroke
@@ -797,6 +798,14 @@ webSocketServer.on("connection", (socket) => {
         maybeStartRun(room);
         return;
       }
+      if (CARRY_ITEMS.includes(player.pick)) {
+        // Bat and Shield are carried into the run: picking one is your build turn.
+        player.trapCount = TRAPS_PER_ROUND;
+        broadcast(room, { type: "picks", picks: itemPicks(room) });
+        broadcast(room, { type: "carry_taken", playerId: player.id, item: player.pick });
+        maybeStartRun(room);
+        return;
+      }
       broadcast(room, { type: "picks", picks: itemPicks(room) });
       return;
     }
@@ -828,10 +837,11 @@ webSocketServer.on("connection", (socket) => {
     }
     // Teleport Ball: run into the placed orb to pick it up (first come, first served)...
     if (message.type === "pickup" && room.phase === "run" && player.status === "running") {
-      const orb = room.traps.find((trap) => trap.kind === "portal" && !trap.taken && trap.x === Number(message.x) && trap.y === Number(message.y));
+      const orb = room.traps.find((trap) => (trap.kind === "portal" || trap.kind === "heart") && !trap.taken && trap.x === Number(message.x) && trap.y === Number(message.y));
       if (!orb) return;
-      orb.taken = true; player.portal = true;
-      broadcast(room, { type: "picked_up", x: orb.x, y: orb.y, by: player.id });
+      orb.taken = true;
+      if (orb.kind === "portal") player.portal = true;
+      broadcast(room, { type: "picked_up", x: orb.x, y: orb.y, by: player.id, kind: orb.kind });
       return;
     }
     // ...then throw it. Everyone gets the same throw and simulates the same arc; the thrower
