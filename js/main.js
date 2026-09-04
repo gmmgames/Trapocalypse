@@ -2446,10 +2446,14 @@ for (const type of ["pointerdown", "keydown"]) window.addEventListener(type, () 
   }, { passive: true });
   chatLog.addEventListener("scroll", () => Game.updateChatScroll());
 })();
-document.getElementById("chat-toggle").addEventListener("click", () => {
-  const minimized = chatBox.classList.toggle("minimized");
+// Minimize or open the chat box (the choice is remembered for next time).
+Game.setChatMinimized = (minimized) => {
+  chatBox.classList.toggle("minimized", minimized);
   document.getElementById("chat-toggle").textContent = minimized ? "Chat +" : "Chat −";
   try { localStorage.setItem("trapocalypse.chatMin", minimized ? "1" : "0"); } catch (error) { /* ignore */ }
+};
+document.getElementById("chat-toggle").addEventListener("click", () => {
+  Game.setChatMinimized(!chatBox.classList.contains("minimized"));
 });
 try { if (localStorage.getItem("trapocalypse.chatMin") === "1") { chatBox.classList.add("minimized"); document.getElementById("chat-toggle").textContent = "Chat +"; } } catch (error) { /* ignore */ }
 helpPanel.addEventListener("click", (event) => { if (event.target === helpPanel) Game.hideHelp(); });   // click outside the box
@@ -2469,8 +2473,13 @@ window.addEventListener("keydown", (event) => {
   if ((event.key === "e" || event.key === "E") && Game.pending && !event.target.matches("input, textarea, select")) Game.confirmPlacement();
   if ((event.key === "q" || event.key === "Q") && !event.target.matches("input, textarea, select")) Game.rotateItem(-1);   // turn left
   if ((event.key === "r" || event.key === "R") && !event.target.matches("input, textarea, select")) { Game.rotateItem(1); Game.resetCharacter(); }   // build: turn right; run: back to the start
-  // "/" or "T" opens the chat when you are in a room and not already typing somewhere.
-  if ((event.key === "/" || event.key === "t" || event.key === "T") && Game.inRoom && !event.target.matches("input, textarea, select")) { chatInput.focus(); event.preventDefault(); }
+  // "/" or "T" opens the chat when you are in a room and not already typing somewhere. If the chat
+  // was minimized it pops open first, so you land in the box and can type at once.
+  if ((event.key === "/" || event.key === "t" || event.key === "T") && Game.inRoom && !event.target.matches("input, textarea, select")) {
+    if (chatBox.classList.contains("minimized")) Game.setChatMinimized(false);
+    chatInput.focus();
+    event.preventDefault();
+  }
 });
 Game.loadPreferences();
 // Tap the course to set your item down; drag to move it; ✓ or E to confirm; ✕ or Escape to cancel.
