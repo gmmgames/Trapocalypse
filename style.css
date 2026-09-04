@@ -31,6 +31,10 @@ html, body {
   width: 100%;
   overscroll-behavior: none;     /* no rubber-band bounce */
   touch-action: pan-y;           /* no zooming (double-tap or pinch), no page panning; panels may still scroll inside themselves */
+  /* Phones "boost" text when the layout width changes, which made every button and label grow
+     after turning the phone sideways and back. This keeps text the size we asked for. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   -webkit-user-select: none;
   user-select: none;
 }

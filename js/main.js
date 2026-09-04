@@ -2513,24 +2513,34 @@ if (document.fonts) { document.fonts.load("16px Fredoka"); document.fonts.load("
 // is rotated), so on touch screens the course box is measured and sized here instead of trusting
 // CSS units alone. The course keeps its 16:9 shape and is as big as fits. The shortest height seen
 // for each screen width is remembered, so the browser bar sliding away on a touch never resizes it.
-const fitCourseToScreen = () => {
+const fitCourseToScreen = (fresh) => {
   if (!matchMedia("(pointer: coarse)").matches) return;
   const view = window.visualViewport;
   const sw = Math.round(view ? view.width : innerWidth), sh = Math.round(view ? view.height : innerHeight);
   if (!sw || !sh) return;
   Game._screenHeights = Game._screenHeights || {};
-  const shortest = Game._screenHeights[sw] = Math.min(Game._screenHeights[sw] || Infinity, sh);
+  // Normally we keep the shortest height seen at this width, so the browser bar sliding away does
+  // not resize the course. After a rotation the screen is a genuinely new shape, so we take each
+  // reading as it comes ("fresh") until it settles: phones report the old size for a moment, and
+  // remembering that stale number was leaving the layout wrong on the way back to upright.
+  const shortest = Game._screenHeights[sw] = fresh ? sh : Math.min(Game._screenHeights[sw] || Infinity, sh);
   const w = Math.min(sw, Math.round(shortest * 16 / 9)), h = Math.min(shortest, Math.round(sw * 9 / 16));
   gameWrap.style.width = w + "px";
   gameWrap.style.height = h + "px";
   document.documentElement.style.height = sh + "px";
   document.body.style.height = sh + "px";
 };
-window.addEventListener("resize", fitCourseToScreen);
-window.addEventListener("orientationchange", fitCourseToScreen);
-if (window.visualViewport) window.visualViewport.addEventListener("resize", fitCourseToScreen);
-fitCourseToScreen();
-for (const delay of [50, 300, 1000, 2500]) setTimeout(fitCourseToScreen, delay);   // late-reporting phones
+// A plain resize is the browser bar coming or going: keep the shortest height.
+window.addEventListener("resize", () => fitCourseToScreen());
+if (window.visualViewport) window.visualViewport.addEventListener("resize", () => fitCourseToScreen());
+// A rotation is a new screen: forget what we remembered and measure again as it settles.
+const refitAfterTurn = () => {
+  Game._screenHeights = {};
+  for (const delay of [0, 60, 200, 500, 1200]) setTimeout(() => fitCourseToScreen(true), delay);
+};
+window.addEventListener("orientationchange", refitAfterTurn);
+fitCourseToScreen(true);
+for (const delay of [50, 300, 1000, 2500]) setTimeout(() => fitCourseToScreen(true), delay);   // late-reporting phones
 
 Game.buildSwatches();
 Game.buildMapButtons();
