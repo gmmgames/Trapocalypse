@@ -416,7 +416,25 @@ const Level = {
   },
 
   // A yellow launch pad: a coil with a plate on top.
+  // How tall the spring is right now, as a fraction of normal. A bounce (s.bouncedAt, a
+  // performance.now() stamp set when someone lands on it) squashes it flat, then it
+  // overshoots tall and settles: 1 -> 0.4 -> 1.3 -> 1 over about 0.6 s.
+  springScale(s) {
+    if (!s.bouncedAt) return 1;
+    const age = ((typeof performance !== "undefined" ? performance.now() : Date.now()) - s.bouncedAt) / 1000;
+    if (age < 0.12) return 1 - 0.6 * (age / 0.12);                                   // squash
+    if (age < 0.3) return 0.4 + 0.9 * ((age - 0.12) / 0.18);                          // spring up past normal
+    if (age < 0.6) return 1.3 - 0.3 * ((age - 0.3) / 0.3);                            // settle
+    return 1;
+  },
+
   drawSpring(ctx, s) {
+    // Squash and stretch from the base, so the pad stays planted on the ground.
+    const scale = this.springScale(s);
+    ctx.save();
+    ctx.translate(0, s.y + s.h);
+    ctx.scale(1, scale);
+    ctx.translate(0, -(s.y + s.h));
     ctx.strokeStyle = "#ffd23c";
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -429,6 +447,7 @@ const Level = {
     ctx.fillRect(s.x + 3, s.y + 6, s.w - 6, 5);
     ctx.fillStyle = "#ffd23c";
     ctx.fillRect(s.x + 3, s.y + s.h - 4, s.w - 6, 4);
+    ctx.restore();
   },
 
   // A pale blue ice patch with a glint.

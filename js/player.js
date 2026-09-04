@@ -242,6 +242,7 @@ const Player = {
         this.vy = -this.SPRING_SPEED;
         this.onGround = false;
         this._shortHop = false;
+        spring.bouncedAt = performance.now();   // starts the squash-and-stretch animation
         Dust.spawn(spring.x + spring.w / 2, spring.y + spring.h, 10, spring.w);
         Sfx.bump();
       }

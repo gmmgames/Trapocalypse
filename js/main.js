@@ -1032,6 +1032,13 @@ const Game = {
         if (remote._falling && dy === 0) Dust.landing(feetX, feetY);
         else if (dy === 0 && dx !== 0) Dust.trail(message.playerId, feetX, feetY, 0.05);
         remote._falling = dy > 0;
+        // Shot upward while touching a spring: that spring just launched them. (A spring
+        // throws you about 50 px per update; an ordinary jump manages about 35.)
+        if (dy < -42) {
+          const box = { x: remote.x, y: remote.y + 6, w: Player.w, h: Player.h };
+          const spring = Level.hazards.find((hazard) => hazard.kind === "spring" && Physics.overlaps(box, hazard));
+          if (spring) spring.bouncedAt = performance.now();
+        }
       }
       Object.assign(remote, message);
     }
