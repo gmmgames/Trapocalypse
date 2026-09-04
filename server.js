@@ -32,6 +32,7 @@ const ERASERS_PER_COURSE = 1;  // erasers each player gets on every new course, 
 const WEAPONS = ["boots", "dash", "shield", "freeze", "bomb", "feather"];   // Final Battle weapons (what they do: js/player.js)
 const WEAPON_OFFER = 3;        // how many each fighter gets to choose from
 const FREEZE_SECONDS = 1.5;
+const VOTE_SECONDS = 10;       // course vote after the host presses Start
 const CHAT_MAX_LENGTH = 140;   // characters per chat message
 const CHAT_MIN_GAP_MS = 500;   // fastest anyone can send (stops flooding)
 
@@ -367,6 +368,19 @@ function removePlayer(socket) {
   if (room.phase === "build" && room.players.size >= 2 && [...room.players.values()].every((item) => item.trapCount >= TRAPS_PER_ROUND)) startRun(room);
 }
 
+// The course vote is over: reset everyone and start round 1 on the winning course.
+function beginMatch(room) {
+  room.timer = null;
+  if (room.phase !== "vote" || room.players.size === 0) return;
+  room.round = 1; room.roundsPlayed = 0; room.traps = []; room.finishOrder = [];
+  room.levelIndex = pickVotedLevel(room, 0);
+  room.votes = {}; room.voteOpen = false;
+  room.finalBattle = null; room.winnerIds = [];
+  for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
+  room.phase = "build";
+  broadcast(room, { ...snapshot(room), type: "round_start" });
+}
+
 function startNextRound(room) {
   room.timer = null;
   if (room.phase !== "results" || room.players.size === 0) return;   // the room moved on; stale timer
@@ -418,8 +432,8 @@ webSocketServer.on("connection", (socket) => {
         room = { code, phase: "lobby", round: 1, roundsPlayed: 0, levelIndex: 0, traps: [], players: new Map(), timer: null, runTimer: null, finishOrder: [], settings: check.settings, hostId: null, finalBattle: null, winnerIds: [], votes: {}, voteOpen: false };
       }
       if (room.players.size >= MAX_PLAYERS) { send(socket, { type: "error", message: `That room is full (${MAX_PLAYERS} players).`, fatal: true }); return; }
-      // In the lobby you wait for the host. Joining mid-run means sitting this round out.
-      const status = room.phase === "lobby" ? "waiting" : room.phase === "build" ? "building" : "out";
+      // In the lobby (or the course vote) you wait for the host. Joining mid-run means sitting this round out.
+      const status = room.phase === "lobby" || room.phase === "vote" ? "waiting" : room.phase === "build" ? "building" : "out";
       const player = { id: crypto.randomUUID(), name: String(message.name || "Runner").slice(0, 18), socket, score: 0, trapCount: 0, pendingKills: 0, status, color: null, erasers: ERASERS_PER_COURSE };
       room.players.set(player.id, player);
       if (room.hostId === null) room.hostId = player.id;   // the room's creator is the host
@@ -457,13 +471,12 @@ webSocketServer.on("connection", (socket) => {
       else if (room.players.size < 2) problem = "You need at least 2 players.";
       else if (!everyoneColored) problem = "Everyone needs to pick a color first.";
       if (problem) { send(socket, { type: "error", message: problem }); return; }
-      room.round = 1; room.roundsPlayed = 0; room.traps = []; room.finishOrder = [];
-      room.levelIndex = pickVotedLevel(room, 0);   // the lobby vote picks the first course
-      room.votes = {}; room.voteOpen = false;
-      room.finalBattle = null; room.winnerIds = [];
-      for (const item of room.players.values()) { item.score = 0; item.trapCount = 0; item.pendingKills = 0; item.status = "building"; item.erasers = ERASERS_PER_COURSE; }
-      room.phase = "build";
-      broadcast(room, { ...snapshot(room), type: "round_start" });
+      // First, everyone votes on the course for VOTE_SECONDS. Then the match begins.
+      room.phase = "vote"; room.votes = {}; room.voteOpen = true;
+      for (const item of room.players.values()) item.status = "waiting";
+      broadcast(room, { ...snapshot(room), type: "vote_start", seconds: VOTE_SECONDS });
+      clearTimeout(room.timer);
+      room.timer = setTimeout(() => beginMatch(room), VOTE_SECONDS * 1000);
       return;
     }
     // Final Battle: choose a weapon from your offer during the countdown.
@@ -513,7 +526,7 @@ webSocketServer.on("connection", (socket) => {
     // Vote for a course: in the lobby, or on the results screen when the course is about to change.
     if (message.type === "vote_map") {
       const level = Number(message.level);
-      const open = room.phase === "lobby" || (room.phase === "results" && room.voteOpen);
+      const open = room.phase === "vote" || (room.phase === "results" && room.voteOpen);
       if (open && Number.isInteger(level) && level >= 0 && level < LEVELS.length) {
         room.votes[player.id] = level;
         broadcast(room, { type: "votes", votes: room.votes });

@@ -186,6 +186,7 @@ const Game = {
   _runTimeLimit: null,  // seconds allowed for this run, or null for no limit
   _runStartedAt: 0,     // wall-clock time the run began, so the countdown can't drift
   _runTimeLeft: null,   // seconds left, shown in the HUD
+  _voteEndsAt: 0,       // wall-clock time the course vote closes
 
   start() {
     Level.load(this.levelIndex);
@@ -472,15 +473,15 @@ const Game = {
     });
   },
 
-  // Show the vote where it belongs: inside the lobby, or floating over the results chart.
+  // The vote floats over the course: for 10 seconds after the host presses Start,
+  // and on the results screen whenever a new course is coming.
   renderVote() {
-    const inLobby = this.phase === "lobby";
+    const voting = this.phase === "vote";
     const onResults = this.phase === "results" && this.voteOpen;
-    mapVote.classList.toggle("hidden", !(inLobby || onResults));
-    mapVote.classList.toggle("floating", onResults);
-    if (inLobby && mapVote.parentElement !== lobby) lobby.insertBefore(mapVote, lobbyPlayers);
-    if (onResults && mapVote.parentElement !== gameWrap) gameWrap.appendChild(mapVote);
-    document.getElementById("map-vote-title").textContent = inLobby ? "Vote for the first course" : "Vote for the next course";
+    mapVote.classList.toggle("hidden", !(voting || onResults));
+    mapVote.classList.add("floating");
+    if (mapVote.parentElement !== gameWrap) gameWrap.appendChild(mapVote);
+    document.getElementById("map-vote-title").textContent = voting ? "Vote for the first course" : "Vote for the next course";
     const counts = new Array(LEVELS.length).fill(0);
     for (const level of Object.values(this.votes)) counts[level] += 1;
     [...mapButtons.children].forEach((button, index) => {
@@ -603,6 +604,12 @@ const Game = {
       Player.spawn();
       this._bannerTimer = 0;
       this.say(`Round ${this.round} on ${Level.name}. Place your trap.`, 3);
+    }
+    if (message.type === "vote_start") {
+      this.applyRoomState(message);
+      Player.spawn();
+      this._voteEndsAt = performance.now() + message.seconds * 1000;
+      this.say("Vote for the course!", 3);
     }
     if (message.type === "color") {
       const who = this.players.find((player) => player.id === message.playerId);
@@ -1151,6 +1158,9 @@ const Game = {
 
     if (this.mode === "online" && this.phase === "lobby") {
       hud.textContent = `ROOM ${roomCodeInput.value}  •  ${this.message}`;
+    } else if (this.mode === "online" && this.phase === "vote") {
+      const left = Math.max(0, Math.ceil((this._voteEndsAt - performance.now()) / 1000));
+      hud.textContent = `COURSE VOTE  •  ⏱ ${left}s  •  ${this.message}`;
     } else if (this.mode === "online" && this.phase === "winner") {
       hud.textContent = `MATCH OVER  •  ${this.message}`;
     } else if (this.mode === "online") {

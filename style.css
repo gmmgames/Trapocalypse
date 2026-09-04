@@ -340,6 +340,8 @@ body {
   display: grid;
   gap: 10px;
   min-width: 300px;
+  max-height: 92%;
+  overflow-y: auto;              /* a host with the settings open can scroll */
   padding: 16px;
   border: 1px solid rgba(255, 210, 60, 0.7);
   border-radius: 6px;
@@ -348,6 +350,12 @@ body {
   text-align: center;
   z-index: 2;                    /* the color picker (3) sits on top of it */
 }
+
+/* Inside the lobby the settings form is two columns to save height */
+#lobby #match-settings {
+  grid-template-columns: 1fr 1fr;
+}
+#lobby #match-settings legend, #lobby #point-values, #lobby #settings-status { grid-column: 1 / -1; }
 
 #lobby-settings,
 #lobby-note {
