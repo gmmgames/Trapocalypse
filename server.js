@@ -187,7 +187,7 @@ function trapBlocked(room, trap) {
   // Nothing within two tiles of the flag, so the finish can never be walled off.
   const flagZone = { x: level.flag.x - 2 * TILE, y: level.flag.y - 2 * TILE, w: level.flag.w + 4 * TILE, h: level.flag.h + 3 * TILE };
   // A crumbler is a fake platform, so it needs open air, not the inside of a wall.
-  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
+  const inWall = ["crumble", "portal", "mover", "glue", "plank", "mirror", "heart", "bat", "buckler", "spike", "longspike", "decoy"].includes(trap.kind) && level.solids.some((solid) => overlaps(solid, trap));
   // Spikes need a block behind their base (the side they point away from).
   let looseSpikes = false;
   if (trap.kind === "spike" || trap.kind === "longspike" || trap.kind === "decoy") {
@@ -490,7 +490,7 @@ function removePlayer(socket) {
 // Each card is a separate random draw, so the same trap can show up twice. Rarer
 // items have a lower weight: the eraser turns up in maybe one round in four.
 const ITEM_WEIGHTS = { spike: 1, crumble: 1, glue: 1, bumper: 1, spring: 1, ice: 1, decoy: 1, eraser: 0.5, pencil: 0.2, portal: 0.08, mover: 0.6, plank: 0.7, longspike: 0.35, mirror: 0.4, bat: 0.4, buckler: 0.4, heart: 0.1 };
-const CARRY_ITEMS = ["bat", "buckler"];
+const PICKUP_KINDS = ["portal", "heart", "bat", "buckler"];   // placed in the build phase, collected by touch during the run
 const GO_COUNTDOWN = 3;            // seconds between the last placement and the run
 const EVENTS = ["lowgravity", "iceage", "blackout", "haste", "quake"];   // random round events (effects live in the browser)
 const EVENT_CHANCE = 0.3;          // chance a normal round gets one   // picked in the build phase, used during the run (like the pencil)
@@ -869,14 +869,7 @@ webSocketServer.on("connection", (socket) => {
         maybeStartRun(room);
         return;
       }
-      if (CARRY_ITEMS.includes(player.pick)) {
-        // Bat and Shield are carried into the run: picking one is your build turn.
-        player.trapCount = TRAPS_PER_ROUND;
-        broadcast(room, { type: "picks", picks: itemPicks(room) });
-        broadcast(room, { type: "carry_taken", playerId: player.id, item: player.pick });
-        maybeStartRun(room);
-        return;
-      }
+
       broadcast(room, { type: "picks", picks: itemPicks(room) });
       return;
     }
@@ -909,7 +902,7 @@ webSocketServer.on("connection", (socket) => {
     }
     // Teleport Ball: run into the placed orb to pick it up (first come, first served)...
     if (message.type === "pickup" && room.phase === "run" && player.status === "running") {
-      const orb = room.traps.find((trap) => (trap.kind === "portal" || trap.kind === "heart") && !trap.taken && trap.x === Number(message.x) && trap.y === Number(message.y));
+      const orb = room.traps.find((trap) => PICKUP_KINDS.includes(trap.kind) && !trap.taken && trap.x === Number(message.x) && trap.y === Number(message.y));
       if (!orb) return;
       orb.taken = true;
       if (orb.kind === "portal") player.portal = true;

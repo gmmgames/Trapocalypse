@@ -590,6 +590,7 @@ const Level = {
       if (hazard.kind === "ice") { this.drawIce(ctx, hazard); continue; }
       if (hazard.kind === "portal") { if (!hazard.taken) this.drawPortal(ctx, hazard); continue; }
       if (hazard.kind === "heart") { if (!hazard.taken) this.drawHeart(ctx, hazard); continue; }
+      if (hazard.kind === "bat" || hazard.kind === "buckler") { if (!hazard.taken) this.drawPickup(ctx, hazard); continue; }
       if (hazard.kind === "mover") { this.drawMover(ctx, hazard._box || hazard, t, true); continue; }
       if (hazard.kind === "plank") { this.drawPlank(ctx, hazard, t); continue; }
       if (hazard.kind === "mirror") { this.drawMirror(ctx, hazard); continue; }
@@ -818,6 +819,19 @@ const Level = {
     ctx.shadowBlur = 0;
     ctx.fillStyle = "#ffb3d9";
     ctx.beginPath(); ctx.ellipse(cx - 3, cy - 4, 2, 1.3, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+  // A Bat or Shield waiting on the course: the icon bobbing inside a soft glow.
+  drawPickup(ctx, p) {
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    const bob = Math.sin(now * 3 + p.x) * 2;
+    ctx.save();
+    ctx.shadowColor = "#ffd23c"; ctx.shadowBlur = 12;
+    ctx.fillStyle = "rgba(255, 210, 60, 0.18)";
+    ctx.beginPath(); ctx.arc(p.x + p.w / 2, p.y + p.h / 2 + bob, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.translate(p.x, p.y + bob);
+    if (p.kind === "bat") this.drawBat(ctx, 8, 24, -Math.PI / 4); else this.drawBuckler(ctx, 15, 15, 11);
     ctx.restore();
   },
   // A baseball bat: handle at (x, y), pointing along angle.

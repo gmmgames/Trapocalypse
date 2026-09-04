@@ -488,7 +488,8 @@ const Game = {
       Level.drawItemIcon(icon.getContext("2d"), item);
       const name = document.createElement("span");
       name.className = "item-name";
-      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : (TRAP_NAMES[item] || item);   // never a blank label, even for an item this script does not know yet
+      name.textContent = item === "eraser" && me ? `Eraser (${me.erasers} left)` : item === "pencil" ? "Pencil (3 strokes)" : item === "buckler" ? "Shield (2 hits)" : (TRAP_NAMES[item] || item);
+      if (["portal", "heart", "bat", "buckler"].includes(item)) name.textContent += " (pickup)";   // never a blank label, even for an item this script does not know yet
       const taker = document.createElement("span");
       taker.className = "item-taker";
       const takerId = Object.keys(this.picks).find((id) => this.picks[id] === slot && id !== Network.id);
@@ -762,6 +763,7 @@ const Game = {
     if (this.pick === "plank" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A plank needs open air.";
     if (this.pick === "mirror" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "A mirror needs open air.";
     if (this.pick === "heart" && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "The heart has to float in open air.";
+    if ((this.pick === "bat" || this.pick === "buckler") && Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Pickups have to float in open air.";
     if (this.pick === "glue") {
       // Gum sticks to a block on any side (and can bridge two), but never sits inside one or floats free.
       if (Level.solids.some((solid) => Physics.overlaps(trap, solid))) return "Gum goes on a block, not inside it.";
@@ -793,7 +795,6 @@ const Game = {
     if (this.phase !== "build" || this.mode !== "online") return;
     if (this.myColor === null) { this.say("Pick a color first.", 1.5); return; }
     if (this.pick === "pencil") { this.say("You have the pencil: you sketch blocks during the run instead of placing now.", 2); return; }
-    if (this.pick === "bat" || this.pick === "buckler") { this.say(`You carry the ${TRAP_NAMES[this.pick].toLowerCase()} into the run: nothing to place now.`, 2); return; }
     if (this.placements[0] >= this.trapsPerRound) { this.say("You've used your item this round. Waiting for the others.", 1.5); return; }
     if (!this.pick) { this.say("Pick an item from the cards first.", 1.5); return; }
     if (!this.everyonePicked()) { this.say("Waiting for everyone to pick an item.", 1.5); return; }
@@ -1311,13 +1312,15 @@ const Game = {
       this.renderAvatars();
     }
     if (message.type === "picked_up") {
-      const orb = Level.hazards.find((hazard) => (hazard.kind === "portal" || hazard.kind === "heart") && hazard.x === message.x && hazard.y === message.y);
+      const orb = Level.hazards.find((hazard) => ["portal", "heart", "bat", "buckler"].includes(hazard.kind) && hazard.x === message.x && hazard.y === message.y);
       if (orb) orb.taken = true;
       const kind = message.kind || "portal";
       if (message.by === Network.id) {
         if (kind === "heart") { this.revive = true; this.say("Revive Heart! If you die this run, you get one more go from the start.", 4); }
+        else if (kind === "bat") { this.bat = true; this.say("Baseball Bat! Press X / Shift (or USE) to knock thrown balls away.", 4); }
+        else if (kind === "buckler") { this.buckler = BUCKLER_HEALTH; this.say("Shield! It soaks two hits this run: spikes, or balls thrown at you.", 4); }
         else { this.portal = true; this.say("Teleport Ball! Hold X / Shift (or USE) to aim and charge, let go to throw. You appear where it lands.", 4); }
-      } else this.say(`${this.nameOf(message.by)} grabbed the ${kind === "heart" ? "Revive Heart" : "Teleport Ball"}!`, 2);
+      } else this.say(`${this.nameOf(message.by)} grabbed the ${TRAP_NAMES[kind] || kind}!`, 2);
       Sfx.pickup();
     }
     if (message.type === "carry_taken") {
@@ -1649,7 +1652,7 @@ const Game = {
         this.updateBalls(dt);
         // Touch a Teleport Ball orb to claim it (the server decides who was first).
         for (const orb of Level.hazards) {
-          if ((orb.kind === "portal" || orb.kind === "heart") && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
+          if (["portal", "heart", "bat", "buckler"].includes(orb.kind) && !orb.taken && !orb._claimed && Player.alive && !Player.finished && Physics.overlaps(Player, orb)) {
             orb._claimed = true;
             Network.send({ type: "pickup", x: orb.x, y: orb.y });
           }
