@@ -25,6 +25,7 @@ const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
 const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
 const FINAL_BONUSES = [5, 3, 1];   // Final Battle: 1st, 2nd, 3rd to the flag. Everyone else 0.
+const AUTONOMOUS_BONUS = 1;        // "Autonomous": the only one to reach the flag when 2+ ran
 const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no decision, the tie is shared
 const MAX_PLAYERS = 24;        // room size, one color each
 const PALETTE_SIZE = 24;       // colors in the picker (4 rows x 6 columns, defined in main.js)
@@ -276,7 +277,7 @@ function checkRoundOver(room) {
   };
   if (room.finalBattle) {
     // Final Battle: only the podium bonuses, in finishing order. Nothing else pays.
-    const placeNames = ["1st place", "2nd place", "3rd place"];
+    const placeNames = ["1st Place", "2nd Place", "3rd Place"];
     room.finishOrder.forEach((id, place) => {
       const player = room.players.get(id);
       if (player && room.finalBattle.ids.includes(id) && place < FINAL_BONUSES.length) award(player, placeNames[place], FINAL_BONUSES[place]);
@@ -284,17 +285,20 @@ function checkRoundOver(room) {
   } else if (!everyoneFinished) {
     const { winPoints, killPoints, firstPoints } = room.settings;   // the host's values
     for (const player of finishers) {
-      award(player, "win", winPoints);
-      // Trap kills only pay if you made it to the flag yourself.
+      award(player, "Win", winPoints);
+      // "Curiosity": trap kills only pay if you made it to the flag yourself.
       if (player.pendingKills > 0 && killPoints > 0) {
         killBonus[player.id] = player.pendingKills * killPoints;
-        award(player, player.pendingKills === 1 ? "trap kill" : `${player.pendingKills} trap kills`, killBonus[player.id]);
+        award(player, player.pendingKills === 1 ? "Curiosity" : `Curiosity ×${player.pendingKills}`, killBonus[player.id]);
       }
     }
+    // "Trailblazer": first to the flag in a race of three or more with at least two finishers.
     if (runners.length > 2 && finishers.length >= 2) {
       firstFinisher = room.players.get(room.finishOrder[0]) || null;
       if (firstFinisher) award(firstFinisher, "Trailblazer", firstPoints);
     }
+    // "Autonomous": the only one to make it when at least two ran.
+    if (runners.length >= 2 && finishers.length === 1) award(finishers[0], "Autonomous", AUTONOMOUS_BONUS);
   }
   for (const player of players) player.pendingKills = 0;
   if (!room.finalBattle) room.roundsPlayed += 1;   // what the round cap is checked against

@@ -75,6 +75,18 @@ const DISPLAY_FONT = "'Baloo 2', 'Fredoka', 'Segoe UI', system-ui, sans-serif";
 const BANNER_SECONDS = 4;   // how long the Trailblazer burst stays on screen
 const TRAP_NAMES = { spike: "Spikes", crumble: "Crumbler", glue: "Glue", bumper: "Bumper", eraser: "Eraser" };
 
+// Every kind of point has a name and a little line that shows on the results screen as it lands.
+const GAIN_TEXT = {
+  "Win": "They never believed in me... look at where I stand now",
+  "Trailblazer": "Turns out first isn't the worst",
+  "Autonomous": "It's kinda lonely being at the top... oh well",
+  "Curiosity": "Grabbed a tiger by its toe. I guess curiosity really does kill the cat.",
+  "1st Place": "Last one standing. Well, running.",
+  "2nd Place": "So close you could taste it",
+  "3rd Place": "Hey, a podium is a podium",
+};
+const gainText = (label) => GAIN_TEXT[label] || GAIN_TEXT[label.replace(/ ×\d+$/, "")] || "";
+
 // --- match settings (host only) ---
 // Each dropdown has presets plus "Custom…", which reveals a number box.
 // The server checks these again; this copy just gives instant feedback.
@@ -331,10 +343,11 @@ const Game = {
     const s = this.settings || { winPoints: 4, killPoints: 1, firstPoints: 2, pointsToWin: 45, roundCap: 30, timeLimit: 60 };
     const time = s.timeLimit === null ? "no time limit" : `${s.timeLimit} seconds per run`;
     const lines = [
-      `Reaching the flag: ${s.winPoints} point${s.winPoints === 1 ? "" : "s"}.`,
-      `Trailblazer (first to the flag when 3 or more run and 2 or more finish): ${s.firstPoints} more.`,
-      `Each time your trap kills someone: ${s.killPoints}, paid at the end of the round only if you reach the flag too.`,
-      `Final Battle: first to the flag 5, second 3, third 1. Nothing else pays in a Final Battle.`,
+      `Win, ${s.winPoints} point${s.winPoints === 1 ? "" : "s"}: reaching the flag. "${GAIN_TEXT.Win}"`,
+      `Trailblazer, ${s.firstPoints} more: first to the flag when 3 or more run and 2 or more finish. "${GAIN_TEXT.Trailblazer}"`,
+      `Autonomous, 1 more: the only one to make it when 2 or more ran. "${GAIN_TEXT.Autonomous}"`,
+      `Curiosity, ${s.killPoints} each: your trap kills someone, paid at the end of the round only if you reach the flag too. "${GAIN_TEXT.Curiosity}"`,
+      `Final Battle: 1st Place 5, 2nd Place 3, 3rd Place 1. Nothing else pays in a Final Battle.`,
       `${this.settings ? "This match" : "Default"}: first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`,
     ];
     helpPoints.replaceChildren(...lines.map((text) => { const li = document.createElement("li"); li.textContent = text; return li; }));
@@ -940,8 +953,8 @@ const Game = {
           // Kills only pay if you reach the flag too, so the wording depends on how you're doing.
           const me = this.players.find((player) => player.id === Network.id);
           const mine = me ? me.status : "";
-          if (mine === "running") this.say(`Your trap got ${victim}! Finish to bank +${message.killPoints}`, 2);
-          else if (mine === "finished") this.say(`Your trap got ${victim}! +${message.killPoints} banked`, 2);
+          if (mine === "running") this.say(`Your trap got ${victim}! Finish to bank +${message.killPoints} Curiosity`, 2);
+          else if (mine === "finished") this.say(`Your trap got ${victim}! +${message.killPoints} Curiosity banked`, 2);
           else this.say(`Your trap got ${victim}! No points, you didn't finish.`, 2);
         }
         else if (message.playerId === Network.id) this.say(`${killer.name}'s trap got you! Watching the others...`, 4);
@@ -1177,6 +1190,21 @@ const Game = {
       ctx.font = `16px ${FONT}`;
       ctx.fillStyle = "#c0c0d8";
       ctx.fillText(`${label} ${Math.max(0, Math.ceil(this._nextRoundIn))}`, LEVEL_W / 2, 96);
+      // As each of YOUR points lands, its name and a little line about it.
+      const me = this.players.find((player) => player.id === Network.id);
+      const mine = me ? this.animatedScore(me).labels : [];
+      const current = mine[mine.length - 1];
+      if (current) {
+        const name = current.text.replace(/^\+\d+ /, "");
+        ctx.globalAlpha = Math.min(1, (1 - current.age) * 2);
+        ctx.font = `bold 15px ${FONT}`;
+        ctx.fillStyle = "#ffd23c";
+        ctx.fillText(`${name}: ${current.text.match(/^\+\d+/)[0]}`, LEVEL_W / 2, 120);
+        ctx.font = `italic 13px ${FONT}`;
+        ctx.fillStyle = "#e8e8ff";
+        ctx.fillText(gainText(name), LEVEL_W / 2, 140);
+        ctx.globalAlpha = 1;
+      }
     }
 
     sorted.forEach((player, rank) => {

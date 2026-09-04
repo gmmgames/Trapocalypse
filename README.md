@@ -15,8 +15,10 @@ machine reachable by the other devices and have everyone open that machine's URL
 | Move | Arrow keys or A / D | Left and right buttons |
 | Jump | Up, W, or Space | JUMP button |
 
-Enter your name and create a room, or type a friend's six-character code and join. Up to
-24 can be in a room. Everyone lands in a lobby that lists who is here. The host sets the
+Enter your name and create a room, or press Join Room to pick from the list of open rooms
+(or type a private room's six-character code at the top). You also have a permanent
+six-character player ID at the bottom of the screen: give it to a friend and they can
+invite you straight into their room. Up to 24 can be in a room. Everyone lands in a lobby that lists who is here. The host sets the
 match rules there (time limit per run, points to win, round cap, and what a win, a trap
 kill, and Trailblazer are worth; dropdowns have a Custom box for your own number) and can
 change them until the start. Pick a color from the 24-color palette; you can change it
@@ -27,9 +29,11 @@ the menu at any time. If the host leaves, the longest-present player becomes hos
 gear, top left, has the chat filter, sounds, How to Play, and (for the host) an early
 Back to Lobby. Chat opens with / or T.
 
-Each round, every player is dealt one random trap (Spikes, Crumbler, Glue, or Bumper)
-and places it, or spends their one-per-course Eraser on someone else's trap instead. Once
-everyone has used their item, everyone runs at once with a single life. Your own nametag
+Each round the room is offered a random handful of items (Spikes, Crumbler, Glue, Bumper,
+and sometimes the one-per-course Eraser), shown as pictures. Everyone picks one; while
+any item is still free, two players can't take the same one. Tap the course to set your
+item down as a see-through ghost, move it if you like, then press E or the check button
+to confirm. Once everyone has used their item, everyone runs at once with a single life. Your own nametag
 is white; everyone else's shows in the color they picked. A clock counts down in the
 corner; when it hits zero, anyone still running is out.
 
