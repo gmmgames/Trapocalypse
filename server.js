@@ -46,6 +46,7 @@ const SETTING_LIMITS = { timeLimit: [30, 600], pointsToWin: [15, 600], roundCap:
 const SETTING_DEFAULTS = { timeLimit: 60, pointsToWin: 45, roundCap: 30, winPoints: FINISH_POINTS, killPoints: KILL_POINTS, firstPoints: FIRST_BONUS, isPublic: true };
 const USER_ID_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;   // permanent player IDs: 6 letters/digits without look-alikes
 const INVITE_COOLDOWN_MS = 5000;                  // between invites from one player
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond"];   // character models (drawn in js/player.js)
 const SETTING_LABELS = { timeLimit: "Time limit", pointsToWin: "Points to win", roundCap: "Round cap", winPoints: "Win points", killPoints: "Trap kill points", firstPoints: "Trailblazer points" };
 
 function roomCode() {
@@ -89,7 +90,7 @@ function overlaps(a, b) {
 
 function playerList(room) {
   return [...room.players.values()].map((player) => ({
-    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, pick: player.pick || null,
+    id: player.id, name: player.name, score: player.score, status: player.status, trapCount: player.trapCount, color: player.color, erasers: player.erasers, pick: player.pick || null, avatar: player.avatar || "cube",
   }));
 }
 
@@ -560,6 +561,14 @@ webSocketServer.on("connection", (socket) => {
 
     if (message.type === "leave_room") { removePlayer(socket); return; }
 
+    // Pick your character model (in the lobby, any number of times).
+    if (message.type === "choose_avatar") {
+      if (room.phase !== "lobby") { send(socket, { type: "error", message: "You can change your character in the lobby." }); return; }
+      if (!AVATARS.includes(message.avatar)) return;
+      player.avatar = message.avatar;
+      broadcast(room, { type: "avatar", playerId: player.id, avatar: player.avatar });
+      return;
+    }
     // The host can change the match settings while everyone is in the lobby.
     if (message.type === "update_settings") {
       if (player.id !== room.hostId) { send(socket, { type: "error", message: "Only the host can change the settings." }); return; }

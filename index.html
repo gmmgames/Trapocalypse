@@ -38,6 +38,9 @@
       <strong>PICK YOUR COLOR</strong>
       <div id="swatches"></div>
       <span id="color-note">Taken colors are crossed out.</span>
+      <!-- Character models, drawn in your color. main.js fills these in. -->
+      <strong class="sub-title">PICK YOUR SHAPE</strong>
+      <div id="avatar-picker"></div>
     </div>
 
     <!-- The lobby: who is here, the match settings, and the host's start button. -->
@@ -129,7 +132,11 @@
        The log is see-through and clicks pass through it to the course; only the box and the minimize button catch clicks. -->
   <div id="chat" class="hidden">
     <button id="chat-toggle" type="button" aria-label="Minimize chat">Chat −</button>
-    <div id="chat-log" aria-live="polite"></div>
+    <div id="chat-log-wrap">
+      <div id="chat-log" aria-live="polite"></div>
+      <!-- A grabbable scroll strip; the log itself stays click-through -->
+      <div id="chat-scroll" class="hidden"><div id="chat-thumb"></div></div>
+    </div>
     <input id="chat-input" maxlength="140" placeholder="Press / or T to chat" aria-label="Chat message">
   </div>
 

@@ -646,6 +646,22 @@ const Game = {
     chatLog.appendChild(line);
     while (chatLog.children.length > 60) chatLog.removeChild(chatLog.firstChild);
     chatLog.scrollTop = chatLog.scrollHeight;
+    this.updateChatScroll();
+  },
+
+  // The log is click-through so you can place traps behind it, which means its own
+  // scrollbar cannot be grabbed. This strip beside it can: drag the thumb, or wheel
+  // over the log, to scroll old messages.
+  updateChatScroll() {
+    const strip = document.getElementById("chat-scroll"), thumb = document.getElementById("chat-thumb");
+    const overflow = chatLog.scrollHeight - chatLog.clientHeight;
+    strip.classList.toggle("hidden", overflow <= 2);
+    if (overflow <= 2) return;
+    const track = strip.clientHeight;
+    const size = Math.max(14, (chatLog.clientHeight / chatLog.scrollHeight) * track);
+    const top = (chatLog.scrollTop / overflow) * (track - size);
+    thumb.style.height = `${size}px`;
+    thumb.style.top = `${top}px`;
   },
 
   // Sounds for the results screen, timed to the growing bars: a chime when your
@@ -711,6 +727,27 @@ const Game = {
       button.querySelector(".count").textContent = counts[index] ? `×${counts[index]}` : "";
       button.classList.toggle("mine", this.votes[Network.id] === index);
     });
+  },
+
+  // --- character models ---
+  // A row of little previews in the lobby, drawn in your color. Click one to become it.
+  renderAvatars() {
+    const row = document.getElementById("avatar-picker");
+    if (!row) return;
+    const color = this.myColor === null ? "#c0c0d8" : PALETTE[this.myColor];
+    row.replaceChildren(...AVATARS.map((avatar) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "avatar-btn" + (Player.avatar === avatar ? " mine" : "");
+      button.dataset.avatar = avatar;
+      button.title = avatar;
+      const preview = document.createElement("canvas");
+      preview.width = 34; preview.height = 34;
+      drawAvatar(preview.getContext("2d"), 6, 4, Player.w, Player.h, color, 1, avatar);
+      button.appendChild(preview);
+      button.addEventListener("click", () => Network.send({ type: "choose_avatar", avatar }));
+      return button;
+    }));
   },
 
   refreshSwatches() {
@@ -779,6 +816,8 @@ const Game = {
     this.placements[0] = me ? me.trapCount : 0;
     this.myColor = me ? me.color : null;
     Player.color = this.myColor === null ? "#ff3c78" : PALETTE[this.myColor];
+    Player.avatar = me && me.avatar ? me.avatar : "cube";
+    this.renderAvatars();
     roomCodeInput.value = message.code;
     this.inRoom = true;
     if (this.phase === "lobby") this._chartX = {};   // a fresh match gets a fresh chart
@@ -857,6 +896,12 @@ const Game = {
       this.renderRoom();
     }
     if (message.type === "color_rejected") { this.say(message.message, 1.5); this.refreshSwatches(); }
+    if (message.type === "avatar") {
+      const who = this.players.find((player) => player.id === message.playerId);
+      if (who) who.avatar = message.avatar;
+      if (message.playerId === Network.id) { Player.avatar = message.avatar; this.say(`You're a ${message.avatar} now.`, 2); }
+      this.renderAvatars();
+    }
     if (message.type === "trap_placed") {
       if (!Level.hazards.some((hazard) => hazard.x === message.trap.x && hazard.y === message.trap.y)) Level.hazards.push(message.trap);
       if (message.bomb) {
@@ -1411,8 +1456,9 @@ const Game = {
     for (const [id, remote] of Object.entries(this.remotePlayers)) {
       if (!remote.alive || remote.finished) continue;
       const color = this.colorOf(id);
-      ctx.fillStyle = color;
-      ctx.fillRect(remote.x, remote.y, Player.w, Player.h);
+      const who = this.players.find((player) => player.id === id);
+      drawAvatar(ctx, remote.x, remote.y, Player.w, Player.h, color, remote.x >= (remote._lastX ?? remote.x) ? 1 : -1, who ? who.avatar : "cube");
+      remote._lastX = remote.x;
       if (remote.frozenUntil && remote.frozenUntil > performance.now()) {   // hit by a Freeze Ray
         ctx.fillStyle = "rgba(160, 230, 255, 0.55)";
         ctx.fillRect(remote.x - 3, remote.y - 3, Player.w + 6, Player.h + 6);
@@ -1524,6 +1570,36 @@ leaveRoomButton.addEventListener("click", () => { Network.leave(); Game.leaveOnl
 backToLobbyButton.addEventListener("click", () => Network.send({ type: "back_to_lobby" }));
 document.getElementById("settings-help").addEventListener("click", () => { Game.hideSettings(); Game.showHelp(); });
 document.getElementById("help-close").addEventListener("click", () => Game.hideHelp());
+// Chat scroll strip: drag the thumb, or wheel anywhere over the log.
+(() => {
+  const strip = document.getElementById("chat-scroll");
+  let dragging = null;
+  const scrollTo = (clientY) => {
+    const rect = strip.getBoundingClientRect();
+    const thumbH = document.getElementById("chat-thumb").offsetHeight;
+    const ratio = Math.max(0, Math.min(1, (clientY - rect.top - dragging.grab) / Math.max(1, rect.height - thumbH)));
+    chatLog.scrollTop = ratio * (chatLog.scrollHeight - chatLog.clientHeight);
+    Game.updateChatScroll();
+  };
+  strip.addEventListener("pointerdown", (event) => {
+    const thumb = document.getElementById("chat-thumb").getBoundingClientRect();
+    const onThumb = event.clientY >= thumb.top && event.clientY <= thumb.bottom;
+    dragging = { grab: onThumb ? event.clientY - thumb.top : thumb.height / 2 };
+    scrollTo(event.clientY);
+    event.preventDefault();
+  });
+  window.addEventListener("pointermove", (event) => { if (dragging) scrollTo(event.clientY); });
+  window.addEventListener("pointerup", () => { dragging = null; });
+  window.addEventListener("wheel", (event) => {
+    const rect = chatLog.getBoundingClientRect();
+    if (chatBox.classList.contains("hidden") || rect.height === 0) return;
+    if (event.clientX >= rect.left && event.clientX <= rect.right + 14 && event.clientY >= rect.top && event.clientY <= rect.bottom) {
+      chatLog.scrollTop += event.deltaY;
+      Game.updateChatScroll();
+    }
+  }, { passive: true });
+  chatLog.addEventListener("scroll", () => Game.updateChatScroll());
+})();
 document.getElementById("chat-toggle").addEventListener("click", () => {
   const minimized = chatBox.classList.toggle("minimized");
   document.getElementById("chat-toggle").textContent = minimized ? "Chat +" : "Chat −";

@@ -283,15 +283,11 @@ const Player = {
     Game.onPlayerFinished();
   },
 
+  avatar: "cube",      // which character model you picked in the lobby
+
   draw(ctx) {
     if (!this.alive) return;
-
-    // Glow
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = this.color;
-    ctx.fillRect(this.x, this.y, this.w, this.h);
-    ctx.shadowBlur = 0;
+    drawAvatar(ctx, this.x, this.y, this.w, this.h, this.color, this.facing, this.avatar);
 
     // Shield: a ring. Frozen: an icy tint.
     if (this._shield || this._immune > 0) {
@@ -304,10 +300,50 @@ const Player = {
       ctx.fillRect(this.x - 3, this.y - 3, this.w + 6, this.h + 6);
     }
 
-    // Two little eyes that look where you are going
-    ctx.fillStyle = "#0b0b14";
-    const eyeX = this.facing === 1 ? this.x + 13 : this.x + 5;
-    ctx.fillRect(eyeX, this.y + 7, 4, 4);
-    ctx.fillRect(eyeX + (this.facing === 1 ? -6 : 6), this.y + 7, 4, 4);
   },
 };
+
+// Every runner is the same 22x26 box for the physics; the avatar only changes how the
+// box is painted. Shared by your own runner and everyone else's.
+const AVATARS = ["cube", "ball", "wedge", "ghost", "diamond"];
+function drawAvatar(ctx, x, y, w, h, color, facing, avatar) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = color;
+  const cx = x + w / 2, cy = y + h / 2;
+  ctx.beginPath();
+  if (avatar === "ball") {
+    ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+  } else if (avatar === "wedge") {
+    // a pointy arrowhead facing the way you run
+    if (facing === 1) { ctx.moveTo(x, y); ctx.lineTo(x + w, cy); ctx.lineTo(x, y + h); }
+    else { ctx.moveTo(x + w, y); ctx.lineTo(x, cy); ctx.lineTo(x + w, y + h); }
+    ctx.closePath();
+  } else if (avatar === "ghost") {
+    // rounded top, wavy hem
+    ctx.moveTo(x, y + h);
+    ctx.lineTo(x, y + w / 2);
+    ctx.arc(cx, y + w / 2, w / 2, Math.PI, 0);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + w * 0.75, y + h - 5);
+    ctx.lineTo(x + w * 0.5, y + h);
+    ctx.lineTo(x + w * 0.25, y + h - 5);
+    ctx.closePath();
+  } else if (avatar === "diamond") {
+    ctx.moveTo(cx, y); ctx.lineTo(x + w, cy); ctx.lineTo(cx, y + h); ctx.lineTo(x, cy); ctx.closePath();
+  } else {
+    ctx.rect(x, y, w, h);   // the classic cube
+  }
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Two little eyes that look where you are going (a bit higher on the ghost's round head)
+  ctx.fillStyle = "#0b0b14";
+  const eyeY = y + (avatar === "wedge" ? h / 2 - 2 : 7);
+  const eyeX = facing === 1 ? x + 13 : x + 5;
+  const spread = avatar === "wedge" ? 4 : 6;
+  ctx.fillRect(eyeX, eyeY, 4, 4);
+  ctx.fillRect(eyeX + (facing === 1 ? -spread : spread), eyeY, 4, 4);
+  ctx.restore();
+}

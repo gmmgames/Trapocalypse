@@ -973,6 +973,58 @@ button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.95);
 @media (pointer: coarse) {
   #user-badge { left: 50%; transform: translateX(-50%); bottom: 12px; }
 }
+/* ---------------- Character models ---------------- */
+
+.sub-title {
+  display: block;
+  margin-top: 8px;
+  font-family: "Baloo 2", "Fredoka", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: #ffd23c;
+}
+
+#avatar-picker {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.avatar-btn {
+  width: 42px;
+  height: 42px;
+  padding: 2px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: #0b0b14;
+}
+
+.avatar-btn canvas { width: 34px; height: 34px; }
+.avatar-btn.mine { border-color: #ffffff; box-shadow: 0 0 0 2px #ffffff; }
+
+/* ---------------- Chat scroll strip ---------------- */
+
+#chat-log-wrap { position: relative; }
+
+#chat-scroll {
+  position: absolute;
+  right: -12px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: auto;          /* the one part of the log area you can grab */
+}
+
+#chat-thumb {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  min-height: 14px;
+  border-radius: 4px;
+  background: rgba(255, 210, 60, 0.85);
+}
 /* ---------------- How to Play ---------------- */
 
 #help-button {
