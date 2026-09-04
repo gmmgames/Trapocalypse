@@ -215,7 +215,12 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("editor-test").addEventListener("click", () => Editor.test());
   document.getElementById("editor-stop").addEventListener("click", () => Editor.stopTest());
   document.getElementById("editor-clear").addEventListener("click", () => Editor.clear());
-  document.getElementById("editor-delete").addEventListener("click", () => { const name = document.getElementById("editor-saved").value; if (name) Editor.remove(name); });
+  document.getElementById("editor-delete").addEventListener("click", () => {
+    const name = document.getElementById("editor-saved").value;
+    if (!name) { Editor.note("Pick a saved course in the Load list first."); return; }
+    // Deleting cannot be undone, so ask first.
+    if (window.confirm(`Delete "${name}"? This can't be undone.`)) Editor.remove(name);
+  });
   document.getElementById("editor-saved").addEventListener("change", (event) => { if (event.target.value) Editor.load(event.target.value); });
   document.getElementById("editor-name").addEventListener("input", (event) => Editor.setName(event.target.value));
   document.getElementById("editor-theme").addEventListener("change", (event) => Editor.setTheme(event.target.value));
