@@ -832,6 +832,29 @@ webSocketServer.on("connection", (socket) => {
       broadcast(room, { type: "notice", message: `The host picked ${levelsOf(room)[level].name} as the next course.` });
       return;
     }
+    // Test Match only: the host hands any item to themselves or to another player, so they can try
+    // one out without waiting for it to come up. The item is put on the table as that player's card.
+    if (message.type === "give_item") {
+      if (player.id !== room.hostId || !room.testMatch) { send(socket, { type: "error", message: "Only the host, and only in a Test Match." }); return; }
+      if (room.phase !== "build") { send(socket, { type: "error", message: "Hand out items while everyone is choosing." }); return; }
+      const kind = String(message.item || "");
+      if (!Object.prototype.hasOwnProperty.call(ITEM_WEIGHTS, kind)) { send(socket, { type: "error", message: "No such item." }); return; }
+      const target = message.playerId ? room.players.get(String(message.playerId)) : player;
+      if (!target || target.status === "out") { send(socket, { type: "error", message: "That player is not in this round." }); return; }
+      if (target.trapCount >= TRAPS_PER_ROUND) { send(socket, { type: "error", message: `${target.name} has already used an item this round.` }); return; }
+      // Their own card becomes the item; if they were not holding one, a card is added for them.
+      let slot = target.pickSlot;
+      if (!Number.isInteger(slot) || room.offer[slot] === undefined) { room.offer.push(kind); slot = room.offer.length - 1; }
+      else room.offer[slot] = kind;
+      target.pick = kind; target.pickSlot = slot;
+      target.pencil = kind === "pencil" ? PENCIL_CHARGES : 0;
+      broadcast(room, snapshot(room));                                   // the table changed
+      broadcast(room, { type: "picks", picks: itemPicks(room) });
+      if (kind === "pencil") broadcast(room, { type: "pencil_taken", playerId: target.id, charges: PENCIL_CHARGES });
+      broadcast(room, { type: "notice", message: target === player ? `${player.name} took the ${kind}.` : `${player.name} gave ${target.name} the ${kind}.` });
+      maybeStartRun(room);
+      return;
+    }
     // Test Match only: the host jumps straight to another course, fresh round, no traps.
     if (message.type === "test_course") {
       const level = Number(message.level);
@@ -904,8 +927,9 @@ webSocketServer.on("connection", (socket) => {
       else if (room.phase !== "lobby") problem = "The match has already started.";
       else if (room.players.size < 2 && !message.test) problem = "You need at least 2 players.";
       if (problem) { send(socket, { type: "error", message: problem }); return; }
-      // A Test Match: the host alone, to try courses and items. Runs start with one player.
-      room.testMatch = room.players.size === 1;
+      // A Test Match: the host trying courses and items, alone or with whoever else is here. Runs
+      // start even with one player, the host can jump between courses, and /item hands out anything.
+      room.testMatch = Boolean(message.test);
       // Anyone who never picked a color gets a random one nobody else has.
       for (const item of room.players.values()) {
         if (item.color !== null) continue;

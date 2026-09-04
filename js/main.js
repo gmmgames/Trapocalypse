@@ -418,9 +418,9 @@ const Game = {
     startMatchButton.classList.toggle("hidden", !isHost || this.players.length < 2);
     document.getElementById("add-courses").classList.toggle("hidden", !isHost || Editor.saved().length === 0);
     document.getElementById("reset-room").classList.toggle("hidden", !isHost);
-    document.getElementById("test-match").classList.toggle("hidden", !isHost || this.players.length !== 1);
+    document.getElementById("test-match").classList.toggle("hidden", !isHost);   // the host can test alone or with others
     if (!isHost) lobbyNote.textContent = "Waiting for the host to start";
-    else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players, or try a Test Match by yourself";
+    else if (this.players.length < 2) lobbyNote.textContent = "Need at least 2 players, or start a Test Match on your own";
     else if (this.players.some((player) => player.color === null)) lobbyNote.textContent = "Waiting for everyone to pick a color";
     else lobbyNote.textContent = "";
     this.refreshSwatches();
@@ -1142,6 +1142,7 @@ const Game = {
     ["/kick NAME", "throw a player out (they can rejoin)"],
     ["/ban NAME [5|30|120|1440|forever]", "throw a player out and keep them out (minutes; default 30)"],
     ["/changemap NAME", "in a Test Match: jump to that course now; otherwise: it becomes the next course"],
+    ["/item NAME [PLAYER]", "in a Test Match: take that item yourself, or hand it to a player"],
     ["/lobby", "end the match and bring everyone back to the lobby"],
     ["/start", "start the match (or a solo Test Match)"],
     ["/maxplayers N", "set the room size (2-30, lobby only)"],
@@ -1178,6 +1179,31 @@ const Game = {
       if (!parts.join("")) { this.chatNote(`Who? Try /${command} NAME.`); return; }
       if (!target) { this.chatNote(`No player called "${parts.join(" ")}" here.`); return; }
       Network.send(command === "kick" ? { type: "kick", playerId: target.id } : { type: "ban", playerId: target.id, minutes });
+      return;
+    }
+    // "/item long spikes" or "/item long spikes Ben": the item name may be several words, so the
+    // longest run of words that names an item wins, and whatever is left over is the player.
+    if (command === "item") {
+      if (!this.testMatch) { this.chatNote("/item only works in a Test Match."); return; }
+      const words = arg.split(/\s+/).filter(Boolean);
+      if (!words.length) { this.chatNote("Which item? Try /item spikes, or /item spikes NAME to hand it to someone."); return; }
+      const kinds = Object.keys(TRAP_NAMES);
+      const plain = (text) => text.toLowerCase().replace(/[^a-z]/g, "").replace(/s$/, "");
+      let kind = null, rest = "";
+      for (let take = words.length; take > 0 && !kind; take--) {
+        const phrase = plain(words.slice(0, take).join(""));
+        kind = kinds.find((k) => plain(k) === phrase || plain(TRAP_NAMES[k]) === phrase);
+        if (kind) rest = words.slice(take).join(" ");
+      }
+      if (!kind) { this.chatNote(`No item called "${arg}". Items: ${kinds.map((k) => TRAP_NAMES[k]).join(", ")}.`); return; }
+      let targetId = null;
+      if (rest) {
+        const low = rest.toLowerCase();
+        const target = this.players.find((item) => item.name.toLowerCase() === low) || this.players.find((item) => item.name.toLowerCase().startsWith(low));
+        if (!target) { this.chatNote(`No player called "${rest}" here.`); return; }
+        targetId = target.id;
+      }
+      Network.send({ type: "give_item", item: kind, playerId: targetId });
       return;
     }
     if (command === "changemap" || command === "map" || command === "course") {
