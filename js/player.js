@@ -16,6 +16,10 @@ const Player = {
   KNOCK_SPEED: 650,    // pixels per second a bumper throws you
   KNOCK_TIME: 0.3,     // seconds a bumper overrides your controls
   CRUMBLE_DELAY: 0.35, // seconds a crumbler holds after you land on it
+  WALL_SLIDE_SPEED: 110, // top falling speed while pressed against a wall
+  WALL_JUMP_VX: 340,   // sideways speed a wall jump throws you away from the wall
+  WALL_JUMP_LOCK: 0.18, // seconds a wall jump overrides your left/right
+  WALL_COYOTE: 0.1,    // seconds you can still wall jump after leaving the wall
 
   // --- the body the physics engine moves ---
   x: 0, y: 0, w: 22, h: 26,
@@ -30,6 +34,12 @@ const Player = {
   _coyote: 0,
   _buffer: 0,
   _shortHop: true,     // whether letting go of jump can cut the current jump short
+  onWall: 0,           // set by the physics: 1 wall on the right, -1 on the left, 0 none
+  _wallCoyote: 0,      // seconds left in which a wall jump is still allowed
+  _wallSide: 0,        // which side that wall was on
+  _wallLock: 0,        // seconds a wall jump still steers us
+  _wallLockVx: 0,
+  sliding: false,      // pressed against a wall and easing down it
   _knock: 0,           // seconds left of bumper knockback
   _knockVx: 0,         // and which way it throws us
 
@@ -64,6 +74,7 @@ const Player = {
     this._buffer = 0;
     this._knock = 0;
     this._dash = 0; this._dashCooldown = 0; this._immune = 0; this.frozen = 0;
+    this.onWall = 0; this._wallCoyote = 0; this._wallLock = 0; this.sliding = false;
     this.setWeapon(this.weapon);   // re-arm whatever we hold (nothing outside a Final Battle)
   },
 
@@ -105,8 +116,9 @@ const Player = {
     const inGlue = Level.hazards.some((h) => h.kind === "glue" && Physics.overlaps(this, h));
     if (inGlue) this.vx *= this.GLUE_FACTOR;
 
-    // A bumper's throw overrides your controls for a moment.
+    // A bumper's throw, or a wall jump, overrides your controls for a moment.
     if (this._knock > 0) { this._knock -= dt; this.vx = this._knockVx; }
+    if (this._wallLock > 0) { this._wallLock -= dt; this.vx = this._wallLockVx; }
 
     // Weapon button: dash, or ask the server to freeze / drop a bomb.
     if (Input.usePressed && this.weapon) {
@@ -125,6 +137,16 @@ const Player = {
       this._buffer = 0;
       this._coyote = 0;
       this._shortHop = true;        // this jump can be cut short by letting go
+      Sfx.jump();
+    } else if (Input.jumpPressed && !this.onGround && this._coyote <= 0 && this._wallCoyote > 0 && !inGlue) {
+      // Wall jump: kick off the wall, away from it and up.
+      this.vy = -this.JUMP_SPEED * 0.9;
+      this._wallLock = this.WALL_JUMP_LOCK;
+      this._wallLockVx = -this._wallSide * this.WALL_JUMP_VX;
+      this.facing = -this._wallSide;
+      this._wallCoyote = 0;
+      this._shortHop = false;   // a tap is enough: the kick is never cut short
+      Dust.spawn(this.x + (this._wallSide > 0 ? this.w : 0), this.y + this.h * 0.7, 6, 8);
       Sfx.jump();
     } else if (Input.jumpPressed && this._boots && !this.onGround && this._coyote <= 0) {
       // Rocket Boots: one more jump from thin air. A tap gives the full boost.
@@ -145,6 +167,19 @@ const Player = {
     if (this._dash > 0) this.gravityScale = 0;   // a dash flies level
     Physics.moveAndCollide(this, solids, dt);
     if (this._dash <= 0) this.gravityScale = this.weapon === "feather" ? 0.55 : 1;
+
+    // Wall slide: in the air, falling, pushing into a wall -> ease down it slowly,
+    // and remember the wall for a moment so a wall jump still works just after letting go.
+    const pushingIntoWall = (this.onWall === 1 && Input.right) || (this.onWall === -1 && Input.left);
+    this.sliding = !this.onGround && this.vy > 0 && pushingIntoWall && !inGlue;
+    if (this.sliding) {
+      this.vy = Math.min(this.vy, this.WALL_SLIDE_SPEED);
+      this._wallCoyote = this.WALL_COYOTE;
+      this._wallSide = this.onWall;
+      Dust.trail("wall", this.x + (this.onWall > 0 ? this.w : 0), this.y + this.h, dt);
+    } else {
+      this._wallCoyote -= dt;
+    }
 
     // Traps are checked after movement so touching a spike is immediately fatal.
     // The deadly box is a little smaller than the drawn tile (a "hitbox" is the

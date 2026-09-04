@@ -33,11 +33,14 @@ const Physics = {
     if (body.vy > this.MAX_FALL) body.vy = this.MAX_FALL;
 
     // --- horizontal ---
+    // onWall remembers which side we are pressed against this frame: 1 = a wall on our
+    // right, -1 = on our left, 0 = none. The runner uses it for wall sliding and jumping.
+    body.onWall = 0;
     body.x += body.vx * dt;
     for (const s of solids) {
       if (this.overlaps(body, s)) {
-        if (body.vx > 0) body.x = s.x - body.w;      // hit a wall on our right
-        else if (body.vx < 0) body.x = s.x + s.w;    // hit a wall on our left
+        if (body.vx > 0) { body.x = s.x - body.w; body.onWall = 1; }      // hit a wall on our right
+        else if (body.vx < 0) { body.x = s.x + s.w; body.onWall = -1; }   // hit a wall on our left
         body.vx = 0;
       }
     }
