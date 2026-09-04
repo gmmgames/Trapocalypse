@@ -403,7 +403,7 @@ const Game = {
     if (this.phase !== "lobby") return;
     const s = this.settings || {};
     lobbyTitle.textContent = `ROOM ${roomCodeInput.value}`;
-    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds  •  Pick ${s.pickSeconds ?? 20}s  •  Place ${s.placeSeconds ?? 20}s\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}  •  Autonomous ${s.autonomousPoints ?? 1}  •  Up to ${s.maxPlayers ?? 30} players  •  ${s.isPublic === false ? "Private room" : "Listed room"}`;
+    lobbySettings.textContent = `Time limit ${s.timeLimit === null ? "Infinite" : s.timeLimit + " s"}  •  First to ${s.pointsToWin}  •  Max ${s.roundCap} rounds  •  Pick ${s.pickSeconds ?? 20}s  •  Place ${s.placeSeconds ?? 20}s\nWin ${s.winPoints}  •  Trap kill ${s.killPoints}  •  Trailblazer ${s.firstPoints}  •  Autonomous ${s.autonomousPoints ?? 3}  •  Up to ${s.maxPlayers ?? 30} players  •  ${s.isPublic === false ? "Private room" : "Listed room"}`;
     lobbyPlayers.replaceChildren(...this.players.map((player) => {
       const item = document.createElement("li");
       const dot = document.createElement("span");
@@ -454,9 +454,9 @@ const Game = {
     const lines = [
       ["Win", POINT_COLORS.Win, GAIN_TEXT.Win, `${s.winPoints} point${s.winPoints === 1 ? "" : "s"}: reaching the flag.`],
       ["Trailblazer", POINT_COLORS.Trailblazer, GAIN_TEXT.Trailblazer, `${s.firstPoints} more: first to the flag when 3 or more run and 2 or more finish.`],
-      ["Autonomous", POINT_COLORS.Autonomous, GAIN_TEXT.Autonomous, `${s.autonomousPoints ?? 1} more: the only one to make it when 2 or more ran.`],
+      ["Autonomous", POINT_COLORS.Autonomous, GAIN_TEXT.Autonomous, `${s.autonomousPoints ?? 3} more: the only one to make it when 2 or more ran.`],
       ["Curiosity", POINT_COLORS.Curiosity, GAIN_TEXT.Curiosity, `${s.killPoints} each: your trap kills someone, paid at the end of the round only if you reach the flag too.`],
-      ["Condolence", POINT_COLORS.Condolence, GAIN_TEXT.Condolence, "3 more: you were at least 15 points behind everyone, and then you finally won a round."],
+      ["Condolence", POINT_COLORS.Condolence, GAIN_TEXT.Condolence, "3 more: bottom of the table on less than half the next player's score, and 16 or more behind them. Winning a round from there pays this."],
       ["Final Battle", POINT_COLORS["Final Battle"], "", "1st Place 5, 2nd Place 3, 3rd Place 1. Nothing else pays in a Final Battle."],
       [this.settings ? "This match" : "Default", "#e8e8ff", "", `first to ${s.pointsToWin} points wins, ${s.roundCap} rounds at most, ${time}.`],
     ];

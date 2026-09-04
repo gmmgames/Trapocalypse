@@ -29,9 +29,19 @@ const FINISH_POINTS = 4;       // points for reaching the flag
 const FIRST_BONUS = 2;         // extra points for the first finisher when 3+ play and 2+ finish
 const KILL_POINTS = 1;         // per kill by your trap, paid at round end only if YOU finished too
 const FINAL_BONUSES = [5, 3, 1];   // Final Battle: 1st, 2nd, 3rd to the flag. Everyone else 0.
-const CONDOLENCE_POINTS = 3;       // "Condolence": a win after trailing everyone by CONDOLENCE_GAP or more
-const CONDOLENCE_GAP = 15;
-const AUTONOMOUS_BONUS = 1;        // "Autonomous": the only one to reach the flag when 2+ ran
+const CONDOLENCE_POINTS = 3;       // "Condolence": a win at last, from the bottom of the table
+const CONDOLENCE_GAP = 16;         // and the player above must be at least this far ahead
+
+// Is this score bottom of the table by enough to earn Condolence points? Two things have to be
+// true of the next score up: this one is less than half of it, and it is CONDOLENCE_GAP or more
+// ahead. Being under half of it also means nobody else can be lower.
+function condolenceEarned(mine, others) {
+  if (!others.length) return false;
+  const nextUp = Math.min(...others);
+  return mine * 2 < nextUp && nextUp - mine >= CONDOLENCE_GAP;
+}
+const AUTONOMOUS_BONUS = 3;        // "Autonomous": the only one to reach the flag when 2+ ran.
+// It pays more than the Trailblazer bonus on purpose: being the only one home is the harder feat.
 const FINAL_BATTLE_MAX_RUNS = 3;   // after this many Final Battles with no decision, the tie is shared
 const NAME_MAX_LENGTH = 26;    // longest player name; the browser's box has the same limit
 const MAX_PLAYERS = 30;        // room size, one color each
@@ -385,8 +395,11 @@ function checkRoundOver(room) {
     player.score += points;
     (gains[player.id] = gains[player.id] || []).push({ label, points });
   };
-  // Trailing everyone else by CONDOLENCE_GAP or more coming into this round?
-  const farBehind = (player) => players.length >= 2 && players.every((other) => other === player || scoresBefore.get(other.id) - scoresBefore.get(player.id) >= CONDOLENCE_GAP);
+  // Bottom of the table by a distance coming into this round?
+  const farBehind = (player) => players.length >= 2 && condolenceEarned(
+    scoresBefore.get(player.id),
+    players.filter((other) => other !== player).map((other) => scoresBefore.get(other.id)),
+  );
   if (room.finalBattle) {
     // Final Battle: only the podium bonuses, in finishing order. Nothing else pays.
     const placeNames = ["1st Place", "2nd Place", "3rd Place"];
@@ -1189,4 +1202,4 @@ webSocketServer.on("connection", (socket) => {
 
 // Started directly, it plays host. Loaded by a test, it just hands over the pieces worth checking.
 if (require.main === module) server.listen(PORT, () => console.log(`Trapocalypse online at http://localhost:${PORT}`));
-module.exports = { pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE, CONDOLENCE_POINTS, CONDOLENCE_GAP, MAX_CARRIED, beltTiles, BELT_MIN_TILES, BELT_MAX_TILES };
+module.exports = { SETTING_DEFAULTS, FINAL_BONUSES, pickEvent, EVENT_WEIGHTS, EVENT_CHANCE, LAVA_EVENT_CHANCE, CONDOLENCE_POINTS, CONDOLENCE_GAP, condolenceEarned, MAX_CARRIED, beltTiles, BELT_MIN_TILES, BELT_MAX_TILES };
