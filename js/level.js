@@ -166,6 +166,86 @@ const LEVELS = [
     start: { x: 1 * TILE, y: 16 * TILE - 26 },
     flag: tileRect(30, 12, 1, 2),
   },
+  {
+    // Wall-jump course. Duck under the floating pillar into a three-tile shaft, bounce wall to
+    // wall up to the roof, then hop the high ledges to a flag near the top of the screen.
+    name: "Chimney Climb",
+    theme: THEMES.dusk,
+    solids: [
+      tileRect(0, 16, 32, 2),
+      tileRect(9, 3, 2, 10), tileRect(14, 3, 2, 13),          // the chimney: floating left pillar, full right pillar
+      tileRect(18, 6, 2, 1), tileRect(22, 5, 3, 1), tileRect(26, 4, 2, 1), tileRect(29, 4, 3, 1),
+    ],
+    hazards: [
+      tileRect(5, 15, 2, 1), tileRect(18, 15, 2, 1), tileRect(24, 15, 2, 1),
+      tileRect(23, 4, 1, 1),
+    ],
+    start: { x: 1 * TILE, y: 16 * TILE - 26 },
+    flag: tileRect(30, 2, 1, 2),
+  },
+  {
+    // Wall-jump course. Thin frozen towers over a bed of icicles: hop top to top, or slide
+    // down a face and kick off it to save yourself.
+    name: "Tower Hop",
+    theme: THEMES.frost,
+    solids: [
+      tileRect(0, 16, 4, 2), tileRect(28, 16, 4, 2),
+      tileRect(6, 10, 1, 6), tileRect(10, 8, 1, 8), tileRect(14, 11, 1, 5),
+      tileRect(18, 8, 1, 8), tileRect(22, 10, 1, 6), tileRect(26, 9, 1, 7),
+    ],
+    hazards: [tileRect(4, 17, 24, 1)],
+    start: { x: 1 * TILE, y: 16 * TILE - 26 },
+    flag: tileRect(30, 14, 1, 2),
+  },
+  {
+    // Wall-jump course. Start high, drop down a well (slide the right-hand wall: the left
+    // side lands on a spike), cross the cave floor, then climb the second well to the flag.
+    name: "The Well",
+    theme: THEMES.grotto,
+    solids: [
+      tileRect(0, 16, 32, 2),
+      tileRect(0, 4, 5, 1), tileRect(4, 5, 1, 10), tileRect(8, 2, 2, 13),    // start ledge and the first well
+      tileRect(20, 2, 2, 11), tileRect(25, 2, 2, 14),                        // the second well (walk in under the left wall)
+      tileRect(28, 3, 4, 1),
+    ],
+    hazards: [
+      tileRect(5, 15, 1, 1), tileRect(11, 15, 2, 1), tileRect(16, 15, 2, 1),
+    ],
+    start: { x: 1 * TILE, y: 4 * TILE - 26 },
+    flag: tileRect(30, 1, 1, 2),
+  },
+  {
+    // Rooftops at night. Wide buildings with deadly alleys between them.
+    name: "Skyline",
+    theme: THEMES.neon,
+    solids: [
+      tileRect(0, 14, 4, 4), tileRect(6, 12, 3, 6), tileRect(11, 15, 3, 3),
+      tileRect(16, 12, 3, 6), tileRect(21, 13, 3, 5), tileRect(26, 10, 6, 8),
+    ],
+    hazards: [
+      tileRect(4, 17, 2, 1), tileRect(9, 17, 2, 1), tileRect(14, 17, 2, 1),
+      tileRect(19, 17, 2, 1), tileRect(24, 17, 2, 1),
+      tileRect(12, 14, 1, 1), tileRect(27, 9, 1, 1),
+    ],
+    start: { x: 1 * TILE, y: 14 * TILE - 26 },
+    flag: tileRect(30, 8, 1, 2),
+  },
+  {
+    // Daylight. Tall hedges to vault (a wall jump makes it easy), thorns on the grass behind them.
+    name: "Hedge Maze",
+    theme: THEMES.meadow,
+    solids: [
+      tileRect(0, 16, 32, 2),
+      tileRect(6, 12, 1, 4), tileRect(12, 12, 1, 4), tileRect(18, 12, 1, 4), tileRect(24, 12, 1, 4),
+      tileRect(8, 10, 2, 1), tileRect(14, 9, 2, 1), tileRect(20, 10, 2, 1), tileRect(27, 8, 3, 1),
+    ],
+    hazards: [
+      tileRect(9, 15, 2, 1), tileRect(15, 15, 2, 1), tileRect(21, 15, 2, 1),
+      tileRect(28, 7, 1, 1),
+    ],
+    start: { x: 1 * TILE, y: 16 * TILE - 26 },
+    flag: tileRect(30, 14, 1, 2),
+  },
 ];
 
 const Level = {
